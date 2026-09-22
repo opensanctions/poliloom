@@ -16,13 +16,12 @@ from sqlalchemy.orm import relationship
 
 from .base import (
     Base,
-    SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
 )
 
 
-class Statement(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
+class Statement(Base, TimestampMixin, UpsertMixin):
     """Cached Wikidata REST statement document for a politician.
 
     The document is stored canonically in its Wikibase REST API shape; the
@@ -75,7 +74,7 @@ class Statement(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "CASE WHEN document #>> '{property,id}' IN ('P19','P27','P39') "
             "THEN document #>> '{value,content}' END"
         ),
-        ForeignKey("wikidata_entities.wikidata_id"),
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         nullable=True,
     )
 
@@ -91,5 +90,4 @@ def active_citizenship_conditions(citizenship, *, politician_id=None, countries=
     conditions.append(citizenship.property_id == "P27")
     if countries:
         conditions.append(citizenship.entity_id.in_(countries))
-    conditions.append(citizenship.deleted_at.is_(None))
     return conditions

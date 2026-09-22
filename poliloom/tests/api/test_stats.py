@@ -342,28 +342,6 @@ class TestStatsCountryCoverage:
         assert entry["total_count"] == 1
         assert entry["decided_count"] == 1
 
-    def test_coverage_ignores_deleted_statements(self, client, db_session, mock_auth):
-        """Soft-deleted citizenship statements count as no citizenship."""
-        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
-        politician = Politician.create_with_entity(
-            db_session, "Q1", make_terms("Ex Citizen")
-        )
-        db_session.flush()
-
-        statement = create_citizenship(db_session, politician, "Q30", "Q1$P27-1")
-        db_session.flush()
-        statement.deleted_at = datetime.now(UTC)
-        db_session.commit()
-
-        response = client.get("/stats", headers=mock_auth)
-        assert response.status_code == 200
-
-        coverage = response.json()["country_coverage"]
-        assert len(coverage) == 1
-        assert coverage[0]["wikidata_id"] is None
-        assert coverage[0]["terms"] is None
-        assert coverage[0]["total_count"] == 1
-
     def test_coverage_ignores_non_citizenship_statements(
         self, client, db_session, mock_auth
     ):

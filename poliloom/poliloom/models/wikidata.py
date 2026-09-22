@@ -22,7 +22,6 @@ from sqlalchemy import (
     text,
     true,
     union_all,
-    update,
 )
 from sqlalchemy import (
     Enum as SQLEnum,
@@ -33,10 +32,10 @@ from sqlalchemy.orm import Session, declared_attr, relationship
 from poliloom import search
 from poliloom.wikidata.terms import resolve_label
 
+from .action import Action, ActionKind
 from .base import (
     Base,
     RelationType,
-    SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
 )
@@ -51,7 +50,9 @@ class WikidataEntityMixin:
     @declared_attr
     def wikidata_id(cls):
         return Column(
-            String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+            String,
+            ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
+            primary_key=True,
         )
 
     @declared_attr
@@ -348,7 +349,7 @@ class WikidataEntityMixin:
         Returns:
             Dict with preview statistics:
             - 'entities_removed': Number of entity records that would be deleted
-            - 'statements_deleted': Number of statements that would be soft-deleted
+            - 'statements_deleted': Number of statements that would be deleted
             - 'statements_total': Total statements of this property type
             - 'total_entities': Total entities before cleanup
         """
@@ -385,7 +386,6 @@ class WikidataEntityMixin:
                     and_(
                         Statement.entity_id.in_(select(outside_subquery)),
                         Statement.property_id == property_id,
-                        Statement.deleted_at.is_(None),
                     )
                 )
             ).scalar()
@@ -393,12 +393,7 @@ class WikidataEntityMixin:
             stats["statements_total"] = session.execute(
                 select(func.count())
                 .select_from(Statement)
-                .where(
-                    and_(
-                        Statement.property_id == property_id,
-                        Statement.deleted_at.is_(None),
-                    )
-                )
+                .where(Statement.property_id == property_id)
             ).scalar()
 
         return stats
@@ -410,13 +405,15 @@ class WikidataEntityMixin:
     ) -> dict[str, int]:
         """Remove entities outside the configured hierarchy.
 
-        Soft-deletes statements referencing these entities (if applicable),
-        then hard-deletes the entity records and removes them from search index.
+        Hard-deletes statements referencing these entities (pending edit
+        actions targeting them are deleted first; decided actions keep their
+        payload with statement_id nulled by the foreign key), then hard-deletes
+        the entity records and removes them from the search index.
 
         Returns:
             Dict with cleanup statistics:
             - 'entities_removed': Number of entity records deleted
-            - 'statements_deleted': Number of statements soft-deleted
+            - 'statements_deleted': Number of statements deleted
             - 'total_entities': Total entities before cleanup
         """
         root_ids = cls._hierarchy_roots
@@ -437,18 +434,22 @@ class WikidataEntityMixin:
             root_ids, ignore_ids or None
         )
 
-        # Soft-delete statements if this entity type has associated statements
+        # Hard-delete statements if this entity type has associated statements
         if property_id:
-            statements_deleted = session.execute(
-                update(Statement)
-                .where(
-                    and_(
-                        Statement.entity_id.in_(select(outside_subquery)),
-                        Statement.property_id == property_id,
-                        Statement.deleted_at.is_(None),
-                    )
+            doomed_statements = select(Statement.id).where(
+                Statement.entity_id.in_(select(outside_subquery)),
+                Statement.property_id == property_id,
+            )
+            # Pending edits can never apply once their target statement is gone
+            session.execute(
+                delete(Action).where(
+                    Action.is_accepted.is_(None),
+                    Action.kind == ActionKind.EDIT_STATEMENT,
+                    Action.statement_id.in_(doomed_statements),
                 )
-                .values(deleted_at=func.now())
+            )
+            statements_deleted = session.execute(
+                delete(Statement).where(Statement.id.in_(doomed_statements))
             ).rowcount
             stats["statements_deleted"] = statements_deleted
 
@@ -469,7 +470,7 @@ class WikidataEntityMixin:
         return stats
 
 
-class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
+class WikidataEntity(Base, TimestampMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
 
     __tablename__ = "wikidata_entities"
@@ -627,7 +628,6 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         Creates a query that returns all searchable entities with their
         aggregated types and search terms. Label and alias values from the
         JSONB term maps both feed search (aliases are never display names).
-        Only includes non-deleted entities.
 
         Returns:
             SQLAlchemy select query with columns: wikidata_id, types, labels
@@ -696,12 +696,11 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                 term_values,
                 term_values.c.wikidata_id == entity_unions.c.wikidata_id,
             )
-            .where(cls.deleted_at.is_(None))
             .group_by(entity_unions.c.wikidata_id)
         )
 
 
-class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
+class WikidataRelation(Base, TimestampMixin, UpsertMixin):
     """Wikidata relationship between entities."""
 
     __tablename__ = "wikidata_relations"
@@ -909,9 +908,15 @@ class CurrentImportEntity(Base):
         previous_dump_timestamp: datetime,
     ) -> int:
         """
-        Soft-delete entities using two-dump validation strategy.
+        Hard-delete entities using two-dump validation strategy.
         Only deletes entities missing from current dump AND older than previous dump.
         This prevents race conditions from incorrectly deleting recently added entities.
+
+        Referencing rows (politicians and their statements/actions/links, entity
+        subclass rows, relations, source_languages, statements/actions pointing at
+        the entity) cascade via foreign keys. Pending edit actions whose target
+        statement only dies through the cascade are deleted first, since a pending
+        edit can never apply once its target is gone.
 
         Also removes deleted entities from the search index.
 
@@ -920,17 +925,34 @@ class CurrentImportEntity(Base):
             previous_dump_timestamp: Last modified timestamp of the previous dump.
 
         Returns:
-            Number of entities that were soft-deleted
+            Number of entities that were deleted
         """
         # Only delete if: NOT in current dump AND older than previous dump
+        session.execute(
+            text(
+                """
+            DELETE FROM actions
+            WHERE is_accepted IS NULL
+            AND kind = 'EDIT_STATEMENT'
+            AND statement_id IN (
+                SELECT statements.id FROM statements
+                WHERE statements.entity_id IN (
+                    SELECT wikidata_id FROM wikidata_entities
+                    WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
+                    AND updated_at <= :previous_dump_timestamp
+                )
+            )
+        """
+            ),
+            {"previous_dump_timestamp": previous_dump_timestamp},
+        )
+
         deleted_result = session.execute(
             text(
                 """
-            UPDATE wikidata_entities
-            SET deleted_at = NOW()
+            DELETE FROM wikidata_entities
             WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
             AND updated_at <= :previous_dump_timestamp
-            AND deleted_at IS NULL
             RETURNING wikidata_id
         """
             ),
@@ -963,26 +985,45 @@ class CurrentImportStatement(Base):
         cls, session: Session, previous_dump_timestamp: datetime
     ) -> dict:
         """
-        Soft-delete statements using two-dump validation strategy.
+        Hard-delete statements and relations using two-dump validation strategy.
         Only deletes statements missing from current dump AND older than previous dump.
         This prevents race conditions from incorrectly deleting recently added statements.
+
+        Pending edit actions targeting doomed statements are deleted first, since
+        a pending edit can never apply once its target statement is gone; decided
+        actions keep their payload with statement_id nulled by the foreign key.
 
         Args:
             session: Database session
             previous_dump_timestamp: Last modified timestamp of the previous dump.
 
         Returns:
-            dict: Counts of statements that were soft-deleted
+            dict: Counts of statements and relations that were deleted
         """
+        # A pending edit can never apply once its target statement is gone
+        session.execute(
+            text(
+                """
+            DELETE FROM actions
+            WHERE is_accepted IS NULL
+            AND kind = 'EDIT_STATEMENT'
+            AND statement_id IN (
+                SELECT id FROM statements
+                WHERE wikidata_statement_id NOT IN (SELECT statement_id FROM current_import_statements)
+                AND updated_at <= :previous_dump_timestamp
+            )
+        """
+            ),
+            {"previous_dump_timestamp": previous_dump_timestamp},
+        )
+
         # Only delete statements if: NOT in current dump AND older than previous dump
         statements_deleted_result = session.execute(
             text(
                 """
-            UPDATE statements
-            SET deleted_at = NOW()
+            DELETE FROM statements
             WHERE wikidata_statement_id NOT IN (SELECT statement_id FROM current_import_statements)
             AND updated_at <= :previous_dump_timestamp
-            AND deleted_at IS NULL
         """
             ),
             {"previous_dump_timestamp": previous_dump_timestamp},
@@ -992,19 +1033,17 @@ class CurrentImportStatement(Base):
         relations_deleted_result = session.execute(
             text(
                 """
-            UPDATE wikidata_relations
-            SET deleted_at = NOW()
+            DELETE FROM wikidata_relations
             WHERE statement_id NOT IN (SELECT statement_id FROM current_import_statements)
             AND updated_at <= :previous_dump_timestamp
-            AND deleted_at IS NULL
         """
             ),
             {"previous_dump_timestamp": previous_dump_timestamp},
         )
 
         return {
-            "statements_marked_deleted": statements_deleted_result.rowcount,
-            "relations_marked_deleted": relations_deleted_result.rowcount,
+            "statements_deleted": statements_deleted_result.rowcount,
+            "relations_deleted": relations_deleted_result.rowcount,
         }
 
     @classmethod

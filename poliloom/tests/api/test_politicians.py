@@ -357,33 +357,6 @@ class TestGetPoliticianStatements:
             "en": "Test Position"
         }
 
-    def test_soft_deleted_statements_excluded(
-        self, client, mock_auth, db_session, politician_with_pending_actions
-    ):
-        deleted = Statement(
-            politician_id=politician_with_pending_actions.id,
-            document=birth_date_statement("Q123456$death-1"),
-        )
-        deleted.deleted_at = datetime.now(UTC)
-        db_session.add(deleted)
-        db_session.flush()
-
-        data = client.get(
-            "/politicians/Q123456?languages=Q1860", headers=mock_auth
-        ).json()
-        assert "Q123456$death-1" not in {
-            s["document"]["id"] for s in data["statements"]
-        }
-
-    def test_excludes_politicians_with_soft_deleted_wikidata_entity(
-        self, client, mock_auth, db_session, sample_politician
-    ):
-        sample_politician.wikidata_entity.soft_delete()
-        db_session.flush()
-
-        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
-        assert response.status_code == 404
-
 
 class TestGetPoliticianActions:
     """Action (review queue) shape and visibility in GET /politicians/{qid}."""

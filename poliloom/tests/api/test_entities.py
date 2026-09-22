@@ -1,7 +1,5 @@
 """Tests for the entities API endpoints (languages, countries, entity search)."""
 
-from datetime import UTC, datetime
-
 import pytest
 
 from poliloom.models import Politician, Statement
@@ -169,25 +167,6 @@ class TestGetLanguages:
         english_index = languages.index(english)
         assert german_index < english_index
 
-    def test_languages_filters_soft_deleted(
-        self,
-        client,
-        mock_auth,
-        sample_language,
-        db_session,
-    ):
-        """Soft-deleted languages should not appear in results."""
-        sample_language.wikidata_entity.deleted_at = datetime.now(UTC)
-        db_session.flush()
-
-        response = client.get("/languages", headers=mock_auth)
-        assert response.status_code == 200
-
-        languages = response.json()
-
-        # Sample language should not be in results
-        assert not any(lang["wikidata_id"] == "Q1860" for lang in languages)
-
     def test_languages_requires_authentication(self, client):
         """Endpoint should require authentication."""
         response = client.get("/languages")
@@ -274,22 +253,6 @@ class TestGetCountries:
         assert country_counts["Q183"] == 2  # Germany
         assert country_counts["Q142"] == 1  # France
 
-    def test_countries_ignore_deleted_statements(
-        self, client, mock_auth, db_session, sample_country, sample_politician
-    ):
-        """Soft-deleted P27 statements should not count as citizenships."""
-        statement = citizenship_statement(sample_politician, sample_country, "S1")
-        db_session.add(statement)
-        db_session.flush()
-        statement.deleted_at = datetime.now(UTC)
-        db_session.flush()
-
-        response = client.get("/countries", headers=mock_auth)
-        assert response.status_code == 200
-
-        countries = response.json()
-        assert not any(ctry["wikidata_id"] == "Q30" for ctry in countries)
-
     def test_countries_ordered_by_citizenship_count_desc(
         self,
         client,
@@ -332,24 +295,6 @@ class TestGetCountries:
         germany_index = countries.index(germany)
         us_index = countries.index(us)
         assert germany_index < us_index
-
-    def test_countries_filters_soft_deleted(
-        self,
-        client,
-        mock_auth,
-        sample_country,
-        db_session,
-    ):
-        """Soft-deleted countries should not appear in results."""
-        sample_country.wikidata_entity.deleted_at = datetime.now(UTC)
-        db_session.flush()
-
-        response = client.get("/countries", headers=mock_auth)
-        assert response.status_code == 200
-
-        countries = response.json()
-
-        assert not any(ctry["wikidata_id"] == "Q30" for ctry in countries)
 
     def test_countries_requires_authentication(self, client):
         """Endpoint should require authentication."""
@@ -449,28 +394,6 @@ class TestEntitySearch:
         """Endpoint should require authentication."""
         response = client.get("/entities/search?type=position&q=test")
         assert response.status_code == 401
-
-    def test_filters_soft_deleted(self, client, mock_auth, db_session):
-        """Should filter out soft-deleted entities from search results."""
-        from poliloom.models import Position
-
-        Position.create_with_entity(db_session, "Q1", make_terms("Active Position"))
-        pos2 = Position.create_with_entity(
-            db_session, "Q2", make_terms("Deleted Position")
-        )
-        db_session.flush()
-
-        pos2.wikidata_entity.deleted_at = datetime.now(UTC)
-        db_session.flush()
-
-        response = client.get(
-            "/entities/search?type=position&q=position", headers=mock_auth
-        )
-        assert response.status_code == 200
-
-        results = response.json()
-        assert len(results) == 1
-        assert results[0]["wikidata_id"] == "Q1"
 
     def test_respects_limit(self, client, mock_auth, db_session):
         """Should respect limit parameter."""

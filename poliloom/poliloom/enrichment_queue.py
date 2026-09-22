@@ -39,7 +39,7 @@ def _ranking_order_by(
 
 
 def _join_project_language_path(query, link, project, relation, language):
-    """Join a link through its project to its active language-of-work relation."""
+    """Join a link through its project to its language-of-work relation."""
     return (
         query.join(project, link.wikipedia_project_id == project.wikidata_id)
         .join(
@@ -47,7 +47,6 @@ def _join_project_language_path(query, link, project, relation, language):
             and_(
                 relation.child_entity_id == project.wikidata_id,
                 relation.relation_type == RelationType.LANGUAGE_OF_WORK,
-                relation.deleted_at.is_(None),
             ),
         )
         .join(language, relation.parent_entity_id == language.wikidata_id)
@@ -55,11 +54,10 @@ def _join_project_language_path(query, link, project, relation, language):
 
 
 def _official_language_join_conditions(citizenship, relation):
-    """Return active OFFICIAL_LANGUAGE conditions for a citizenship join."""
+    """Return OFFICIAL_LANGUAGE conditions for a citizenship join."""
     return and_(
         citizenship.entity_id == relation.child_entity_id,
         relation.relation_type == RelationType.OFFICIAL_LANGUAGE,
-        relation.deleted_at.is_(None),
     )
 
 

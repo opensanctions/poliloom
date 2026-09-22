@@ -49,7 +49,7 @@ def add_statement(db_session, politician, document) -> Statement:
 class TestPoliticianStatements:
     """Statement-based context and lookups."""
 
-    def test_get_statements_by_types_filters_type_and_deletion(
+    def test_get_statements_by_types_filters_type(
         self, db_session, sample_politician, sample_position
     ):
         birth = add_statement(
@@ -57,16 +57,14 @@ class TestPoliticianStatements:
             sample_politician,
             statement_document("Q123456$birth-1", "P569", time_content("1970-01-15")),
         )
-        deleted = add_statement(
+        add_statement(
             db_session,
             sample_politician,
             statement_document("Q123456$p39-1", "P39", "Q30185", "wikibase-item"),
         )
-        deleted.soft_delete()
-        db_session.flush()
 
         statements = sample_politician.get_statements_by_types(
-            [PropertyType.BIRTH_DATE, PropertyType.POSITION]
+            [PropertyType.BIRTH_DATE]
         )
 
         assert statements == [birth]
@@ -178,25 +176,10 @@ class TestPoliticianStatements:
 class TestPoliticianQueryBase:
     """Test cases for Politician.query_base method."""
 
-    def test_query_base_returns_non_deleted_politicians(
-        self, db_session, sample_politician
-    ):
-        """Test that query_base returns non-soft-deleted politicians."""
+    def test_query_base_returns_all_politicians(self, db_session, sample_politician):
+        """Test that query_base returns the stored politicians."""
         query = Politician.query_base()
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
         assert result[0].id == sample_politician.id
-
-    def test_query_base_excludes_soft_deleted_politicians(
-        self, db_session, sample_politician
-    ):
-        """Test that query_base excludes soft-deleted politicians."""
-        # Soft-delete the WikidataEntity
-        sample_politician.wikidata_entity.soft_delete()
-        db_session.flush()
-
-        query = Politician.query_base()
-        result = db_session.execute(query).scalars().all()
-
-        assert len(result) == 0

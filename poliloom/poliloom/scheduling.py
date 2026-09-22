@@ -15,7 +15,6 @@ from .enrichment_queue import create_enrichment_sources, enrichment_candidates_q
 from .models import (
     Politician,
     Source,
-    Statement,
 )
 from .review_queue import count_serveable
 from .sse import EnrichmentCompleteEvent, event_bus
@@ -121,9 +120,7 @@ async def process_source_task(source_id, politician_id) -> int:
             .where(Politician.id == politician_id)
             .options(
                 selectinload(Politician.wikidata_entity),
-                selectinload(
-                    Politician.statements.and_(Statement.deleted_at.is_(None))
-                ),
+                selectinload(Politician.statements),
             )
         ).scalar_one()
 

@@ -61,7 +61,6 @@ def mock_find_similar(db_session):
                     WikidataEntity,
                     model_class.wikidata_id == WikidataEntity.wikidata_id,
                 )
-                .filter(WikidataEntity.deleted_at.is_(None))
                 .all()
             )
             matches = []

@@ -73,10 +73,7 @@ async def get_languages(
         )
         .join(
             WikidataRelation,
-            and_(
-                WikidataRelation.parent_entity_id == Language.wikidata_id,
-                WikidataRelation.deleted_at.is_(None),
-            ),
+            WikidataRelation.parent_entity_id == Language.wikidata_id,
         )
         .join(
             WikipediaProject,
@@ -89,7 +86,6 @@ async def get_languages(
             WikipediaLink,
             WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
         )
-        .where(WikidataEntity.deleted_at.is_(None))
         .group_by(
             Language.wikidata_id,
             WikidataEntity.labels,
@@ -153,7 +149,6 @@ async def get_countries(
                 *active_citizenship_conditions(Statement),
             ),
         )
-        .where(WikidataEntity.deleted_at.is_(None))
         .group_by(
             Country.wikidata_id,
             WikidataEntity.labels,
@@ -223,7 +218,6 @@ async def search_entities(
             WikidataEntity,
             model_class.wikidata_id == WikidataEntity.wikidata_id,
         )
-        .where(WikidataEntity.deleted_at.is_(None))
         .where(model_class.wikidata_id.in_(entity_ids))
         .order_by(ordering)
     )

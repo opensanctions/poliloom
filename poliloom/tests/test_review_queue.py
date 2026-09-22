@@ -88,16 +88,11 @@ class TestReviewQueue:
         assert claim.user_id == "user-a"
         assert claim_next(db_session, "user-a", ["Q1860"]) is None
 
-    def test_excludes_decided_actions_and_soft_deleted_entities(
-        self, db_session, sample_politician, sample_source, create_action
+    def test_excludes_decided_actions(
+        self, db_session, sample_politician, create_action
     ):
         create_action(sample_politician, is_accepted=True)
         create_action(sample_politician, is_accepted=False)
-        assert claim_next(db_session, "user", ["Q1860"]) is None
-
-        create_action(sample_politician, sources=[sample_source])
-        sample_politician.wikidata_entity.soft_delete()
-        db_session.flush()
         assert claim_next(db_session, "user", ["Q1860"]) is None
 
     def test_language_filter_and_evidenceless_visibility(

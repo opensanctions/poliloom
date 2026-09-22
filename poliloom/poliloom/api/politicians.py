@@ -20,7 +20,6 @@ from ..models import (
     Politician,
     Source,
     SourceLanguage,
-    Statement,
     WikidataEntity,
 )
 from ..review_queue import (
@@ -286,7 +285,7 @@ async def search_politicians(
         .where(Politician.wikidata_id.in_(entity_ids))
         .order_by(ordering)
         .options(
-            selectinload(Politician.statements.and_(Statement.deleted_at.is_(None))),
+            selectinload(Politician.statements),
             selectinload(Politician.actions.and_(action_filter)).options(
                 selectinload(Action.evidence).selectinload(ActionEvidence.source),
             ),
@@ -337,7 +336,7 @@ async def get_politician(
         Politician.query_base()
         .where(Politician.wikidata_id == qid)
         .options(
-            selectinload(Politician.statements.and_(Statement.deleted_at.is_(None))),
+            selectinload(Politician.statements),
             selectinload(Politician.actions.and_(action_filter)).options(
                 selectinload(Action.evidence)
                 .selectinload(ActionEvidence.source)

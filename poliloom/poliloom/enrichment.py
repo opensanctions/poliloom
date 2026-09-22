@@ -239,14 +239,9 @@ async def _map_single_item(
                 config.entity_class.wikidata_id == WikidataEntity.wikidata_id,
             )
             .filter(config.entity_class.wikidata_id.in_(entity_ids))
-            .filter(WikidataEntity.deleted_at.is_(None))
             .options(
                 selectinload(config.entity_class.wikidata_entity)
-                .selectinload(
-                    WikidataEntity.parent_relations.and_(
-                        WikidataRelation.deleted_at.is_(None)
-                    )
-                )
+                .selectinload(WikidataEntity.parent_relations)
                 .selectinload(WikidataRelation.parent_entity)
             )
             .all()
@@ -678,10 +673,7 @@ def store_extracted_data(
 
         statements = (
             db.query(Statement)
-            .filter(
-                Statement.politician_id == politician.id,
-                Statement.deleted_at.is_(None),
-            )
+            .filter(Statement.politician_id == politician.id)
             .order_by(Statement.wikidata_statement_id)
             .all()
         )

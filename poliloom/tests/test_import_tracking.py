@@ -7,6 +7,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from poliloom.models import (
+    Action,
+    ActionKind,
     CurrentImportEntity,
     CurrentImportStatement,
     DownloadAlreadyCompleteError,
@@ -368,10 +370,14 @@ class TestStatementTracking:
 
 
 class TestCleanupFunctionality:
-    """Test cleanup procedures for soft-deleting missing entities."""
+    """Test cleanup procedures for hard-deleting missing entities."""
 
     def test_cleanup_missing_entities_two_dump_validation(self, db_session: Session):
-        """Test that entities are only deleted when missing from two consecutive dumps."""
+        """Entities missing from two consecutive dumps are hard-deleted.
+
+        Referencing rows go with them: the politician whose wikidata_id is the
+        doomed entity, and statements pointing at it as a value entity.
+        """
         # Create two dump records
         first_dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
         second_dump_timestamp = datetime.now(UTC) - timedelta(hours=1)
@@ -406,6 +412,62 @@ class TestCleanupFunctionality:
             """),
             {"old_timestamp": old_timestamp_naive},
         )
+
+        # A politician lives on doomed Q200; a live politician holds a
+        # position statement pointing at doomed Q200
+        db_session.execute(
+            text("""
+                INSERT INTO politicians (id, wikidata_id)
+                VALUES (gen_random_uuid(), 'Q200')
+            """)
+        )
+        keep_politician = Politician.create_with_entity(
+            db_session, "Q400", make_terms("Keep Politician")
+        )
+        db_session.flush()
+        db_session.execute(
+            text("""
+                INSERT INTO statements (id, politician_id, document, created_at, updated_at)
+                VALUES (
+                    gen_random_uuid(), :politician_id,
+                    CAST(:document AS jsonb), :old_timestamp, :old_timestamp
+                )
+            """),
+            {
+                "politician_id": keep_politician.id,
+                "document": orjson.dumps(
+                    {
+                        "id": "Q400$p39-doomed",
+                        "rank": "normal",
+                        "property": {"id": "P39", "data_type": "wikibase-item"},
+                        "value": {"type": "value", "content": "Q200"},
+                    }
+                ).decode(),
+                "old_timestamp": old_timestamp_naive,
+            },
+        )
+        db_session.flush()
+
+        # Edit actions target the statement that dies with entity Q200
+        doomed_statement = (
+            db_session.query(Statement)
+            .filter_by(wikidata_statement_id="Q400$p39-doomed")
+            .one()
+        )
+        pending_edit = Action(
+            politician_id=keep_politician.id,
+            kind=ActionKind.EDIT_STATEMENT,
+            statement_id=doomed_statement.id,
+            payload={"patch": []},
+        )
+        decided_edit = Action(
+            politician_id=keep_politician.id,
+            kind=ActionKind.EDIT_STATEMENT,
+            statement_id=doomed_statement.id,
+            payload={"patch": []},
+            is_accepted=True,
+        )
+        db_session.add_all([pending_edit, decided_edit])
         db_session.flush()
 
         # Clear tracking table (simulating fresh import)
@@ -430,26 +492,37 @@ class TestCleanupFunctionality:
         # Check results - only entities older than first dump should be deleted
         assert deleted_count == 2  # entity2 and entity3
 
-        # Verify soft-deletion
-        entity1_fresh = (
-            db_session.query(WikidataEntity).filter_by(wikidata_id="Q100").first()
-        )
-        entity2_fresh = (
-            db_session.query(WikidataEntity).filter_by(wikidata_id="Q200").first()
-        )
-        entity3_fresh = (
-            db_session.query(WikidataEntity).filter_by(wikidata_id="Q300").first()
-        )
+        # Doomed entities are gone; the keep politician's entity survives on age
+        remaining = {
+            row[0]
+            for row in db_session.execute(
+                text("SELECT wikidata_id FROM wikidata_entities")
+            )
+        }
+        assert remaining == {"Q100", "Q400"}
 
-        assert (
-            entity1_fresh.deleted_at is None
-        )  # Should not be deleted (in current import)
-        assert (
-            entity2_fresh.deleted_at is not None
-        )  # Should be soft-deleted (old and not in import)
-        assert (
-            entity3_fresh.deleted_at is not None
-        )  # Should be soft-deleted (old and not in import)
+        # The politician on Q200 went with its entity; the keep politician stays
+        remaining_politicians = {
+            row[0]
+            for row in db_session.execute(text("SELECT wikidata_id FROM politicians"))
+        }
+        assert remaining_politicians == {"Q400"}
+
+        # The statement pointing at Q200 as a value entity went with it
+        remaining_statements = {
+            row[0]
+            for row in db_session.execute(
+                text("SELECT wikidata_statement_id FROM statements")
+            )
+        }
+        assert remaining_statements == set()
+
+        # The pending edit died with its target; the decided edit survives
+        # with its target reference nulled
+        db_session.expire_all()
+        actions = db_session.query(Action).order_by(Action.created_at).all()
+        assert [a.id for a in actions] == [decided_edit.id]
+        assert actions[0].statement_id is None
 
     def test_cleanup_with_very_old_cutoff_deletes_nothing(self, db_session: Session):
         """Test that cleanup with very old cutoff timestamp deletes nothing."""
@@ -484,8 +557,8 @@ class TestCleanupFunctionality:
             db_session.query(WikidataEntity).filter_by(wikidata_id="Q200").first()
         )
 
-        assert entity1_fresh.deleted_at is None
-        assert entity2_fresh.deleted_at is None
+        assert entity1_fresh is not None
+        assert entity2_fresh is not None
 
     def test_cleanup_missing_calls_delete_documents(
         self, db_session: Session, mock_search
@@ -547,7 +620,7 @@ class TestCleanupFunctionality:
         """Test statement and relation cleanup with two-dump validation.
 
         Statements missing from the current dump AND older than the previous
-        dump are soft-deleted; tracked statements and statements newer than
+        dump are hard-deleted; tracked statements and statements newer than
         the previous dump are kept.
         """
         # Create two dump records
@@ -616,9 +689,9 @@ class TestCleanupFunctionality:
         )
         db_session.flush()
 
-        # The old untracked statement and relation are soft-deleted
-        assert result["statements_marked_deleted"] == 1
-        assert result["relations_marked_deleted"] == 1
+        # The old untracked statement and relation are deleted
+        assert result["statements_deleted"] == 1
+        assert result["relations_deleted"] == 1
 
         delete_me = (
             db_session.query(Statement)
@@ -641,10 +714,110 @@ class TestCleanupFunctionality:
             .first()
         )
 
-        assert delete_me.deleted_at is not None  # old and missing from dump
-        assert keep_tracked.deleted_at is None  # seen in current import
-        assert keep_recent.deleted_at is None  # newer than previous dump
-        assert relation_fresh.deleted_at is not None  # old and missing from dump
+        assert delete_me is None  # old and missing from dump
+        assert keep_tracked is not None  # seen in current import
+        assert keep_recent is not None  # newer than previous dump
+        assert relation_fresh is None  # old and missing from dump
+
+    def test_cleanup_deletes_pending_edit_actions_with_doomed_statements(
+        self, db_session: Session
+    ):
+        """Pending edit actions die with their target; decided edits keep
+        their payload with statement_id nulled."""
+        politician = Politician.create_with_entity(
+            db_session, "Q610", make_terms("Test Politician")
+        )
+        db_session.flush()
+
+        old_timestamp_naive = (datetime.now(UTC) - timedelta(hours=3)).replace(
+            tzinfo=None
+        )
+        _add_old_statement(
+            db_session, politician.id, "Q610$delete-me", old_timestamp_naive
+        )
+        doomed = (
+            db_session.query(Statement)
+            .filter_by(wikidata_statement_id="Q610$delete-me")
+            .one()
+        )
+        pending_edit = Action(
+            politician_id=politician.id,
+            kind=ActionKind.EDIT_STATEMENT,
+            statement_id=doomed.id,
+            payload={"patch": []},
+        )
+        decided_edit = Action(
+            politician_id=politician.id,
+            kind=ActionKind.EDIT_STATEMENT,
+            statement_id=doomed.id,
+            payload={"patch": []},
+            is_accepted=True,
+        )
+        db_session.add_all([pending_edit, decided_edit])
+        db_session.flush()
+
+        CurrentImportStatement.clear_tracking_table(db_session)
+        db_session.flush()
+
+        result = CurrentImportStatement.cleanup_missing(db_session, datetime.now(UTC))
+        db_session.flush()
+
+        assert result["statements_deleted"] == 1
+
+        # Raw-SQL cleanup bypasses the identity map
+        db_session.expire_all()
+
+        actions = db_session.query(Action).order_by(Action.created_at).all()
+        assert [a.id for a in actions] == [decided_edit.id]
+        assert actions[0].statement_id is None
+
+    def test_reimport_after_cleanup_reinserts_statement(self, db_session: Session):
+        """Regression: a statement deleted by cleanup is re-inserted when it
+        reappears in a later dump (a tombstoned row used to stay deleted forever
+        because the upsert only updated the document)."""
+        politician = Politician.create_with_entity(
+            db_session, "Q620", make_terms("Test Politician")
+        )
+        db_session.flush()
+
+        old_timestamp_naive = (datetime.now(UTC) - timedelta(hours=3)).replace(
+            tzinfo=None
+        )
+        _add_old_statement(
+            db_session, politician.id, "Q620$resurrect", old_timestamp_naive
+        )
+
+        # Statement is missing from the current dump and older than the cutoff
+        CurrentImportStatement.clear_tracking_table(db_session)
+        db_session.flush()
+        result = CurrentImportStatement.cleanup_missing(db_session, datetime.now(UTC))
+        db_session.flush()
+        assert result["statements_deleted"] == 1
+        assert (
+            db_session.query(Statement)
+            .filter_by(wikidata_statement_id="Q620$resurrect")
+            .first()
+            is None
+        )
+
+        # The statement reappears in the next dump
+        Statement.upsert_batch(
+            db_session,
+            [
+                {
+                    "politician_id": politician.id,
+                    "document": _statement_document("Q620$resurrect"),
+                }
+            ],
+        )
+        db_session.flush()
+
+        fresh = (
+            db_session.query(Statement)
+            .filter_by(wikidata_statement_id="Q620$resurrect")
+            .one()
+        )
+        assert fresh.politician_id == politician.id
 
     def test_cleanup_statements_with_very_old_cutoff_deletes_nothing(
         self, db_session: Session
@@ -667,8 +840,8 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # Should delete nothing since statements are newer than cutoff
-        assert result["statements_marked_deleted"] == 0
-        assert result["relations_marked_deleted"] == 0
+        assert result["statements_deleted"] == 0
+        assert result["relations_deleted"] == 0
 
         # Verify no statements were deleted
         statement_fresh = (
@@ -676,30 +849,7 @@ class TestCleanupFunctionality:
             .filter_by(wikidata_statement_id="Q601$test-statement")
             .first()
         )
-        assert statement_fresh.deleted_at is None
-
-    def test_already_soft_deleted_statements_not_affected(self, db_session: Session):
-        """Test that already soft-deleted statements are not counted in cleanup."""
-        politician = Politician.create_with_entity(
-            db_session, "Q602", make_terms("Test Politician")
-        )
-        db_session.flush()
-
-        statement = _add_statement(db_session, politician.id, "Q602$already-deleted")
-        statement.soft_delete()
-        db_session.flush()
-
-        # Don't track it (simulating it wasn't in import)
-        CurrentImportStatement.clear_tracking_table(db_session)
-        db_session.flush()
-
-        # Run cleanup with a future timestamp
-        cutoff_timestamp = datetime.now(UTC)
-        result = CurrentImportStatement.cleanup_missing(db_session, cutoff_timestamp)
-        db_session.flush()
-
-        # Should report 0 deletions since the statement was already soft-deleted
-        assert result["statements_marked_deleted"] == 0
+        assert statement_fresh is not None
 
     def test_clear_tracking_tables(self, db_session: Session):
         """Test that individual tracking tables are cleared properly."""
@@ -729,27 +879,6 @@ class TestCleanupFunctionality:
         # Verify tables are empty
         assert db_session.query(CurrentImportEntity).count() == 0
         assert db_session.query(CurrentImportStatement).count() == 0
-
-    def test_already_soft_deleted_entities_not_affected(self, db_session: Session):
-        """Test that already soft-deleted entities are not counted in cleanup."""
-        # Create entity and immediately soft-delete it
-        entity = WikidataEntity(wikidata_id="Q999")
-        db_session.add(entity)
-        db_session.flush()
-
-        entity.soft_delete()
-        db_session.flush()
-
-        # Don't track it (simulating it wasn't in import)
-        # Run cleanup with a future timestamp (should not delete already deleted entities)
-        cutoff_timestamp = datetime.now(UTC)
-        deleted_count = CurrentImportEntity.cleanup_missing(
-            db_session, cutoff_timestamp
-        )
-        db_session.flush()
-
-        # Should report 0 deletions since entity was already soft-deleted
-        assert deleted_count == 0
 
 
 class TestIntegrationWorkflow:
@@ -849,36 +978,24 @@ class TestIntegrationWorkflow:
 
         # Q_pol$old_stmt was not seen in the current import and predates the
         # first dump; the re-imported and newly imported statements survive
-        assert statement_results["statements_marked_deleted"] == 1
-        assert statement_results["relations_marked_deleted"] == 0
+        assert statement_results["statements_deleted"] == 1
+        assert statement_results["relations_deleted"] == 0
 
-        old_entity_fresh = (
-            db_session.query(WikidataEntity).filter_by(wikidata_id="Q_old").first()
-        )
-        keep_entity_fresh = (
-            db_session.query(WikidataEntity).filter_by(wikidata_id="Q_keep").first()
-        )
-        assert old_entity_fresh.deleted_at is not None
-        assert keep_entity_fresh.deleted_at is None
+        remaining_entities = {
+            row[0]
+            for row in db_session.execute(
+                text("SELECT wikidata_id FROM wikidata_entities")
+            )
+        }
+        assert remaining_entities == {"Q_keep", "Q_pol"}
 
-        old_stmt_fresh = (
-            db_session.query(Statement)
-            .filter_by(wikidata_statement_id="Q_pol$old_stmt")
-            .first()
-        )
-        keep_stmt_fresh = (
-            db_session.query(Statement)
-            .filter_by(wikidata_statement_id="Q_pol$keep_stmt")
-            .first()
-        )
-        import_stmt_fresh = (
-            db_session.query(Statement)
-            .filter_by(wikidata_statement_id="Q_pol$import_stmt")
-            .first()
-        )
-        assert old_stmt_fresh.deleted_at is not None
-        assert keep_stmt_fresh.deleted_at is None
-        assert import_stmt_fresh.deleted_at is None
+        remaining_statements = {
+            row[0]
+            for row in db_session.execute(
+                text("SELECT wikidata_statement_id FROM statements")
+            )
+        }
+        assert remaining_statements == {"Q_pol$keep_stmt", "Q_pol$import_stmt"}
 
         # Step 6: Clear tracking tables (end of import)
         CurrentImportEntity.clear_tracking_table(db_session)
@@ -930,7 +1047,7 @@ class TestIntegrationWorkflow:
         )
         db_session.flush()
 
-        # Verify statement was NOT soft-deleted (it's in the current import)
+        # Verify statement was kept (it's in the current import)
         fresh_statement = (
             db_session.query(Statement)
             .filter_by(wikidata_statement_id="Q_politician_in_dump$in_dump_stmt")
@@ -938,8 +1055,7 @@ class TestIntegrationWorkflow:
         )
 
         assert fresh_statement is not None
-        assert fresh_statement.deleted_at is None  # Should NOT be soft-deleted
-        assert results["statements_marked_deleted"] == 0  # No deletions should occur
+        assert results["statements_deleted"] == 0  # No deletions should occur
 
         # With two-dump validation, we only delete items missing from current dump
         # AND older than previous dump, so statements in current dump are safe

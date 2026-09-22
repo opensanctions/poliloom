@@ -431,7 +431,7 @@ class TestEnrichmentCandidatesQuery:
                 and relation.relation_type == RelationType.LANGUAGE_OF_WORK
             )
         )
-        relation.soft_delete()
+        db_session.delete(relation)
         db_session.flush()
 
         assert db_session.execute(enrichment_candidates_query()).scalars().all() == []
@@ -760,28 +760,6 @@ class TestEnrichmentCandidatesQuery:
         result = db_session.execute(query).scalars().all()
         result_ids = {p.id for p in result}
         assert sample_politician.id in result_ids
-
-    def test_query_excludes_soft_deleted_wikidata_entity(
-        self, db_session, sample_politician, sample_wikipedia_link
-    ):
-        """Test that query excludes politicians with soft-deleted WikidataEntity."""
-
-        # Verify politician appears before soft-delete
-        query = enrichment_candidates_query()
-        result = db_session.execute(query).scalars().all()
-        assert len(result) == 1
-        assert result[0].id == sample_politician.id
-
-        # Soft-delete the WikidataEntity
-        sample_politician.wikidata_entity.soft_delete()
-        db_session.flush()
-
-        # Query again
-        query = enrichment_candidates_query()
-        result = db_session.execute(query).scalars().all()
-
-        # Should return empty because WikidataEntity has been soft-deleted
-        assert len(result) == 0
 
     def test_query_with_non_official_language_wikipedia_link(
         self,

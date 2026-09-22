@@ -62,7 +62,7 @@ class Action(Base, TimestampMixin):
     )
     statement_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("statements.id"),
+        ForeignKey("statements.id", ondelete="SET NULL"),
         nullable=True,
     )  # NULL for pending creates; target statement for edits
     payload = Column(
@@ -75,7 +75,7 @@ class Action(Base, TimestampMixin):
             "AND payload #>> '{statement,property,id}' IN ('P19','P27','P39') "
             "THEN payload #>> '{statement,value,content}' END"
         ),
-        ForeignKey("wikidata_entities.wikidata_id"),
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         nullable=True,
     )
     is_accepted = Column(
@@ -159,6 +159,6 @@ class ActionSkip(Base, TimestampMixin):
     user_id = Column(String, nullable=False, index=True)
     action_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("actions.id"),
+        ForeignKey("actions.id", ondelete="CASCADE"),
         nullable=False,
     )
