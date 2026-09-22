@@ -62,11 +62,9 @@ _PROPERTY_QUERY = sa.text("""
     FROM properties
 """)
 
-_STATEMENT_INSERT = sa.text("""
-    INSERT INTO statements (id, politician_id, document, created_at, updated_at)
-    VALUES (:id, :politician_id, CAST(:document AS jsonb),
-            :created_at, :updated_at)
-""")
+_STATEMENT_COPY = (
+    "COPY statements (id, politician_id, document, created_at, updated_at) FROM STDIN"
+)
 
 _ACTION_INSERT = sa.text("""
     INSERT INTO actions (id, politician_id, kind, statement_id, payload,
@@ -202,6 +200,21 @@ def _require(condition: bool, message: str) -> None:
     """Assert a data-phase invariant."""
     if not condition:
         raise AssertionError(message)
+
+
+def _copy_statements(bind, rows) -> None:
+    """Load one batch of statement rows via COPY on the migration connection.
+
+    COPY joins the migration transaction like any statement on the same
+    DBAPI connection, so it rolls back with the migration on failure.
+    """
+    with (
+        bind.connection.cursor() as cur,
+        cur.copy(_STATEMENT_COPY) as copy,
+    ):
+        copy.set_types(("uuid", "uuid", "jsonb", "timestamptz", "timestamptz"))
+        for row in rows:
+            copy.write_row(row)
 
 
 def _copy_property_data(conn) -> None:
@@ -386,6 +399,14 @@ def _copy_property_data(conn) -> None:
     result = streaming.execute(_PROPERTY_QUERY)
     writing = streaming.execution_options(stream_results=False)
 
+    # Migrated statements are not import-verified, so the access tracker
+    # must not record them; disabling it also removes 2.1M per-row trigger
+    # fires from the bulk load. Transactional DDL, so a failed migration
+    # restores the trigger with everything else.
+    conn.execute(
+        sa.text("ALTER TABLE statements DISABLE TRIGGER track_statement_access")
+    )
+
     processed = 0
     next_progress = _PROGRESS_INTERVAL
     for partition in result.mappings().partitions(_BATCH_SIZE):
@@ -401,13 +422,13 @@ def _copy_property_data(conn) -> None:
                     claim = _claim(row)
                     document = action_api_statement_to_rest(claim)
                     statement_batch.append(
-                        {
-                            "id": row["id"],
-                            "politician_id": row["politician_id"],
-                            "document": json.dumps(document),
-                            "created_at": row["created_at"],
-                            "updated_at": row["updated_at"],
-                        }
+                        (
+                            row["id"],
+                            row["politician_id"],
+                            document,
+                            row["created_at"],
+                            row["updated_at"],
+                        )
                     )
                     counts["statements"] += 1
                     capture_sample(row, claim)
@@ -485,7 +506,7 @@ def _copy_property_data(conn) -> None:
                 counts["eval_superseded_discarded"] += len(evals) - 1
 
             if len(statement_batch) >= _BATCH_SIZE:
-                writing.execute(_STATEMENT_INSERT, statement_batch)
+                _copy_statements(conn, statement_batch)
                 statement_batch.clear()
 
         if processed >= next_progress:
@@ -493,7 +514,11 @@ def _copy_property_data(conn) -> None:
             next_progress += _PROGRESS_INTERVAL
 
     if statement_batch:
-        writing.execute(_STATEMENT_INSERT, statement_batch)
+        _copy_statements(conn, statement_batch)
+
+    conn.execute(
+        sa.text("ALTER TABLE statements ENABLE TRIGGER track_statement_access")
+    )
 
     for start in range(0, len(actions), _BATCH_SIZE):
         writing.execute(_ACTION_INSERT, actions[start : start + _BATCH_SIZE])
