@@ -427,16 +427,17 @@ def _copy_property_data(conn) -> None:
                 )
                 counts["creates_pending_proposals"] += 1
                 counts["eval_on_retained_proposals"] += len(evals)
-            elif latest_eval is None:
-                counts["dropped_props_no_eval_proposals"] += 1
-                counts["dropped_refs_proposals"] += len(refs)
-            elif latest_eval["is_accepted"]:
-                # Failed push: the accept never produced a statement, so the
+            elif has_accepted_eval:
+                # Failed push: an accept never produced a statement, so the
                 # soft-deleted proposal is dropped entirely.
                 counts["dropped_props_failed_push_proposals"] += 1
                 counts["dropped_refs_proposals"] += len(refs)
                 counts["eval_on_dropped_proposals"] += len(evals)
+            elif latest_eval is None:
+                counts["dropped_props_no_eval_proposals"] += 1
+                counts["dropped_refs_proposals"] += len(refs)
             else:
+                # Only reject evals: discarded create decided by the latest.
                 queue_create(
                     row,
                     refs,
