@@ -76,22 +76,22 @@ export interface UserSettings {
   advanced_tutorial_completed: boolean
 }
 
-export interface EvaluationTimeseriesPoint {
+export interface DecisionTimeseriesPoint {
   date: string
   accepted: number
-  rejected: number
+  discarded: number
 }
 
 export interface CountryCoverage {
   wikidata_id: string | null // null for politicians without citizenship
-  name: string
-  evaluated_count: number // enriched + evaluated
+  terms: TermMaps | null // null for politicians without citizenship
+  decided_count: number // politicians with actions decided within cooldown
   enriched_count: number // enriched within cooldown
   total_count: number // all politicians
 }
 
 export interface StatsResponse {
-  evaluations_timeseries: EvaluationTimeseriesPoint[]
+  decisions_timeseries: DecisionTimeseriesPoint[]
   country_coverage: CountryCoverage[] // includes politicians without citizenship as wikidata_id=null
   cooldown_days: number
 }

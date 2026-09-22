@@ -9,7 +9,7 @@ import { MobileGuard } from '@/components/layout/MobileGuard'
 export const metadata: Metadata = {
   title: 'PoliLoom - Verify Political Data',
   description:
-    'Help build accurate, open political data. Evaluate politician information extracted from Wikipedia and government sources before it becomes part of the open knowledge commons.',
+    'Help build accurate, open political data. Review statements extracted from Wikipedia and government sources before they become part of the open knowledge commons.',
   icons: {
     icon: 'https://assets.opensanctions.org/images/ep/favicon-32.png',
     apple: 'https://assets.opensanctions.org/images/ep/logo-icon-color.png',

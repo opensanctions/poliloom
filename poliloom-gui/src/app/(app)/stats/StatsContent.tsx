@@ -5,7 +5,9 @@ import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Footer } from '@/components/ui/Footer'
-import { StatsResponse, EvaluationTimeseriesPoint, CountryCoverage } from '@/types'
+import { StatsResponse, DecisionTimeseriesPoint, CountryCoverage } from '@/types'
+import { best_label } from '@/lib/labels'
+import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 
 function formatDateLabel(dateStr: string): string {
   const date = new Date(dateStr)
@@ -48,12 +50,12 @@ function calculateLabelIndices(dataLength: number, maxLabels: number): number[] 
   return indices
 }
 
-function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
+function DecisionsChart({ data }: { data: DecisionTimeseriesPoint[] }) {
   if (data.length === 0) {
-    return <p className="text-foreground-muted text-center py-8">No evaluation data yet</p>
+    return <p className="text-foreground-muted text-center py-8">No decision data yet</p>
   }
 
-  const maxTotal = Math.max(...data.map((d) => d.accepted + d.rejected), 1)
+  const maxTotal = Math.max(...data.map((d) => d.accepted + d.discarded), 1)
 
   const yAxisMax = Math.ceil(maxTotal / 50) * 50 || 50
 
@@ -101,9 +103,9 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 
       {/* Bars */}
       {data.map((point, index) => {
-        const total = point.accepted + point.rejected
+        const total = point.accepted + point.discarded
         const heightPercent = (total / yAxisMax) * 100
-        const rejectedPercent = total > 0 ? (point.rejected / total) * 100 : 0
+        const discardedPercent = total > 0 ? (point.discarded / total) * 100 : 0
 
         return (
           <div
@@ -125,7 +127,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
               </div>
               <div className="flex items-center gap-2 text-foreground-tertiary">
                 <span className="w-2.5 h-2.5 bg-danger-bright rounded-sm" />
-                <span>{point.rejected} rejected</span>
+                <span>{point.discarded} discarded</span>
               </div>
               {/* Arrow */}
               <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-border" />
@@ -135,7 +137,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
               className="w-full flex flex-col rounded-t-sm overflow-hidden group-hover/chart:opacity-50 group-hover:!opacity-100 transition-opacity"
               style={{ height: `${heightPercent}%` }}
             >
-              <div className="bg-danger-bright" style={{ height: `${rejectedPercent}%` }} />
+              <div className="bg-danger-bright" style={{ height: `${discardedPercent}%` }} />
               <div className="bg-success-bright flex-1" />
             </div>
           </div>
@@ -166,17 +168,16 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
   )
 }
 
-function CoverageBar({ item }: { item: CountryCoverage }) {
-  const evaluatedPercent =
-    item.total_count > 0 ? (item.evaluated_count / item.total_count) * 100 : 0
+function CoverageBar({ item, label }: { item: CountryCoverage; label: string }) {
+  const decidedPercent = item.total_count > 0 ? (item.decided_count / item.total_count) * 100 : 0
   const enrichedPercent = item.total_count > 0 ? (item.enriched_count / item.total_count) * 100 : 0
   const barWidth = enrichedPercent
   const countLabel = `${item.enriched_count} / ${item.total_count}`
-  const percentLabel = `${item.evaluated_count} evaluated (${Math.round(evaluatedPercent)}%), ${item.enriched_count} processed (${Math.round(enrichedPercent)}%)`
+  const percentLabel = `${item.decided_count} decided (${Math.round(decidedPercent)}%), ${item.enriched_count} enriched (${Math.round(enrichedPercent)}%)`
 
   const labels = (
     <>
-      <span className="truncate mr-2 font-medium">{item.name}</span>
+      <span className="truncate mr-2 font-medium">{label}</span>
       <span className="absolute inset-0 flex items-center justify-center font-medium opacity-0 group-hover/bar:opacity-100 transition-opacity">
         {percentLabel}
       </span>
@@ -198,12 +199,12 @@ function CoverageBar({ item }: { item: CountryCoverage }) {
             className={`absolute inset-y-0 left-0 flex overflow-hidden ${barWidth >= 100 ? 'rounded-md' : 'rounded-l-md'}`}
             style={{ width: `${barWidth}%` }}
           >
-            {/* Evaluated segment (indigo) */}
+            {/* Decided segment (indigo) */}
             <div
               className="bg-accent h-full shrink-0"
-              style={{ width: `${(evaluatedPercent / barWidth) * 100}%` }}
+              style={{ width: `${(decidedPercent / barWidth) * 100}%` }}
             />
-            {/* Processed segment (light indigo) */}
+            {/* Enriched segment (light indigo) */}
             <div className="bg-accent-light h-full flex-1" />
 
             {/* White labels (sized to parent width, clipped by bar) */}
@@ -220,31 +221,40 @@ function CoverageBar({ item }: { item: CountryCoverage }) {
   )
 }
 
-type SortOrder = 'name' | 'total' | 'processed' | 'evaluated'
+type SortOrder = 'label' | 'total' | 'enriched' | 'decided'
+
+function coverageLabel(item: CountryCoverage, userLanguageCodes: string[]): string {
+  return best_label(item.terms, userLanguageCodes, item.wikidata_id ?? 'No citizenship')
+}
 
 function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOrder, setSortOrder] = useState<SortOrder>('total')
+  const userLanguageCodes = useUserLanguageCodes()
 
   const filteredAndSortedData = useMemo(() => {
     const filtered = searchQuery
-      ? data.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      ? data.filter((item) =>
+          coverageLabel(item, userLanguageCodes).toLowerCase().includes(searchQuery.toLowerCase()),
+        )
       : data
 
     return [...filtered].sort((a, b) => {
       switch (sortOrder) {
-        case 'name':
-          return a.name.localeCompare(b.name)
-        case 'processed':
+        case 'label':
+          return coverageLabel(a, userLanguageCodes).localeCompare(
+            coverageLabel(b, userLanguageCodes),
+          )
+        case 'enriched':
           return b.enriched_count - a.enriched_count
-        case 'evaluated':
-          return b.evaluated_count - a.evaluated_count
+        case 'decided':
+          return b.decided_count - a.decided_count
         case 'total':
         default:
           return b.total_count - a.total_count
       }
     })
-  }, [data, searchQuery, sortOrder])
+  }, [data, searchQuery, sortOrder, userLanguageCodes])
 
   if (data.length === 0) {
     return <p className="text-foreground-muted text-center py-8">No coverage data yet</p>
@@ -266,9 +276,9 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
           onChange={(value) => setSortOrder(value as SortOrder)}
           options={[
             { value: 'total', label: 'Sort by total politicians' },
-            { value: 'processed', label: 'Sort by processed' },
-            { value: 'evaluated', label: 'Sort by evaluated' },
-            { value: 'name', label: 'Sort alphabetically' },
+            { value: 'enriched', label: 'Sort by enriched' },
+            { value: 'decided', label: 'Sort by decided' },
+            { value: 'label', label: 'Sort alphabetically' },
           ]}
         />
       </div>
@@ -278,7 +288,11 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
       ) : (
         <div className="group/list">
           {filteredAndSortedData.map((item) => (
-            <CoverageBar key={item.wikidata_id ?? 'without-citizenship'} item={item} />
+            <CoverageBar
+              key={item.wikidata_id ?? 'without-citizenship'}
+              item={item}
+              label={coverageLabel(item, userLanguageCodes)}
+            />
           ))}
         </div>
       )}
@@ -293,7 +307,7 @@ export function StatsContent({ stats }: { stats: StatsResponse | null }) {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Community Stats</h1>
           <p className="text-lg text-foreground-tertiary">
-            Track evaluation progress and coverage across countries.
+            Track decision progress and coverage across countries.
           </p>
         </div>
 
@@ -302,24 +316,24 @@ export function StatsContent({ stats }: { stats: StatsResponse | null }) {
         ) : (
           <div className="space-y-6">
             <HeaderedBox
-              title="Evaluations Over Time"
-              description="Community contributions by week"
+              title="Decisions Over Time"
+              description="Community decisions by week"
               icon="⏱️"
               legend={[
                 { color: 'bg-success-bright', label: 'Accepted' },
-                { color: 'bg-danger-bright', label: 'Rejected' },
+                { color: 'bg-danger-bright', label: 'Discarded' },
               ]}
             >
-              <EvaluationsChart data={stats.evaluations_timeseries} />
+              <DecisionsChart data={stats.decisions_timeseries} />
             </HeaderedBox>
 
             <HeaderedBox
               title="Coverage by Country"
-              description={`Politicians that were evaluated in the last ${stats.cooldown_days} days`}
+              description={`Politicians with decisions in the last ${stats.cooldown_days} days`}
               icon="🌍"
               legend={[
-                { color: 'bg-accent', label: 'Evaluated' },
-                { color: 'bg-accent-light', label: 'Processed' },
+                { color: 'bg-accent', label: 'Decided' },
+                { color: 'bg-accent-light', label: 'Enriched' },
               ]}
             >
               <CountryCoverageList data={stats.country_coverage} />

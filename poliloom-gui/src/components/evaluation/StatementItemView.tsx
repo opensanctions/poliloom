@@ -127,7 +127,7 @@ function DecisionButtons({
 }) {
   if (!isSourceVisible) {
     if (decision === null) {
-      return <span className="text-sm text-foreground-muted">View source to evaluate</span>
+      return <span className="text-sm text-foreground-muted">View source to decide</span>
     }
     return (
       <span

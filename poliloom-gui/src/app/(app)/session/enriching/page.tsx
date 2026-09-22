@@ -22,7 +22,7 @@ export default function EnrichingPage() {
     return (
       <CenteredCard emoji="✅" title="All Caught Up!">
         <p className="mb-8">
-          There are no more politicians to evaluate for your current filters. Try adjusting your
+          There are no more politicians to review for your current filters. Try adjusting your
           filters to continue contributing.
         </p>
         <Button href="/" size="large" fullWidth>
