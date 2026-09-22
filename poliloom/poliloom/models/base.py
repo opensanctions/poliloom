@@ -1,6 +1,5 @@
 """Base classes, mixins, and enums for PoliLoom models."""
 
-from datetime import UTC, datetime
 from enum import Enum
 from typing import ClassVar
 
@@ -45,16 +44,6 @@ class TimestampMixin:
         server_default=func.now(),
         nullable=False,
     )
-
-
-class SoftDeleteMixin:
-    """Mixin for adding soft delete functionality."""
-
-    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
-
-    def soft_delete(self):
-        """Mark the entity as deleted by setting the deleted_at timestamp."""
-        self.deleted_at = datetime.now(UTC)
 
 
 class UpsertMixin:

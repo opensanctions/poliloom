@@ -10,7 +10,6 @@ from .base import (
     LanguageCodeMixin,
     PropertyType,
     RelationType,
-    SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
 )
@@ -78,7 +77,6 @@ __all__ = [
     "Position",
     "PropertyType",
     "RelationType",
-    "SoftDeleteMixin",
     # Sources
     "Source",
     "SourceError",

@@ -1,7 +1,5 @@
 """Tests for WikidataEntity model."""
 
-from datetime import UTC
-
 from sqlalchemy.dialects.postgresql import insert
 
 from poliloom.models import RelationType, WikidataEntity, WikidataRelation
@@ -541,11 +539,15 @@ class TestCleanupOutsideHierarchy:
         assert len(remaining) == 1
         assert remaining[0][0] == "Q200"
 
-    def test_soft_deletes_statements_referencing_removed_entities(self, db_session):
-        """Test that statements referencing removed entities are soft-deleted."""
+    def test_deletes_statements_referencing_removed_entities(self, db_session):
+        """Test that statements referencing removed entities are hard-deleted.
+
+        Pending edit actions targeting such statements are deleted with them;
+        decided actions keep their payload with statement_id nulled.
+        """
         from sqlalchemy import text
 
-        from poliloom.models import Politician, Position, Statement
+        from poliloom.models import Action, ActionKind, Politician, Position, Statement
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -582,25 +584,46 @@ class TestCleanupOutsideHierarchy:
         db_session.add_all([stmt_valid, stmt_orphan])
         db_session.flush()
 
+        # A pending and a decided edit action target the doomed statement
+        pending_edit = Action(
+            politician_id=politician.id,
+            kind=ActionKind.EDIT_STATEMENT,
+            statement_id=stmt_orphan.id,
+            payload={"patch": []},
+        )
+        decided_edit = Action(
+            politician_id=politician.id,
+            kind=ActionKind.EDIT_STATEMENT,
+            statement_id=stmt_orphan.id,
+            payload={"patch": []},
+            is_accepted=True,
+        )
+        db_session.add_all([pending_edit, decided_edit])
+        db_session.flush()
+
         # Run cleanup
         stats = Position.cleanup_outside_hierarchy(db_session)
 
-        # One statement should be soft-deleted
+        # One statement should be deleted
         assert stats["statements_deleted"] == 1
 
-        # Check that orphan statement is soft-deleted
-        soft_deleted = db_session.execute(
-            text(
-                "SELECT COUNT(*) FROM statements WHERE entity_id = 'Q300' AND deleted_at IS NOT NULL"
-            )
-        ).scalar()
-        assert soft_deleted == 1
+        # The orphan statement and the pending edit are gone; the decided
+        # edit survives with its target reference nulled
+        remaining = db_session.execute(
+            text("SELECT entity_id FROM statements")
+        ).fetchall()
+        assert remaining == [("Q200",)]
 
-        # Valid statement should not be deleted
-        valid_stmt = db_session.execute(
-            text("SELECT deleted_at FROM statements WHERE entity_id = 'Q200'")
-        ).fetchone()
-        assert valid_stmt[0] is None
+        # Core-expression cleanup bypasses the identity map
+        db_session.expire_all()
+
+        actions = (
+            db_session.query(Action)
+            .filter(Action.kind == ActionKind.EDIT_STATEMENT)
+            .all()
+        )
+        assert [a.id for a in actions] == [decided_edit.id]
+        assert actions[0].statement_id is None
 
     def test_no_hierarchy_config_returns_zero_removed(self, db_session):
         """Test that entity without hierarchy config returns zero removed."""
@@ -1151,27 +1174,6 @@ class TestSearchIndexQuery:
 
         assert "Position" in results_by_id["Q30185"].types
         assert set(results_by_id["Q30185"].labels) == {"Mayor", "Bürgermeister"}
-
-    def test_excludes_soft_deleted_entities(self, db_session):
-        """Test query excludes soft-deleted entities."""
-        from datetime import datetime
-
-        self._create_location(db_session, "Q60", labels=["NYC"])
-        self._create_location(db_session, "Q84", labels=["London"])
-
-        # Soft-delete London
-        db_session.execute(
-            WikidataEntity.__table__.update()
-            .where(WikidataEntity.wikidata_id == "Q84")
-            .values(deleted_at=datetime.now(UTC))
-        )
-        db_session.flush()
-
-        query = WikidataEntity.search_index_query()
-        results = db_session.execute(query).fetchall()
-
-        assert len(results) == 1
-        assert results[0].wikidata_id == "Q60"
 
     def test_excludes_entities_not_in_model_tables(self, db_session):
         """Test query only returns entities that exist in model tables."""

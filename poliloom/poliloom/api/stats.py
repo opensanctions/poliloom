@@ -193,13 +193,10 @@ async def get_stats(
             ).label("decided_count"),
         )
         .select_from(Politician)
-        # Join to non-deleted WikidataEntity for the politician
+        # Join to the politician's WikidataEntity
         .join(
             WikidataEntity,
-            and_(
-                WikidataEntity.wikidata_id == Politician.wikidata_id,
-                WikidataEntity.deleted_at.is_(None),
-            ),
+            WikidataEntity.wikidata_id == Politician.wikidata_id,
         )
         # LEFT JOIN to live Wikidata P27 citizenship statements
         .outerjoin(
@@ -211,10 +208,7 @@ async def get_stats(
         # LEFT JOIN to get country terms (NULL when citizenship is absent)
         .outerjoin(
             country_entity,
-            and_(
-                country_entity.c.wikidata_id == Statement.entity_id,
-                country_entity.c.deleted_at.is_(None),
-            ),
+            country_entity.c.wikidata_id == Statement.entity_id,
         )
         # LEFT JOIN to decided politicians CTE
         .outerjoin(

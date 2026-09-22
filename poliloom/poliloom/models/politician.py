@@ -56,20 +56,22 @@ class Politician(
     )
     # Override wikidata_id from WikidataEntityMixin to not be primary key
     wikidata_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), unique=True, index=True
+        String,
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
     )
     wikidata_id_numeric = Column(Integer, nullable=True, index=True)
 
     def get_statements_by_types(
         self, property_types: list[PropertyType]
     ) -> list["Statement"]:
-        """Get all non-deleted statements of the specified property types."""
+        """Get all statements of the specified property types."""
         property_ids = {property_type.value for property_type in property_types}
         return [
             statement
             for statement in self.statements
-            if statement.deleted_at is None
-            and statement_property_id(statement.document) in property_ids
+            if statement_property_id(statement.document) in property_ids
         ]
 
     def to_xml_context(self, focus_property_types=None) -> str:
@@ -188,16 +190,12 @@ class Politician(
     @classmethod
     def query_base(cls):
         """
-        Build base query for politicians, filtering out soft-deleted entities.
+        Build base query for politicians.
 
         Returns:
             SQLAlchemy select statement for Politician entities
         """
-        return (
-            select(cls)
-            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
-            .where(WikidataEntity.deleted_at.is_(None))
-        )
+        return select(cls)
 
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")

@@ -519,7 +519,7 @@ def dump_import_politicians(file, batch_size):
 
 @main.command("garbage-collect")
 def garbage_collect():
-    """Garbage collect using two-dump validation strategy to safely soft-delete entities and statements."""
+    """Garbage collect using two-dump validation strategy to safely delete entities and statements."""
 
     click.echo("🗑️  Starting garbage collection with two-dump validation...")
 
@@ -564,7 +564,7 @@ def garbage_collect():
             deleted_entity_count = CurrentImportEntity.cleanup_missing(
                 session, previous_dump.last_modified
             )
-            click.echo(f"  • Soft-deleted {deleted_entity_count} entities")
+            click.echo(f"  • Deleted {deleted_entity_count} entities")
 
             # Clean up missing statements
             click.echo("⏳ Cleaning up statements using two-dump validation...")
@@ -572,20 +572,18 @@ def garbage_collect():
                 session, previous_dump.last_modified
             )
             click.echo(
-                f"  • Soft-deleted {statement_counts['statements_marked_deleted']} statements"
+                f"  • Deleted {statement_counts['statements_deleted']} statements"
             )
-            click.echo(
-                f"  • Soft-deleted {statement_counts['relations_marked_deleted']} relations"
-            )
+            click.echo(f"  • Deleted {statement_counts['relations_deleted']} relations")
 
             total_deleted = (
                 deleted_entity_count
-                + statement_counts["statements_marked_deleted"]
-                + statement_counts["relations_marked_deleted"]
+                + statement_counts["statements_deleted"]
+                + statement_counts["relations_deleted"]
             )
 
             click.echo("✅ Garbage collection completed successfully")
-            click.echo(f"  • Total items soft-deleted: {total_deleted}")
+            click.echo(f"  • Total items deleted: {total_deleted}")
 
         except (meilisearch.errors.MeilisearchError, SQLAlchemyError) as e:
             click.echo(f"❌ Error during garbage collection: {e}")
@@ -625,7 +623,7 @@ def clean_entities(dry_run):
 
     Steps performed:
     1. Identify entities outside current hierarchy
-    2. Soft-delete statements referencing removed entities (P39, P19, P27)
+    2. Hard-delete statements referencing removed entities (P39, P19, P27)
     3. Hard-delete entity records from specialized tables
     4. Hard-delete wikidata_entities only referenced by removed entities
     """
@@ -633,7 +631,7 @@ def clean_entities(dry_run):
         click.echo("🔍 DRY RUN MODE - No changes will be made")
     else:
         click.echo(
-            "⚠️  This will soft-delete statements and hard-delete entity records outside the current hierarchy"
+            "⚠️  This will hard-delete statements and entity records outside the current hierarchy"
         )
         if not click.confirm("Do you want to continue?"):
             click.echo("Aborted.")
@@ -670,14 +668,14 @@ def clean_entities(dry_run):
                                 else 0
                             )
                             click.echo(
-                                f"  • [DRY RUN] Would soft-delete {statements}/{statements_total} statements ({pct_statements:.1f}%)"
+                                f"  • [DRY RUN] Would delete {statements}/{statements_total} statements ({pct_statements:.1f}%)"
                             )
                         click.echo(
                             f"  • [DRY RUN] Would hard-delete {removed} {name} records"
                         )
                     else:
                         if statements:
-                            click.echo(f"    → Soft-deleted {statements} statements")
+                            click.echo(f"    → Deleted {statements} statements")
                         click.echo(f"    → Hard-deleted {removed} {name} records")
 
             # Clean orphaned wikidata_entities
