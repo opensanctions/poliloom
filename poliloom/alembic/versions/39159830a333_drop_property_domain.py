@@ -85,6 +85,38 @@ _EVIDENCE_INSERT = sa.text("""
 """)
 
 
+def _qualifier_snak(property_id: str, snak: dict) -> dict:
+    """Rebuild a stored qualifier snak in full Action API shape.
+
+    The old push flow stored WikidataDate.to_wikidata_qualifier() snaks,
+    which omit ``property`` (the map key holds it), and a few early
+    proposals store bare ``{"datavalue": {"value": {time, precision}}}``
+    time snaks; both legacy shapes are reconstructed. Anything else fails
+    in the converter.
+    """
+    if "snaktype" not in snak:
+        value = snak["datavalue"]["value"]
+        return {
+            "property": property_id,
+            "snaktype": "value",
+            "datatype": "time",
+            "datavalue": {
+                "type": "time",
+                "value": {
+                    "time": value["time"],
+                    "precision": value["precision"],
+                    "timezone": 0,
+                    "before": 0,
+                    "after": 0,
+                    "calendarmodel": _CALENDAR_MODEL,
+                },
+            },
+        }
+    if "property" not in snak:
+        return {**snak, "property": property_id}
+    return snak
+
+
 def _claim(row) -> dict:
     """Synthesize the Action API claim a property row was derived from.
 
@@ -129,7 +161,10 @@ def _claim(row) -> dict:
     }
     # SQL NULL and JSON null are both absent; content is object/array.
     if isinstance(row["qualifiers_json"], dict):
-        claim["qualifiers"] = row["qualifiers_json"]
+        claim["qualifiers"] = {
+            pid: [_qualifier_snak(pid, snak) for snak in snaks]
+            for pid, snaks in row["qualifiers_json"].items()
+        }
     if isinstance(row["references_json"], list):
         claim["references"] = row["references_json"]
     return claim
