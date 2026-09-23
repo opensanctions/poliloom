@@ -222,7 +222,7 @@ class TestAuthIntegration:
         assert client_no_db.get("/politicians/next").status_code == 401
         assert (
             client_no_db.patch(
-                "/politicians/Q123456/actions", json={"decisions": []}
+                "/politicians/Q123456/actions", json={"actions": []}
             ).status_code
             == 401
         )
@@ -244,7 +244,7 @@ class TestAuthIntegration:
         # Test patch actions endpoint with auth
         response = client.patch(
             f"/politicians/{sample_politician.wikidata_id}/actions",
-            json={"decisions": []},
+            json={"actions": []},
             headers=mock_auth,
         )
         assert response.status_code == 200
