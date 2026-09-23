@@ -173,12 +173,11 @@ class TestSource:
         assert "content" in p813_ref["value"]
 
         time_value = p813_ref["value"]["content"]
-        assert time_value["time"] == "+2025-11-24T00:00:00Z"
-        assert time_value["precision"] == 11  # Day precision
-        assert time_value["timezone"] == 0
-        assert time_value["before"] == 0
-        assert time_value["after"] == 0
-        assert time_value["calendarmodel"] == "http://www.wikidata.org/entity/Q1985727"
+        assert time_value == {
+            "time": "+2025-11-24T00:00:00Z",
+            "precision": 11,  # Day precision
+            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+        }
 
     def test_create_references_json_with_permanent_url_uses_p4656(
         self, db_session, sample_wikipedia_project

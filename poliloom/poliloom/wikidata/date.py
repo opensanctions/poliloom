@@ -106,42 +106,11 @@ class WikidataDate:
         except ValueError:
             return None
 
-    def to_wikidata_value(self) -> dict[str, Any]:
-        """Convert this WikidataDate to core Wikidata time values.
-
-        Returns:
-            Dict with time, precision, timezone, before, after, and calendarmodel
-        """
-        return {
-            "time": self.time_string,
-            "timezone": 0,
-            "before": 0,
-            "after": 0,
-            "precision": self.precision,
-            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-        }
-
-    def to_wikidata_qualifier(self) -> dict[str, Any]:
-        """Convert this WikidataDate to Wikidata qualifier/reference format.
-
-        Returns:
-            Full Wikidata time structure with datatype, snaktype, and datavalue
-        """
-        return {
-            "datatype": "time",
-            "snaktype": "value",
-            "datavalue": {
-                "type": "time",
-                "value": self.to_wikidata_value(),
-            },
-        }
-
     def to_rest_time_content(self) -> dict[str, Any]:
         """Convert this WikidataDate to the REST API time content shape.
 
-        Statement values in REST documents carry only time, precision, and
-        calendarmodel; to_wikidata_value() keeps timezone/before/after for
-        the Action API.
+        Time values in REST documents carry only time, precision, and
+        calendarmodel.
         """
         return {
             "time": self.time_string,
