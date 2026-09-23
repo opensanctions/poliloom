@@ -4,7 +4,7 @@ import { DecisionCountProvider } from '@/contexts/DecisionCountContext'
 import { NextPoliticianProvider } from '@/contexts/NextPoliticianContext'
 import { FilterProvider } from '@/contexts/FilterContext'
 import { Header } from '@/components/layout/Header'
-import { OmniBox } from '@/components/layout/OmniBox'
+import { SearchBox } from '@/components/layout/SearchBox'
 import { DecisionCountButton } from '@/components/layout/DecisionCountButton'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { AuthButton } from '@/components/layout/AuthButton'
@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <DecisionCountProvider initialCount={decisionCount}>
             <NextPoliticianProvider>
               <Header
-                left={<OmniBox />}
+                left={<SearchBox />}
                 right={
                   <>
                     <DecisionCountButton />

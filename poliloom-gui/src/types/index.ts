@@ -31,17 +31,6 @@ export interface NextPoliticianResponse {
   meta: EnrichmentMetadata
 }
 
-export interface CreatePoliticianRequest {
-  name: string
-}
-
-export interface CreatePoliticianResponse {
-  success: boolean
-  wikidata_id?: string
-  message: string
-  errors: string[]
-}
-
 export interface LanguageResponse {
   wikidata_id: string
   terms: TermMaps
