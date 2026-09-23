@@ -1,15 +1,18 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, ReactNode, Fragment } from 'react'
-import { Politician, SourceResponse } from '@/types'
-import type { Action } from '@/types'
+import {
+  type Action,
+  type Politician,
+  type ReviewSubmitPayload,
+  type SourceResponse,
+} from '@/types'
 import {
   applyDecision,
-  computeSubmitPayload,
+  buildSubmission,
   effectiveDecision,
   groupStatementsIntoSections,
   type LocalDecisions,
-  type ReviewSubmitPayload,
   type StatementItem,
 } from '@/lib/actions'
 import { best_label } from '@/lib/labels'
@@ -142,7 +145,7 @@ export function EvaluationView({
     if (!onSubmit) return
     setIsSubmitting(true)
     try {
-      await onSubmit(computeSubmitPayload(politician.actions, decisions))
+      await onSubmit(buildSubmission(politician.actions, decisions))
       setDecisions({})
     } catch (error) {
       console.error('Submission failed:', error)

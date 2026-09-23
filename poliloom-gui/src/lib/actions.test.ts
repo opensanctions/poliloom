@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyDecision,
-  computeSubmitPayload,
+  buildSubmission,
   describePatch,
   effectiveDecision,
   groupStatementsIntoSections,
@@ -167,31 +167,74 @@ describe('applyDecision', () => {
   })
 })
 
-describe('computeSubmitPayload', () => {
-  it('includes only decisions that differ from the served state', () => {
-    const actions = [
-      pendingAction('a1', null),
-      pendingAction('a2', null),
-      pendingAction('a3', true),
-    ]
+describe('buildSubmission', () => {
+  it('emits decided actions as complete action objects', () => {
+    const created = pendingAction('a1')
+    const edited = editAction('a2', 's1', [
+      { op: 'add', path: '/references/-', value: { parts: [] } },
+    ])
 
-    const payload = computeSubmitPayload(actions, { a1: true, a2: null })
+    const payload = buildSubmission([created, edited], { a1: true, a2: false })
 
-    expect(payload.decisions).toEqual([{ id: 'a1', is_accepted: true }])
+    expect(payload).toEqual({
+      actions: [
+        {
+          id: 'a1',
+          kind: 'CREATE_STATEMENT',
+          statement_id: null,
+          payload: created.payload,
+          is_accepted: true,
+        },
+        {
+          id: 'a2',
+          kind: 'EDIT_STATEMENT',
+          statement_id: 's1',
+          payload: edited.payload,
+          is_accepted: false,
+        },
+      ],
+      skips: [],
+    })
   })
 
-  it('includes a reset to undecided when the backend served a decision', () => {
+  it('emits served decisions when there is no local override', () => {
+    const accepted = pendingAction('a1', true)
+    const discarded = pendingAction('a2', false)
+
+    const payload = buildSubmission([accepted, discarded], {})
+
+    expect(payload.actions).toEqual([
+      {
+        id: 'a1',
+        kind: 'CREATE_STATEMENT',
+        statement_id: null,
+        payload: accepted.payload,
+        is_accepted: true,
+      },
+      {
+        id: 'a2',
+        kind: 'CREATE_STATEMENT',
+        statement_id: null,
+        payload: discarded.payload,
+        is_accepted: false,
+      },
+    ])
+    expect(payload.skips).toEqual([])
+  })
+
+  it('never emits null decisions: actions reset to undecided are skipped', () => {
     const actions = [pendingAction('a1', true)]
 
-    const payload = computeSubmitPayload(actions, { a1: null })
+    const payload = buildSubmission(actions, { a1: null })
 
-    expect(payload.decisions).toEqual([{ id: 'a1', is_accepted: null }])
+    expect(payload.actions).toEqual([])
+    expect(payload.skips).toEqual(['a1'])
   })
 
   it('skips still-undecided actions', () => {
     const actions = [pendingAction('a1', null), pendingAction('a2', null)]
 
-    const payload = computeSubmitPayload(actions, { a1: true })
+    const payload = buildSubmission(actions, { a1: true })
 
     expect(payload.skips).toEqual(['a2'])
   })
@@ -199,27 +242,13 @@ describe('computeSubmitPayload', () => {
   it('does not skip decided actions', () => {
     const actions = [pendingAction('a1', true), pendingAction('a2', null)]
 
-    const payload = computeSubmitPayload(actions, { a2: false })
+    const payload = buildSubmission(actions, { a2: false })
 
     expect(payload.skips).toEqual([])
   })
 
-  it('skips actions toggled back to undecided', () => {
-    const actions = [pendingAction('a1', true)]
-
-    const payload = computeSubmitPayload(actions, { a1: null })
-
-    expect(payload.skips).toEqual(['a1'])
-  })
-
-  it('returns an empty payload when nothing changed', () => {
-    const actions = [pendingAction('a1', true)]
-
-    expect(computeSubmitPayload(actions, {})).toEqual({ decisions: [], skips: [] })
-  })
-
   it('returns an empty payload for no actions', () => {
-    expect(computeSubmitPayload([], { a1: true })).toEqual({ decisions: [], skips: [] })
+    expect(buildSubmission([], { a1: true })).toEqual({ actions: [], skips: [] })
   })
 })
 
