@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from jwt.exceptions import PyJWTError
 
-from poliloom.api.auth import MediaWikiOAuth, User, get_current_user, get_optional_user
+from poliloom.api.auth import MediaWikiOAuth, User, get_current_user
 
 
 class TestMediaWikiOAuth:
@@ -172,38 +172,6 @@ class TestAuthDependencies:
 
         assert exc_info.value.status_code == 401
         assert "Authentication failed" in str(exc_info.value.detail)
-
-    @patch("poliloom.api.auth.get_current_user")
-    async def test_get_optional_user_success(self, mock_get_current_user):
-        """Test optional authentication with valid credentials."""
-        expected_user = User(user_id=12345, jwt_token="jwt_token_here")
-        mock_get_current_user.return_value = expected_user
-
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials="jwt_token_here"
-        )
-
-        user = await get_optional_user(credentials)
-        assert user == expected_user
-
-    async def test_get_optional_user_no_credentials(self):
-        """Test optional authentication without credentials."""
-        user = await get_optional_user(None)
-        assert user is None
-
-    @patch("poliloom.api.auth.get_current_user")
-    async def test_get_optional_user_auth_failure(self, mock_get_current_user):
-        """Test optional authentication with failed credentials."""
-        mock_get_current_user.side_effect = HTTPException(
-            status_code=401, detail="Authentication failed"
-        )
-
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials="invalid_jwt_token"
-        )
-
-        user = await get_optional_user(credentials)
-        assert user is None
 
 
 class TestAuthIntegration:
