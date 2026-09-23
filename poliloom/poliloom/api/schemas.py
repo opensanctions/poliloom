@@ -1,4 +1,4 @@
-"""Pydantic schemas for API responses."""
+"""Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
 from uuid import UUID
@@ -11,6 +11,8 @@ from pydantic import (
     field_serializer,
     field_validator,
 )
+
+from ..models import ActionKind
 
 
 class UUIDBaseModel(BaseModel):
@@ -119,17 +121,20 @@ class NextPoliticianResponse(BaseModel):
     meta: EnrichmentMetadata
 
 
-class ActionDecision(BaseModel):
-    """A single accept/discard decision on a pending action."""
+class SubmittedAction(BaseModel):
+    """A submitted action: an existing pending action or a user-authored new one."""
 
-    id: UUID
+    id: UUID | None = None  # Existing action; None = user-authored new action
+    kind: ActionKind
+    statement_id: UUID | None = None  # Target statement; required for EDIT_STATEMENT
+    payload: dict  # CREATE: {"statement": {...}}; EDIT: {"patch": [...]}
     is_accepted: bool
 
 
 class PatchActionsRequest(BaseModel):
     """Request body for PATCH /politicians/{qid}/actions."""
 
-    decisions: list[ActionDecision]
+    actions: list[SubmittedAction]
     skips: list[UUID] = []  # Action IDs to skip for this user
 
 
