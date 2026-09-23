@@ -3,18 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import '@/test/mocks'
 import { mockFetch, mockUseFilters, defaultFiltersContext } from '@/test/mocks'
 import { useUserLanguageCodes } from './useUserLanguageCodes'
-import type { LanguageResponse } from '@/types'
-
-const language = (
-  wikidata_id: string,
-  wikimedia_code: string | null,
-  label: string,
-): LanguageResponse => ({
-  wikidata_id,
-  terms: { labels: { en: label }, descriptions: {}, aliases: {} },
-  wikimedia_code,
-  sources_count: 0,
-})
+import { language, terms } from '@/test/factories'
 
 describe('useUserLanguageCodes', () => {
   it('maps the selected language QIDs to Wikimedia codes in order', async () => {
@@ -25,7 +14,14 @@ describe('useUserLanguageCodes', () => {
     mockFetch.mockImplementation(() =>
       Promise.resolve({
         ok: true,
-        json: async () => [language('Q1860', 'en', 'English'), language('Q188', 'de', 'German')],
+        json: async () => [
+          language(),
+          language({
+            wikidata_id: 'Q188',
+            wikimedia_code: 'de',
+            terms: terms({ en: 'German' }),
+          }),
+        ],
       } as Response),
     )
 
@@ -44,8 +40,12 @@ describe('useUserLanguageCodes', () => {
       Promise.resolve({
         ok: true,
         json: async () => [
-          language('Q1860', 'en', 'English'),
-          language('Q9999', null, 'No Wikipedia'),
+          language(),
+          language({
+            wikidata_id: 'Q9999',
+            wikimedia_code: null,
+            terms: terms({ en: 'No Wikipedia' }),
+          }),
         ],
       } as Response),
     )
@@ -63,7 +63,7 @@ describe('useUserLanguageCodes', () => {
     mockFetch.mockImplementation(() =>
       Promise.resolve({
         ok: true,
-        json: async () => [language('Q1860', 'en', 'English')],
+        json: async () => [language()],
       } as Response),
     )
 

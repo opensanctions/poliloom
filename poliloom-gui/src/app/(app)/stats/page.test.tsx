@@ -3,6 +3,7 @@ import { screen, render, fireEvent } from '@testing-library/react'
 import '@/test/mocks'
 import { mockFetch, mockUseFilters, defaultFiltersContext } from '@/test/mocks'
 import { StatsContent } from './StatsContent'
+import { language } from '@/test/factories'
 import type { StatsResponse } from '@/types'
 
 const STATS: StatsResponse = {
@@ -75,7 +76,7 @@ describe('StatsContent', () => {
       if (url === '/api/languages') {
         return Promise.resolve({
           ok: true,
-          json: async () => [{ wikidata_id: 'Q9027', wikimedia_code: 'sv' }],
+          json: async () => [language({ wikidata_id: 'Q9027', wikimedia_code: 'sv' })],
         } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => [] } as Response)

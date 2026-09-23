@@ -9,10 +9,13 @@ import {
   defaultNextPolitician,
 } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
+import { language } from '@/test/factories'
 import type {
   Action,
   ActionEvidence,
   JsonPatchOperation,
+  LanguageResponse,
+  PatchActionsResponse,
   Politician,
   RestSnak,
   RestStatement,
@@ -161,7 +164,7 @@ const politician: Politician = {
   ],
 }
 
-function mockApiResponse(body: unknown, ok = true) {
+function mockApiResponse(body: LanguageResponse[] | PatchActionsResponse | Politician, ok = true) {
   return Promise.resolve({ ok, json: async () => body } as Response)
 }
 
@@ -176,14 +179,7 @@ describe('PoliticianEvaluation', () => {
     CSS.highlights.clear()
     mockFetch.mockImplementation((url, options) => {
       if (url === '/api/languages') {
-        return mockApiResponse([
-          {
-            wikidata_id: 'Q1860',
-            terms: terms({ en: 'English' }),
-            wikimedia_code: 'en',
-            sources_count: 1,
-          },
-        ])
+        return mockApiResponse([language({ sources_count: 1 })])
       }
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: true, message: 'OK', errors: [] })
@@ -339,14 +335,7 @@ describe('PoliticianEvaluation', () => {
     const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     mockFetch.mockImplementation((url, options) => {
       if (url === '/api/languages') {
-        return mockApiResponse([
-          {
-            wikidata_id: 'Q1860',
-            terms: terms({ en: 'English' }),
-            wikimedia_code: 'en',
-            sources_count: 1,
-          },
-        ])
+        return mockApiResponse([language({ sources_count: 1 })])
       }
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: false, message: 'Action not claimed', errors: ['boom'] })
@@ -375,14 +364,7 @@ describe('PoliticianEvaluation - no next politician', () => {
     })
     mockFetch.mockImplementation((url, options) => {
       if (url === '/api/languages') {
-        return mockApiResponse([
-          {
-            wikidata_id: 'Q1860',
-            terms: terms({ en: 'English' }),
-            wikimedia_code: 'en',
-            sources_count: 1,
-          },
-        ])
+        return mockApiResponse([language({ sources_count: 1 })])
       }
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: true, message: 'OK', errors: [] })
