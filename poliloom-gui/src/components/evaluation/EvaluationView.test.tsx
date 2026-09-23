@@ -328,7 +328,7 @@ describe('EvaluationView', () => {
         />,
       )
 
-      expect(screen.getByText('Properties')).toBeInTheDocument()
+      expect(screen.getByText('Dates')).toBeInTheDocument()
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
       expect(screen.getByText('January 1, 1980')).toBeInTheDocument()
       expect(screen.getAllByText('Existing data').length).toBe(3)

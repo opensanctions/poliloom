@@ -117,7 +117,7 @@ export function EvaluationView({
   ).length
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
-  const propertiesRef = useRef<HTMLDivElement | null>(null)
+  const statementsRef = useRef<HTMLDivElement | null>(null)
   const quotes = selection?.quotes ?? null
   const { isIframeLoaded, handleIframeLoad, highlightText } = useIframeAutoHighlight(
     iframeRef,
@@ -125,8 +125,8 @@ export function EvaluationView({
   )
 
   useEffect(() => {
-    if (propertiesRef.current) {
-      highlightTextInScope(document, propertiesRef.current, quotes ?? [])
+    if (statementsRef.current) {
+      highlightTextInScope(document, statementsRef.current, quotes ?? [])
     }
 
     if (isIframeLoaded) {
@@ -181,7 +181,7 @@ export function EvaluationView({
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
-      <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
+      <div className="overflow-y-auto min-h-0 p-6" ref={statementsRef}>
         <div className="flex flex-col gap-8">
           <PoliticianHeader
             name={politicianName}
