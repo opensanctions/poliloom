@@ -24,11 +24,8 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 import { best_label } from '@/lib/labels'
-import {
-  groupStatementsIntoSections,
-  type ReviewSubmitPayload,
-  type StatementItem,
-} from '@/lib/actions'
+import type { ReviewSubmitPayload } from '@/types'
+import { groupStatementsIntoSections, type StatementItem } from '@/lib/actions'
 import {
   TutorialStep,
   TutorialReviewStep,
@@ -50,7 +47,7 @@ function checkStep(payload: ReviewSubmitPayload, stepData: TutorialReviewStep): 
   for (const action of stepData.politician.actions) {
     const expected = stepData.expectedDecisions[action.id]
     if (expected === undefined) continue
-    const decision = payload.decisions.find((d) => d.id === action.id)?.is_accepted ?? null
+    const decision = payload.actions.find((a) => a.id === action.id)?.is_accepted ?? null
     if (decision !== expected) mistakes.push(action.id)
   }
 

@@ -2,11 +2,10 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { PatchActionsResponse, Politician, SourceResponse } from '@/types'
+import { PatchActionsResponse, Politician, ReviewSubmitPayload, SourceResponse } from '@/types'
 import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
-import type { ReviewSubmitPayload } from '@/lib/actions'
 import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 import { Button } from '@/components/ui/Button'
 import {

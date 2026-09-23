@@ -274,9 +274,21 @@ describe('PoliticianEvaluation', () => {
       (call) => typeof call[0] === 'string' && call[0] === '/api/politicians/Q987654',
     )!
     expect(JSON.parse(patchCall[1]!.body as string)).toEqual({
-      decisions: [
-        { id: 'action-1', is_accepted: true },
-        { id: 'action-2', is_accepted: false },
+      actions: [
+        {
+          id: 'action-1',
+          kind: 'CREATE_STATEMENT',
+          statement_id: null,
+          payload: politician.actions[0].payload,
+          is_accepted: true,
+        },
+        {
+          id: 'action-2',
+          kind: 'CREATE_STATEMENT',
+          statement_id: null,
+          payload: politician.actions[1].payload,
+          is_accepted: false,
+        },
       ],
       skips: ['action-3'],
     })
@@ -295,7 +307,7 @@ describe('PoliticianEvaluation', () => {
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({
-            decisions: [],
+            actions: [],
             skips: ['action-1', 'action-2', 'action-3'],
           }),
         }),
@@ -401,7 +413,7 @@ describe('PoliticianEvaluation - no next politician', () => {
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({
-            decisions: [],
+            actions: [],
             skips: ['action-1', 'action-2', 'action-3'],
           }),
         }),

@@ -5,7 +5,9 @@ import type {
   RestSnak,
   RestStatement,
   RestValue,
+  ReviewSubmitPayload,
   Statement,
+  SubmittedAction,
 } from '@/types'
 import { parseTimeValue, timeValue, type ParsedTime } from '@/lib/wikidata/dateParser'
 import { compareTimes, parseTimeframe } from '@/lib/wikidata/qualifierParser'
@@ -35,37 +37,31 @@ export function applyDecision(
   return { ...decisions, [action.id]: isAccepted }
 }
 
-export interface ReviewDecision {
-  id: string
-  is_accepted: boolean | null
-}
-
-export interface ReviewSubmitPayload {
-  decisions: ReviewDecision[]
-  skips: string[]
-}
-
 /**
- * Builds the review submission payload: decisions that differ from the served
- * state, plus skips for every still-undecided action.
+ * Builds the review submission payload: every decided action as a complete
+ * submitted action, and every still-undecided action as a skip. Decisions are
+ * never null on the wire — an action reset to undecided is skipped.
  */
-export function computeSubmitPayload(
-  actions: Action[],
-  decisions: LocalDecisions,
-): ReviewSubmitPayload {
-  const changed: ReviewDecision[] = []
+export function buildSubmission(actions: Action[], decisions: LocalDecisions): ReviewSubmitPayload {
+  const submitted: SubmittedAction[] = []
   const skips: string[] = []
 
   for (const action of actions) {
-    if (action.id in decisions && decisions[action.id] !== action.is_accepted) {
-      changed.push({ id: action.id, is_accepted: decisions[action.id] })
-    }
-    if (effectiveDecision(action, decisions) === null) {
+    const decision = effectiveDecision(action, decisions)
+    if (decision === null) {
       skips.push(action.id)
+      continue
     }
+    submitted.push({
+      id: action.id,
+      kind: action.kind,
+      statement_id: action.statement_id,
+      payload: action.payload,
+      is_accepted: decision,
+    })
   }
 
-  return { decisions: changed, skips }
+  return { actions: submitted, skips }
 }
 
 // --- Statement grouping ---

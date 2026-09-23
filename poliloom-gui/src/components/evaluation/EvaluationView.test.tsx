@@ -498,9 +498,21 @@ describe('EvaluationView', () => {
 
       await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
       expect(onSubmit).toHaveBeenCalledWith({
-        decisions: [
-          { id: 'action-1', is_accepted: true },
-          { id: 'action-2', is_accepted: false },
+        actions: [
+          {
+            id: 'action-1',
+            kind: 'CREATE_STATEMENT',
+            statement_id: null,
+            payload: politicianWithDifferentSources.actions[0].payload,
+            is_accepted: true,
+          },
+          {
+            id: 'action-2',
+            kind: 'CREATE_STATEMENT',
+            statement_id: null,
+            payload: politicianWithDifferentSources.actions[1].payload,
+            is_accepted: false,
+          },
         ],
         skips: ['action-3'],
       })
