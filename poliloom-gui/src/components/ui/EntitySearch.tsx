@@ -14,20 +14,13 @@ function entityDescription(entity: SearchEntity): string | undefined {
   return entity.terms.descriptions.en ?? Object.values(entity.terms.descriptions)[0]
 }
 
-class CreateItem {
-  constructor(public name: string) {}
-}
-
 class SelectItem {
   constructor(public entity: SearchEntity) {}
 }
 
-type DropdownItem = CreateItem | SelectItem
-
 export interface EntitySearchProps {
   onSearch: SearchFn
   onSelect: (entity: { wikidata_id: string; name: string }) => void
-  onCreate?: (name: string) => void
   placeholder?: string
   disabled?: boolean
 }
@@ -35,7 +28,6 @@ export interface EntitySearchProps {
 export function EntitySearch({
   onSearch,
   onSelect,
-  onCreate,
   placeholder = 'Search...',
   disabled = false,
 }: EntitySearchProps) {
@@ -91,10 +83,7 @@ export function EntitySearch({
     }
   }, [query, onSearch])
 
-  const items: DropdownItem[] = [
-    ...(onCreate && query.trim() ? [new CreateItem(query.trim())] : []),
-    ...results.map((entity) => new SelectItem(entity)),
-  ]
+  const items: SelectItem[] = results.map((entity) => new SelectItem(entity))
 
   useEffect(() => {
     if (activeIndex >= 0) {
@@ -115,12 +104,8 @@ export function EntitySearch({
     if (value.length === 0) resetDropdown()
   }
 
-  function selectItem(item: DropdownItem) {
-    if (item instanceof SelectItem) {
-      onSelect({ wikidata_id: item.entity.wikidata_id, name: entityName(item.entity) })
-    } else {
-      onCreate!(item.name)
-    }
+  function selectItem(item: SelectItem) {
+    onSelect({ wikidata_id: item.entity.wikidata_id, name: entityName(item.entity) })
     setQuery('')
     resetDropdown()
   }
@@ -183,29 +168,19 @@ export function EntitySearch({
         >
           {items.map((item, i) => (
             <li
-              key={item instanceof CreateItem ? '__create__' : item.entity.wikidata_id}
+              key={item.entity.wikidata_id}
               id={`entity-option-${i}`}
               role="option"
               aria-selected={activeIndex === i}
               onClick={() => selectItem(item)}
               onMouseMove={() => setActiveIndex(i)}
-              className={`px-3 py-2 cursor-pointer ${item instanceof CreateItem ? 'border-b border-border' : ''} ${activeIndex === i ? 'bg-accent-muted' : ''}`}
+              className={`px-3 py-2 cursor-pointer ${activeIndex === i ? 'bg-accent-muted' : ''}`}
             >
-              {item instanceof CreateItem ? (
-                <div className="text-foreground">
-                  Create <strong>&ldquo;{item.name}&rdquo;</strong> in Wikidata
-                </div>
-              ) : (
-                <>
-                  <div className="text-foreground">{entityName(item.entity)}</div>
-                  <div className="text-foreground-muted text-sm">
-                    {entityDescription(item.entity) && (
-                      <span>{entityDescription(item.entity)} · </span>
-                    )}
-                    {item.entity.wikidata_id}
-                  </div>
-                </>
-              )}
+              <div className="text-foreground">{entityName(item.entity)}</div>
+              <div className="text-foreground-muted text-sm">
+                {entityDescription(item.entity) && <span>{entityDescription(item.entity)} · </span>}
+                {item.entity.wikidata_id}
+              </div>
             </li>
           ))}
         </ul>

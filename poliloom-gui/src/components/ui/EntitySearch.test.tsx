@@ -189,27 +189,5 @@ describe('EntitySearch', () => {
 
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     })
-
-    it('navigates create option with arrow keys', async () => {
-      const mockOnCreate = vi.fn()
-
-      render(
-        <EntitySearch
-          onSearch={createMockSearch()}
-          onSelect={mockOnSelect}
-          onCreate={mockOnCreate}
-        />,
-      )
-
-      const input = screen.getByRole('combobox')
-      fireEvent.change(input, { target: { value: 'Ber' } })
-      await waitFor(() => expect(screen.getByText('Berlin')).toBeInTheDocument())
-
-      // First option should be the create option
-      fireEvent.keyDown(input, { key: 'ArrowDown' })
-      fireEvent.keyDown(input, { key: 'Enter' })
-
-      expect(mockOnCreate).toHaveBeenCalledWith('Ber')
-    })
   })
 })
