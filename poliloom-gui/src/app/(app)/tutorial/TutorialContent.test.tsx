@@ -140,7 +140,7 @@ describe('Tutorial Page', () => {
       ).toBeInTheDocument()
       expect(screen.getByText('Jane Doe')).toBeInTheDocument()
       expect(screen.getByText('Political Positions')).toBeInTheDocument()
-      expect(screen.getByText('Properties')).toBeInTheDocument()
+      expect(screen.getByText('Dates')).toBeInTheDocument()
       // Existing Wikidata statement with its timeframe
       expect(
         screen.getByRole('link', { name: 'Member of Springfield Parliament (Q1343573)' }),
@@ -192,7 +192,7 @@ describe('Tutorial Page', () => {
       render(<TutorialContent initialStep={TutorialStep.BirthDateDecisions} />)
 
       expect(screen.getByText('Jane Doe')).toBeInTheDocument()
-      expect(screen.getByText('Properties')).toBeInTheDocument()
+      expect(screen.getByText('Dates')).toBeInTheDocument()
       expect(screen.getByText('March 15, 1975')).toBeInTheDocument()
       expect(screen.getByText('June 8, 1952')).toBeInTheDocument()
     })
@@ -573,7 +573,7 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
-        expect(screen.getByText('Properties')).toBeInTheDocument()
+        expect(screen.getByText('Dates')).toBeInTheDocument()
       })
     })
 

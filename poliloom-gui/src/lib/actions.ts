@@ -216,7 +216,7 @@ export function groupStatementsIntoSections(
       bucket.sort(compareByDate)
     }
     result.push({
-      title: 'Properties',
+      title: 'Dates',
       sectionType: 'date',
       groups: Array.from(dateItems.entries(), ([key, items]) => ({ key, items })),
     })

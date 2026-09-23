@@ -247,7 +247,7 @@ describe('groupStatementsIntoSections', () => {
     )
 
     expect(sections.map((s) => s.title)).toEqual([
-      'Properties',
+      'Dates',
       'Political Positions',
       'Birthplaces',
       'Citizenships',
@@ -358,14 +358,14 @@ describe('groupStatementsIntoSections', () => {
   it('omits empty sections by default', () => {
     const sections = groupStatementsIntoSections([birthDate], [])
 
-    expect(sections.map((s) => s.title)).toEqual(['Properties'])
+    expect(sections.map((s) => s.title)).toEqual(['Dates'])
   })
 
   it('includes empty sections when showEmptySections is true', () => {
     const sections = groupStatementsIntoSections([birthDate], [], { showEmptySections: true })
 
     expect(sections.map((s) => s.title)).toEqual([
-      'Properties',
+      'Dates',
       'Political Positions',
       'Birthplaces',
       'Citizenships',

@@ -202,7 +202,7 @@ describe('PoliticianEvaluation', () => {
   it('renders statements as current Wikidata context', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
-    expect(screen.getByText('Properties')).toBeInTheDocument()
+    expect(screen.getByText('Dates')).toBeInTheDocument()
     expect(screen.getByText('Birth Date')).toBeInTheDocument()
     expect(screen.getByText('January 1, 1970')).toBeInTheDocument()
     expect(screen.getByText('Political Positions')).toBeInTheDocument()
