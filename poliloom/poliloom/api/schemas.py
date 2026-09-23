@@ -147,21 +147,6 @@ class CreateSourceRequest(BaseModel):
     url: str
 
 
-class CreatePoliticianRequest(BaseModel):
-    """Request body for POST /politicians."""
-
-    name: str
-
-
-class CreatePoliticianResponse(BaseModel):
-    """Response for POST /politicians."""
-
-    success: bool
-    wikidata_id: str | None = None
-    message: str
-    errors: list[str] = []
-
-
 class LanguageResponse(BaseModel):
     """Schema for language response."""
 

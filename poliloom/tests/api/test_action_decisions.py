@@ -13,7 +13,6 @@ from poliloom.models import (
     Politician,
 )
 from poliloom.sse import DecisionCountEvent
-from poliloom.wikidata.statement import WikidataApiError
 
 from ..conftest import make_terms
 
@@ -128,7 +127,7 @@ class TestAcceptDecisions:
     def test_apply_exception_appends_error_but_keeps_decision(
         self, mock_apply, client, mock_auth, db_session, claimed_action
     ):
-        mock_apply.side_effect = WikidataApiError("Wikidata API error")
+        mock_apply.side_effect = ValueError("Wikidata API error")
 
         response = decide(
             client,

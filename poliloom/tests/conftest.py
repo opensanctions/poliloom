@@ -1,6 +1,5 @@
 """Test configuration and fixtures for PoliLoom tests."""
 
-import hashlib
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -548,41 +547,3 @@ def mock_auth():
         mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
         mock_get_oauth_handler.return_value = mock_oauth_handler
         yield {"Authorization": "Bearer valid_jwt_token"}
-
-
-@pytest.fixture(autouse=True)
-def mock_wikidata_api():
-    """Mock Wikidata API calls for entity and statement creation.
-
-    This fixture automatically mocks all Wikidata API interactions
-    to avoid real API calls during testing. Applied to all tests automatically.
-
-    Mocks functions in poliloom.wikidata.statement to avoid real API calls.
-    """
-    import uuid
-
-    async def mock_create_entity_fn(label, *args, **kwargs):
-        # Hash the label to get a deterministic but unique QID
-        label_hash = hashlib.md5(label.encode()).hexdigest()
-        qid_number = int(label_hash[:8], 16) % 100000000  # Keep it reasonably sized
-        return f"Q{qid_number}"
-
-    async def mock_create_statement_fn(entity_id, *args, **kwargs):
-        # Generate random UUID for statement ID
-        statement_uuid = str(uuid.uuid4())
-        return f"{entity_id}${statement_uuid}"
-
-    with (
-        patch(
-            "poliloom.wikidata.statement.create_statement",
-            side_effect=mock_create_statement_fn,
-        ) as mock_create_statement,
-        patch(
-            "poliloom.wikidata.statement.create_entity",
-            side_effect=mock_create_entity_fn,
-        ) as mock_create_entity,
-    ):
-        yield {
-            "create_entity": mock_create_entity,
-            "create_statement": mock_create_statement,
-        }

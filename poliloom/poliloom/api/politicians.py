@@ -40,17 +40,10 @@ from ..scheduling import (
 )
 from ..sse import DecisionCountEvent, event_bus
 from ..wikidata.execution import apply_action
-from ..wikidata.statement import (
-    WikidataApiError,
-    create_entity,
-    create_statement,
-)
 from .auth import User, get_current_user
 from .schemas import (
     ActionEvidenceResponse,
     ActionResponse,
-    CreatePoliticianRequest,
-    CreatePoliticianResponse,
     CreateSourceRequest,
     EnrichmentMetadata,
     NextPoliticianResponse,
@@ -151,66 +144,6 @@ def build_politician_response(
 # =============================================================================
 # Endpoints
 # =============================================================================
-
-
-@router.post("", response_model=CreatePoliticianResponse)
-async def create_politician(
-    request: CreatePoliticianRequest,
-    db: Session = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Create a new politician in Wikidata and the local database.
-
-    Creates a Wikidata entity with instance-of-human and occupation-politician
-    base statements, then creates a local database record.
-    """
-    errors = []
-    jwt_token = current_user.jwt_token
-
-    # 1. Create the Wikidata entity (labels/descriptions are sent as en+mul/en)
-    try:
-        wikidata_id = await create_entity(request.name, jwt_token=jwt_token)
-    except (WikidataApiError, httpx2.HTTPError, ValueError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to create Wikidata entity: {e!s}",
-        )
-
-    # 2. Add instance-of: human (P31 → Q5) and occupation: politician (P106 → Q82955)
-    base_statements = [
-        ("P31", {"type": "value", "content": "Q5"}),
-        ("P106", {"type": "value", "content": "Q82955"}),
-    ]
-    for prop_id, value in base_statements:
-        try:
-            await create_statement(wikidata_id, prop_id, value, jwt_token=jwt_token)
-        except (WikidataApiError, httpx2.HTTPError, ValueError) as e:
-            errors.append(f"Failed to add {prop_id} statement: {e!s}")
-
-    # 3. Create the local WikidataEntity and Politician rows
-    wikidata_entity = WikidataEntity(
-        wikidata_id=wikidata_id,
-        labels={"en": request.name, "mul": request.name},
-    )
-    politician = Politician(wikidata_id=wikidata_id)
-    db.add(wikidata_entity)
-    db.add(politician)
-    try:
-        db.commit()
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error creating politician: {e!s}",
-        )
-
-    return CreatePoliticianResponse(
-        success=True,
-        wikidata_id=wikidata_id,
-        message=f"Created politician '{request.name}' ({wikidata_id})",
-        errors=errors,
-    )
 
 
 @router.get("/next", response_model=NextPoliticianResponse)
@@ -488,7 +421,6 @@ async def patch_actions(
             success = await apply_action(db, action, current_user.jwt_token)
         except (
             SQLAlchemyError,
-            WikidataApiError,
             httpx2.HTTPError,
             ValueError,
             KeyError,
