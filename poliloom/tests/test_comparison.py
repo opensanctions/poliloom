@@ -16,7 +16,9 @@ def date_statement(property_id: str, date_string: str) -> dict:
         "property": {"id": property_id},
         "value": {
             "type": "value",
-            "content": WikidataDate.from_date_string(date_string).to_wikidata_value(),
+            "content": WikidataDate.from_date_string(
+                date_string
+            ).to_rest_time_content(),
         },
     }
 
@@ -50,7 +52,9 @@ def time_qualifier(property_id: str, date_string: str) -> dict:
         "property": {"id": property_id},
         "value": {
             "type": "value",
-            "content": WikidataDate.from_date_string(date_string).to_wikidata_value(),
+            "content": WikidataDate.from_date_string(
+                date_string
+            ).to_rest_time_content(),
         },
     }
 

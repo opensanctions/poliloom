@@ -225,7 +225,7 @@ class Source(Base, TimestampMixin):
                     "property": {"id": "P813"},
                     "value": {
                         "type": "value",
-                        "content": wikidata_date.to_wikidata_value(),
+                        "content": wikidata_date.to_rest_time_content(),
                     },
                 }
             )

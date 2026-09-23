@@ -367,14 +367,11 @@ class TestToRestTimeContent:
             "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
         }
 
-    def test_wikidata_value_keeps_action_api_fields(self):
+    def test_rest_content_year_precision(self):
         wd = WikidataDate.from_date_string("2020")
 
-        assert wd.to_wikidata_value() == {
+        assert wd.to_rest_time_content() == {
             "time": "+2020-00-00T00:00:00Z",
-            "timezone": 0,
-            "before": 0,
-            "after": 0,
             "precision": 9,
             "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
         }
