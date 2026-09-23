@@ -254,7 +254,7 @@ describe('groupStatementsIntoSections', () => {
     ])
   })
 
-  it('groups birth and death dates under the Properties section keyed by property', () => {
+  it('groups birth and death dates under the Dates section keyed by property', () => {
     const sections = groupStatementsIntoSections([birthDate, deathDate], [])
 
     expect(sections).toHaveLength(1)
