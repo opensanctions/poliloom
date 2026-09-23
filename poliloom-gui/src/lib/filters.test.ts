@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { getCountries, getLanguages } from '@/lib/api-auth'
+import { country, language, terms } from '@/test/factories'
 
 const mockCookiesGet = vi.fn()
 const mockHeadersGet = vi.fn()
@@ -7,8 +9,8 @@ vi.mock('next/headers', () => ({
   headers: vi.fn(() => Promise.resolve({ get: mockHeadersGet })),
 }))
 
-const mockGetLanguages = vi.fn()
-const mockGetCountries = vi.fn()
+const mockGetLanguages = vi.fn<typeof getLanguages>()
+const mockGetCountries = vi.fn<typeof getCountries>()
 vi.mock('@/lib/api-auth', () => ({
   getLanguages: () => mockGetLanguages(),
   getCountries: () => mockGetCountries(),
@@ -25,8 +27,8 @@ beforeEach(() => {
 
 describe('resolveLanguageQids', () => {
   const languages = [
-    { wikidata_id: 'Q1860', name: 'English', iso_639_1: 'en' },
-    { wikidata_id: 'Q7411', name: 'Dutch', iso_639_1: 'nl' },
+    language(),
+    language({ wikidata_id: 'Q7411', terms: terms({ en: 'Dutch' }), iso_639_1: 'nl' }),
   ]
 
   it('returns valid QIDs from the cookie without autodetecting', async () => {
@@ -66,7 +68,7 @@ describe('getFilterCountryQids', () => {
 
   it('returns [] when cookie is present but empty', async () => {
     mockCookiesGet.mockReturnValue({ value: '' })
-    mockGetCountries.mockResolvedValue([{ wikidata_id: 'Q30', label: 'United States' }])
+    mockGetCountries.mockResolvedValue([country()])
 
     const result = await getFilterCountryQids()
 
@@ -76,9 +78,9 @@ describe('getFilterCountryQids', () => {
   it('returns QIDs that exist in the API', async () => {
     mockCookiesGet.mockReturnValue({ value: 'Q30%2CQ183' })
     mockGetCountries.mockResolvedValue([
-      { wikidata_id: 'Q30', label: 'United States' },
-      { wikidata_id: 'Q183', label: 'Germany' },
-      { wikidata_id: 'Q142', label: 'France' },
+      country(),
+      country({ wikidata_id: 'Q183', terms: terms({ en: 'Germany' }) }),
+      country({ wikidata_id: 'Q142', terms: terms({ en: 'France' }) }),
     ])
 
     const result = await getFilterCountryQids()
@@ -88,7 +90,7 @@ describe('getFilterCountryQids', () => {
 
   it('filters out stale QIDs no longer in the API', async () => {
     mockCookiesGet.mockReturnValue({ value: 'Q30%2CQREMOVED' })
-    mockGetCountries.mockResolvedValue([{ wikidata_id: 'Q30', label: 'United States' }])
+    mockGetCountries.mockResolvedValue([country()])
 
     const result = await getFilterCountryQids()
 
@@ -97,7 +99,7 @@ describe('getFilterCountryQids', () => {
 
   it('returns [] when all QIDs are stale', async () => {
     mockCookiesGet.mockReturnValue({ value: 'QSTALE1%2CQSTALE2' })
-    mockGetCountries.mockResolvedValue([{ wikidata_id: 'Q30', label: 'United States' }])
+    mockGetCountries.mockResolvedValue([country()])
 
     const result = await getFilterCountryQids()
 

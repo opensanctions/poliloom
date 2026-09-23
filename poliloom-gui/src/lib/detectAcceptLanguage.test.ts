@@ -1,30 +1,22 @@
 import { describe, it, expect } from 'vitest'
 import { detectAcceptLanguage } from './detectAcceptLanguage'
+import { language, terms } from '@/test/factories'
 import type { LanguageResponse } from '@/types'
 
-const terms = (labels: Record<string, string>): LanguageResponse['terms'] => ({
-  labels,
-  descriptions: {},
-  aliases: {},
-})
-
-const language = (
-  wikidata_id: string,
-  label: string,
-  codes: { iso_639_1?: string; iso_639_3?: string },
-): LanguageResponse => ({
-  wikidata_id,
-  terms: terms({ en: label }),
-  wikimedia_code: codes.iso_639_1 ?? null,
-  iso_639_1: codes.iso_639_1,
-  iso_639_3: codes.iso_639_3,
-  sources_count: 0,
-})
-
 const CATALOG: LanguageResponse[] = [
-  language('Q1860', 'English', { iso_639_1: 'en', iso_639_3: 'eng' }),
-  language('Q7411', 'Dutch', { iso_639_1: 'nl', iso_639_3: 'nld' }),
-  language('Q188', 'German', { iso_639_1: 'de', iso_639_3: 'deu' }),
+  language(),
+  language({
+    wikidata_id: 'Q7411',
+    terms: terms({ en: 'Dutch' }),
+    iso_639_1: 'nl',
+    iso_639_3: 'nld',
+  }),
+  language({
+    wikidata_id: 'Q188',
+    terms: terms({ en: 'German' }),
+    iso_639_1: 'de',
+    iso_639_3: 'deu',
+  }),
 ]
 
 describe('detectAcceptLanguage', () => {
@@ -51,7 +43,15 @@ describe('detectAcceptLanguage', () => {
   })
 
   it('falls back to ISO 639-3 when 639-1 absent', () => {
-    const catalog: LanguageResponse[] = [language('Q33', 'Finnish', { iso_639_3: 'fin' })]
+    const catalog: LanguageResponse[] = [
+      language({
+        wikidata_id: 'Q33',
+        terms: terms({ en: 'Finnish' }),
+        wikimedia_code: null,
+        iso_639_1: undefined,
+        iso_639_3: 'fin',
+      }),
+    ]
     expect(detectAcceptLanguage('fin-FI', catalog)).toEqual(['Q33'])
   })
 

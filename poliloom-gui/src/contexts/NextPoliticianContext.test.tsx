@@ -142,10 +142,11 @@ describe('NextPoliticianContext', () => {
   it('fetches on enrichment_complete event when no politician is ready', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        wikidata_id: null,
-        meta: { has_enrichable_politicians: false },
-      }),
+      json: async () =>
+        ({
+          wikidata_id: null,
+          meta: { has_enrichable_politicians: false },
+        }) satisfies NextPoliticianResponse,
     } as Response)
 
     const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })

@@ -11,6 +11,7 @@ import {
   mockUseFilters,
 } from '@/test/mocks'
 import { HomeContent } from './HomeContent'
+import { language } from '@/test/factories'
 
 const mockUseSession = vi.fn()
 const mockSignIn = vi.fn()
@@ -68,19 +69,7 @@ describe('Home Page (Filter Selection)', () => {
       languageQids: ['Q1860'],
     })
 
-    render(
-      <HomeContent
-        languages={[
-          {
-            wikidata_id: 'Q1860',
-            terms: { labels: { en: 'English' }, descriptions: {}, aliases: {} },
-            wikimedia_code: 'en',
-            sources_count: 10,
-          },
-        ]}
-        countries={[]}
-      />,
-    )
+    render(<HomeContent languages={[language({ sources_count: 10 })]} countries={[]} />)
 
     const english = screen.getByRole('button', { name: /English/ })
     expect(english).toBeDisabled()

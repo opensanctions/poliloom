@@ -1,20 +1,18 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { EntitySearch } from './EntitySearch'
+import { searchEntity } from '@/test/factories'
 import { SearchFn } from '@/types'
 
 const mockResults = [
-  {
-    wikidata_id: 'Q64',
-    terms: { labels: { en: 'Berlin' }, descriptions: { en: 'capital of Germany' }, aliases: {} },
-  },
-  {
+  searchEntity(),
+  searchEntity({
     wikidata_id: 'Q65',
     terms: {
       labels: { en: 'Los Angeles' },
       descriptions: { en: 'city in California' },
       aliases: {},
     },
-  },
+  }),
 ]
 
 function createMockSearch(results = mockResults): SearchFn {
