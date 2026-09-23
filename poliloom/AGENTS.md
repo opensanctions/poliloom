@@ -26,9 +26,9 @@ Run focused tests while developing, for example `uv run pytest tests/test_review
 
 Preserve these unless the task explicitly changes them:
 
-- Review work is claimed per property with a TTL, not per politician. Users with disjoint language selections may review different properties of the same politician concurrently.
+- Review work is claimed per action with a TTL, not per politician. Users with disjoint language selections may review different actions of the same politician concurrently.
 - Candidate selection and claim creation must remain atomic. The queue uses per-politician row locking to prevent overlapping claims.
-- Language filtering applies to property references; unreferenced properties and references with unknown language remain reviewable according to `review_queue.py`.
+- Language filtering applies to action evidence; actions without evidence and evidence with unknown source language remain reviewable according to `review_queue.py`.
 - On-demand enrichment maintains a floor of one serveable politician for each language/country filter combination.
 - Enrichment freshness is tracked per politician and Wikipedia project and is governed by `ENRICHMENT_COOLDOWN_DAYS`.
 - Entity-linked extraction is intentionally two-stage: extract free-form text, search Meilisearch for candidates, then ask the model to map to a Wikidata entity. This avoids passing unbounded entity enums to the model.

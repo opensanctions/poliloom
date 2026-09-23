@@ -222,7 +222,7 @@ def claim_next(
     return None
 
 
-def claim_visible_properties(
+def claim_visible_actions(
     db: Session,
     user_id: str,
     politician: Politician,

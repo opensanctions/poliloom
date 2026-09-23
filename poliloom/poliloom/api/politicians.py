@@ -25,7 +25,7 @@ from ..models import (
 from ..review_queue import (
     available_to_user,
     claim_next,
-    claim_visible_properties,
+    claim_visible_actions,
     count_serveable,
     get_claim_ttl,
     language_visible,
@@ -243,7 +243,7 @@ async def get_politician(
     """
     Fetch a single politician by Wikidata QID.
 
-    All non-deleted statements are returned as review context; actions are the
+    All statements are returned as review context; actions are the
     pending ones visible to this user (language-visible, not skipped, and
     unclaimed or claimed by them). Creates sources for unclaimed Wikipedia
     projects matching the requested languages, scheduling their background
@@ -288,7 +288,7 @@ async def get_politician(
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    claim_visible_properties(db, user_id, politician, languages)
+    claim_visible_actions(db, user_id, politician, languages)
     new_sources = create_enrichment_sources(politician, db, languages=languages)
 
     response = build_politician_response(politician, db)
