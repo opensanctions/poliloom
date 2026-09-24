@@ -302,11 +302,6 @@ class StorageFactory:
             return cls._local_storage
 
     @classmethod
-    def is_gcs_path(cls, path: str) -> bool:
-        """Check if a path is a GCS path."""
-        return path.startswith("gs://")
-
-    @classmethod
     def download_from_url(cls, url: str, destination: str) -> None:
         """Download a file from a URL (HTTP/HTTPS) to a destination.
 
