@@ -25,7 +25,7 @@ import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 import { best_label } from '@/lib/labels'
 import type { ReviewSubmitPayload } from '@/types'
-import { groupStatementsIntoSections, type StatementItem } from '@/lib/actions'
+import { groupStatementsIntoSections } from '@/lib/actions'
 import {
   TutorialStep,
   TutorialReviewStep,
@@ -274,7 +274,9 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                       >
                         <div className="space-y-3">
                           {group.items.map((item, index) => (
-                            <Fragment key={statementItemKey(item)}>
+                            <Fragment
+                              key={item.statement ? item.statement.id : item.createAction.id}
+                            >
                               {index > 0 && <hr className="border-border-muted my-3" />}
                               <StatementItemView
                                 item={item}
@@ -487,8 +489,4 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       </CenteredCard>
     )
   }
-}
-
-function statementItemKey(item: StatementItem): string {
-  return item.statement ? item.statement.id : item.createAction.id
 }

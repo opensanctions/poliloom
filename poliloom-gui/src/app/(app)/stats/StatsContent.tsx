@@ -9,11 +9,6 @@ import { StatsResponse, DecisionTimeseriesPoint, CountryCoverage } from '@/types
 import { best_label } from '@/lib/labels'
 import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 
-function formatDateLabel(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 function formatDateRange(startDateStr: string): string {
   const start = new Date(startDateStr)
   const end = new Date(start)
@@ -157,7 +152,11 @@ function DecisionsChart({ data }: { data: DecisionTimeseriesPoint[] }) {
               <>
                 <div className="w-px h-2 bg-border" />
                 <span className="text-sm text-foreground-subtle whitespace-nowrap">
-                  {formatDateLabel(point.date)}
+                  {new Date(point.date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
                 </span>
               </>
             )}
