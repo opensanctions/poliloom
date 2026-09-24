@@ -42,28 +42,10 @@ export function applyFilterCookies(request: NextRequest, response: NextResponse)
   }
 }
 
-/** Returns true when the request URL contains any filter query params. */
-function hasFilterParams(request: NextRequest): boolean {
-  return FILTER_PARAMS.some((key) => request.nextUrl.searchParams.has(key))
-}
-
-/** Strip filter query params from the URL, preserving everything else. */
-function stripFilterParams(url: URL): URL {
-  const cleaned = new URL(url.toString())
-  for (const key of FILTER_PARAMS) {
-    cleaned.searchParams.delete(key)
-  }
-  return cleaned
-}
-
-function isApiRoute(pathname: string): boolean {
-  return pathname.startsWith('/api/')
-}
-
 export default auth((req) => {
   const isAuthenticated = !!req.auth && !req.auth.error
   const pathname = req.nextUrl.pathname
-  const isApi = isApiRoute(pathname)
+  const isApi = pathname.startsWith('/api/')
 
   // Unauthenticated: API routes get 401 JSON, pages get a redirect to /login.
   if (!isAuthenticated && pathname !== '/login') {
@@ -95,8 +77,11 @@ export default auth((req) => {
 
   // Strip filter query params from the URL after persisting them to cookies.
   // Only for page navigations — API routes pass filter params through to handlers.
-  if (!isApi && hasFilterParams(req)) {
-    const cleaned = stripFilterParams(req.nextUrl)
+  if (!isApi && FILTER_PARAMS.some((key) => req.nextUrl.searchParams.has(key))) {
+    const cleaned = new URL(req.nextUrl.toString())
+    for (const key of FILTER_PARAMS) {
+      cleaned.searchParams.delete(key)
+    }
     const response = NextResponse.redirect(cleaned)
     applyFilterCookies(req, response)
     return response
