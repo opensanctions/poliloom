@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  applyDecision,
   buildSubmission,
   describePatch,
   effectiveDecision,
@@ -128,42 +127,6 @@ describe('effectiveDecision', () => {
 
   it('ignores overrides for other actions', () => {
     expect(effectiveDecision(pendingAction('a1', null), { a2: true })).toBeNull()
-  })
-})
-
-describe('applyDecision', () => {
-  it('accepts an undecided action', () => {
-    expect(applyDecision(pendingAction('a1'), {}, true)).toEqual({ a1: true })
-  })
-
-  it('discards an undecided action', () => {
-    expect(applyDecision(pendingAction('a1'), {}, false)).toEqual({ a1: false })
-  })
-
-  it('returns to null when clicking the active choice', () => {
-    expect(applyDecision(pendingAction('a1'), { a1: true }, true)).toEqual({ a1: null })
-    expect(applyDecision(pendingAction('a1'), { a1: false }, false)).toEqual({ a1: null })
-  })
-
-  it('returns to null when clicking the choice the backend already served', () => {
-    expect(applyDecision(pendingAction('a1', true), {}, true)).toEqual({ a1: null })
-  })
-
-  it('switches to the other choice', () => {
-    expect(applyDecision(pendingAction('a1'), { a1: true }, false)).toEqual({ a1: false })
-  })
-
-  it('preserves other decisions', () => {
-    expect(applyDecision(pendingAction('a1'), { a2: true }, true)).toEqual({
-      a2: true,
-      a1: true,
-    })
-  })
-
-  it('does not mutate the input decisions', () => {
-    const decisions = { a1: true }
-    applyDecision(pendingAction('a1'), decisions, false)
-    expect(decisions).toEqual({ a1: true })
   })
 })
 
