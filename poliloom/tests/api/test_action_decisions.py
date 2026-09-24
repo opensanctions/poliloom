@@ -16,7 +16,7 @@ from poliloom.models import (
 )
 from poliloom.sse import DecisionCountEvent
 
-from ..conftest import make_terms
+from ..conftest import create_with_entity, make_terms
 
 
 def birth_date_create_payload(statement_id="Q123456$birth-new"):
@@ -291,8 +291,8 @@ class TestSubmissionValidation:
     def test_action_of_other_politician_rejected(
         self, mock_apply, client, mock_auth, db_session, sample_politician
     ):
-        other = Politician.create_with_entity(
-            db_session, "Q777777", make_terms("Other Politician")
+        other = create_with_entity(
+            Politician, db_session, "Q777777", make_terms("Other Politician")
         )
         db_session.add(other)
         db_session.flush()
@@ -657,8 +657,8 @@ class TestSkips:
     def test_skip_action_of_other_politician_rejected(
         self, client, mock_auth, db_session, sample_politician
     ):
-        other = Politician.create_with_entity(
-            db_session, "Q777777", make_terms("Other Politician")
+        other = create_with_entity(
+            Politician, db_session, "Q777777", make_terms("Other Politician")
         )
         db_session.add(other)
         db_session.flush()

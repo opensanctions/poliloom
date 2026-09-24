@@ -10,7 +10,7 @@ from poliloom.models import (
     WikidataRelation,
 )
 
-from ..conftest import make_terms
+from ..conftest import create_with_entity, make_terms
 
 
 class TestSource:
@@ -243,8 +243,8 @@ class TestSource:
         """Status change includes all linked politician IDs."""
         from poliloom.models import Politician
 
-        second_politician = Politician.create_with_entity(
-            db_session, "Q999999", make_terms("Second Politician")
+        second_politician = create_with_entity(
+            Politician, db_session, "Q999999", make_terms("Second Politician")
         )
         db_session.flush()
 

@@ -6,7 +6,6 @@ from .action import Action, ActionClaim, ActionEvidence, ActionKind, ActionSkip
 # Base classes and utilities
 from .base import (
     Base,
-    EntityCreationMixin,
     LanguageCodeMixin,
     PropertyType,
     RelationType,
@@ -66,7 +65,6 @@ __all__ = [
     "CurrentImportStatement",
     "DownloadAlreadyCompleteError",
     "DownloadInProgressError",
-    "EntityCreationMixin",
     # User
     "Language",
     "LanguageCodeMixin",

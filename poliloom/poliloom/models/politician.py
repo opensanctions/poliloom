@@ -23,7 +23,6 @@ from ..wikidata.document import (
 )
 from .base import (
     Base,
-    EntityCreationMixin,
     PropertyType,
     TimestampMixin,
     UpsertMixin,
@@ -40,7 +39,6 @@ class Politician(
     TimestampMixin,
     UpsertMixin,
     WikidataEntityMixin,
-    EntityCreationMixin,
 ):
     """Politician entity."""
 

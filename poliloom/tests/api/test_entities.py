@@ -4,7 +4,7 @@ import pytest
 
 from poliloom.models import Politician, Statement
 
-from ..conftest import make_terms
+from ..conftest import create_with_entity, make_terms
 
 
 def set_terms(entity, *, labels=None, descriptions=None, aliases=None):
@@ -86,11 +86,11 @@ class TestGetLanguages:
         db_session,
     ):
         """Languages should count Wikipedia links through WikipediaProject relations."""
-        politician2 = Politician.create_with_entity(
-            db_session, "Q999888", make_terms("Second Politician")
+        politician2 = create_with_entity(
+            Politician, db_session, "Q999888", make_terms("Second Politician")
         )
-        politician3 = Politician.create_with_entity(
-            db_session, "Q999777", make_terms("Third Politician")
+        politician3 = create_with_entity(
+            Politician, db_session, "Q999777", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -135,11 +135,11 @@ class TestGetLanguages:
         db_session,
     ):
         """Languages should be ordered by sources_count descending."""
-        politician2 = Politician.create_with_entity(
-            db_session, "Q999888", make_terms("Second Politician")
+        politician2 = create_with_entity(
+            Politician, db_session, "Q999888", make_terms("Second Politician")
         )
-        politician3 = Politician.create_with_entity(
-            db_session, "Q999777", make_terms("Third Politician")
+        politician3 = create_with_entity(
+            Politician, db_session, "Q999777", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -215,14 +215,14 @@ class TestGetCountries:
         sample_france_country,
     ):
         """Countries should count live P27 citizenship statements."""
-        politician1 = Politician.create_with_entity(
-            db_session, "Q999888", make_terms("First Politician")
+        politician1 = create_with_entity(
+            Politician, db_session, "Q999888", make_terms("First Politician")
         )
-        politician2 = Politician.create_with_entity(
-            db_session, "Q999777", make_terms("Second Politician")
+        politician2 = create_with_entity(
+            Politician, db_session, "Q999777", make_terms("Second Politician")
         )
-        politician3 = Politician.create_with_entity(
-            db_session, "Q999666", make_terms("Third Politician")
+        politician3 = create_with_entity(
+            Politician, db_session, "Q999666", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -262,14 +262,14 @@ class TestGetCountries:
         sample_germany_country,
     ):
         """Countries should be ordered by citizenships_count descending."""
-        politician1 = Politician.create_with_entity(
-            db_session, "Q999888", make_terms("First Politician")
+        politician1 = create_with_entity(
+            Politician, db_session, "Q999888", make_terms("First Politician")
         )
-        politician2 = Politician.create_with_entity(
-            db_session, "Q999777", make_terms("Second Politician")
+        politician2 = create_with_entity(
+            Politician, db_session, "Q999777", make_terms("Second Politician")
         )
-        politician3 = Politician.create_with_entity(
-            db_session, "Q999666", make_terms("Third Politician")
+        politician3 = create_with_entity(
+            Politician, db_session, "Q999666", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -331,7 +331,7 @@ class TestEntitySearch:
 
         model_class = getattr(models, model_name)
         for i, name in enumerate(names):
-            model_class.create_with_entity(db_session, f"Q{i + 1}", make_terms(name))
+            create_with_entity(model_class, db_session, f"Q{i + 1}", make_terms(name))
         db_session.flush()
 
         response = client.get(
@@ -348,7 +348,8 @@ class TestEntitySearch:
         """Results should carry language-keyed term maps, not resolved names."""
         from poliloom.models import Position
 
-        position = Position.create_with_entity(
+        position = create_with_entity(
+            Position,
             db_session,
             "Q1",
             make_terms("Mayor of Springfield"),
@@ -400,8 +401,8 @@ class TestEntitySearch:
         from poliloom.models import Position
 
         for i in range(5):
-            Position.create_with_entity(
-                db_session, f"Q{i}", make_terms(f"Test Position {i}")
+            create_with_entity(
+                Position, db_session, f"Q{i}", make_terms(f"Test Position {i}")
             )
         db_session.flush()
 

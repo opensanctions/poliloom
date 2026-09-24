@@ -40,6 +40,20 @@ def make_terms(name: str | None = None, aliases: list[str] | None = None) -> dic
     }
 
 
+def create_with_entity(entity_cls, session, wikidata_id: str, terms: dict):
+    """Create an entity with its associated WikidataEntity.
+
+    Other properties can be set on the returned entity after creation.
+    """
+    wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, **terms)
+    session.add(wikidata_entity)
+
+    entity = entity_cls(wikidata_id=wikidata_id)
+    session.add(entity)
+
+    return entity
+
+
 @pytest.fixture(autouse=True)
 def mock_find_similar(db_session):
     """Mock find_similar on all searchable models to use term-based search.
@@ -132,12 +146,6 @@ def setup_test_database():
     Base.metadata.drop_all(engine)
 
 
-def assert_model_fields(model, expected_fields):
-    """Assert that model has expected fields."""
-    for field, value in expected_fields.items():
-        assert getattr(model, field) == value
-
-
 @pytest.fixture
 def db_session(setup_test_database):
     """Provide a database session for tests with transaction rollback.
@@ -167,7 +175,8 @@ def db_session(setup_test_database):
 @pytest.fixture
 def sample_politician(db_session):
     """Return a created politician entity."""
-    politician = Politician.create_with_entity(
+    politician = create_with_entity(
+        Politician,
         db_session,
         "Q123456",
         make_terms("Test Politician", aliases=["John Doe", "Test Person"]),
@@ -179,8 +188,8 @@ def sample_politician(db_session):
 @pytest.fixture
 def sample_position(db_session):
     """Return a created position entity."""
-    position = Position.create_with_entity(
-        db_session, "Q30185", make_terms("Test Position")
+    position = create_with_entity(
+        Position, db_session, "Q30185", make_terms("Test Position")
     )
     db_session.flush()
     return position
@@ -189,7 +198,8 @@ def sample_position(db_session):
 @pytest.fixture
 def sample_location(db_session):
     """Return a created location entity with aliases for fuzzy search."""
-    location = Location.create_with_entity(
+    location = create_with_entity(
+        Location,
         db_session,
         "Q28513",
         make_terms("Test Location", aliases=["Test Loc"]),
@@ -201,7 +211,9 @@ def sample_location(db_session):
 @pytest.fixture
 def sample_country(db_session):
     """Return a created country entity."""
-    country = Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+    country = create_with_entity(
+        Country, db_session, "Q30", make_terms("United States")
+    )
     country.iso_code = "US"
     db_session.flush()
     return country
@@ -210,7 +222,7 @@ def sample_country(db_session):
 @pytest.fixture
 def sample_germany_country(db_session):
     """Return a created Germany country entity."""
-    country = Country.create_with_entity(db_session, "Q183", make_terms("Germany"))
+    country = create_with_entity(Country, db_session, "Q183", make_terms("Germany"))
     country.iso_code = "DE"
     db_session.flush()
     return country
@@ -219,7 +231,7 @@ def sample_germany_country(db_session):
 @pytest.fixture
 def sample_france_country(db_session):
     """Return a created France country entity."""
-    country = Country.create_with_entity(db_session, "Q142", make_terms("France"))
+    country = create_with_entity(Country, db_session, "Q142", make_terms("France"))
     country.iso_code = "FR"
     db_session.flush()
     return country
@@ -228,7 +240,7 @@ def sample_france_country(db_session):
 @pytest.fixture
 def sample_argentina_country(db_session):
     """Return a created Argentina country entity."""
-    country = Country.create_with_entity(db_session, "Q414", make_terms("Argentina"))
+    country = create_with_entity(Country, db_session, "Q414", make_terms("Argentina"))
     country.iso_code = "AR"
     db_session.flush()
     return country
@@ -237,7 +249,7 @@ def sample_argentina_country(db_session):
 @pytest.fixture
 def sample_spain_country(db_session):
     """Return a created Spain country entity."""
-    country = Country.create_with_entity(db_session, "Q29", make_terms("Spain"))
+    country = create_with_entity(Country, db_session, "Q29", make_terms("Spain"))
     country.iso_code = "ES"
     db_session.flush()
     return country
@@ -246,7 +258,7 @@ def sample_spain_country(db_session):
 @pytest.fixture
 def sample_language(db_session):
     """Return a created language entity."""
-    language = Language.create_with_entity(db_session, "Q1860", make_terms("English"))
+    language = create_with_entity(Language, db_session, "Q1860", make_terms("English"))
     language.iso_639_1 = "en"
     language.iso_639_2 = "eng"
     db_session.flush()
@@ -256,7 +268,7 @@ def sample_language(db_session):
 @pytest.fixture
 def sample_german_language(db_session):
     """Return a created German language entity."""
-    language = Language.create_with_entity(db_session, "Q188", make_terms("German"))
+    language = create_with_entity(Language, db_session, "Q188", make_terms("German"))
     language.iso_639_1 = "de"
     language.iso_639_2 = "deu"
     db_session.flush()
@@ -266,7 +278,7 @@ def sample_german_language(db_session):
 @pytest.fixture
 def sample_french_language(db_session):
     """Return a created French language entity."""
-    language = Language.create_with_entity(db_session, "Q150", make_terms("French"))
+    language = create_with_entity(Language, db_session, "Q150", make_terms("French"))
     language.iso_639_1 = "fr"
     language.iso_639_2 = "fra"
     db_session.flush()
@@ -331,8 +343,8 @@ def sample_wikipedia_project(db_session, sample_language):
     """Return a created English Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(
-        db_session, "Q328", make_terms("English Wikipedia")
+    wp = create_with_entity(
+        WikipediaProject, db_session, "Q328", make_terms("English Wikipedia")
     )
     wp.official_website = "https://en.wikipedia.org"
 
@@ -353,8 +365,8 @@ def sample_german_wikipedia_project(db_session, sample_german_language):
     """Return a created German Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(
-        db_session, "Q48183", make_terms("German Wikipedia")
+    wp = create_with_entity(
+        WikipediaProject, db_session, "Q48183", make_terms("German Wikipedia")
     )
     wp.official_website = "https://de.wikipedia.org"
 
@@ -375,8 +387,8 @@ def sample_french_wikipedia_project(db_session, sample_french_language):
     """Return a created French Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(
-        db_session, "Q8447", make_terms("French Wikipedia")
+    wp = create_with_entity(
+        WikipediaProject, db_session, "Q8447", make_terms("French Wikipedia")
     )
     wp.official_website = "https://fr.wikipedia.org"
 
@@ -395,7 +407,7 @@ def sample_french_wikipedia_project(db_session, sample_french_language):
 @pytest.fixture
 def sample_spanish_language(db_session):
     """Return a created Spanish language entity."""
-    language = Language.create_with_entity(db_session, "Q1321", make_terms("Spanish"))
+    language = create_with_entity(Language, db_session, "Q1321", make_terms("Spanish"))
     language.iso_639_1 = "es"
     language.iso_639_2 = "spa"
     db_session.flush()
@@ -407,8 +419,8 @@ def sample_spanish_wikipedia_project(db_session, sample_spanish_language):
     """Return a created Spanish Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(
-        db_session, "Q8449", make_terms("Spanish Wikipedia")
+    wp = create_with_entity(
+        WikipediaProject, db_session, "Q8449", make_terms("Spanish Wikipedia")
     )
     wp.official_website = "https://es.wikipedia.org"
 

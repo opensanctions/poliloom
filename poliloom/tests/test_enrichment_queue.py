@@ -21,7 +21,7 @@ from poliloom.models import (
     WikidataRelation,
 )
 
-from .conftest import make_terms
+from .conftest import create_with_entity, make_terms
 
 
 @pytest.fixture
@@ -95,15 +95,15 @@ class TestPriorityWikipediaLinks:
 
         # Create Wikipedia links for both German and English
         # Add more German wikipedia links globally to make it "popular"
-        Politician.create_with_entity(
-            db_session, "Q999", make_terms("Other Politician")
+        create_with_entity(
+            Politician, db_session, "Q999", make_terms("Other Politician")
         )
         db_session.flush()
 
         # Create multiple German links to simulate popularity
         for i in range(5):  # Make German popular
-            dummy_politician = Politician.create_with_entity(
-                db_session, f"Q{1000 + i}", make_terms(f"Dummy {i}")
+            dummy_politician = create_with_entity(
+                Politician, db_session, f"Q{1000 + i}", make_terms(f"Dummy {i}")
             )
             db_session.flush()
             create_wikipedia_link(
@@ -150,7 +150,8 @@ class TestPriorityWikipediaLinks:
         for iso_code, count in popularity_data:
             for i in range(count):
                 qid = f"Q{base_qid + i}"
-                dummy_politician = Politician.create_with_entity(
+                dummy_politician = create_with_entity(
+                    Politician,
                     db_session,
                     qid,
                     make_terms(f"Dummy {iso_code} {i}"),
@@ -719,7 +720,8 @@ class TestEnrichmentCandidatesQuery:
             # Create dummy politicians to establish global project popularity.
             # Each has one project link, so it does not affect priority ranking.
             for i in range(popularity):
-                dummy = Politician.create_with_entity(
+                dummy = create_with_entity(
+                    Politician,
                     db_session,
                     f"Q{base_qid + i}",
                     make_terms(f"Dummy {lang.iso_639_1} {i}"),

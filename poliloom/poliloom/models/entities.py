@@ -7,7 +7,6 @@ from sqlalchemy.orm import relationship
 
 from .base import (
     Base,
-    EntityCreationMixin,
     LanguageCodeMixin,
     TimestampMixin,
     UpsertMixin,
@@ -20,7 +19,6 @@ class Country(
     TimestampMixin,
     UpsertMixin,
     WikidataEntityMixin,
-    EntityCreationMixin,
 ):
     """Country entity for storing country information."""
 
@@ -83,7 +81,6 @@ class Language(
     LanguageCodeMixin,
     UpsertMixin,
     WikidataEntityMixin,
-    EntityCreationMixin,
 ):
     """Language entity for storing language information."""
 
@@ -172,7 +169,6 @@ class WikipediaProject(
     TimestampMixin,
     UpsertMixin,
     WikidataEntityMixin,
-    EntityCreationMixin,
 ):
     """Wikipedia project entity for storing Wikipedia language editions."""
 
@@ -234,7 +230,6 @@ class Location(
     TimestampMixin,
     UpsertMixin,
     WikidataEntityMixin,
-    EntityCreationMixin,
 ):
     """Location entity for geographic locations."""
 
@@ -278,7 +273,6 @@ class Position(
     TimestampMixin,
     UpsertMixin,
     WikidataEntityMixin,
-    EntityCreationMixin,
 ):
     """Position entity for political positions."""
 
