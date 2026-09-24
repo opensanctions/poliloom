@@ -11,8 +11,7 @@ from enum import Enum
 
 from .wikidata.date import WikidataDate
 from .wikidata.document import (
-    find_qualifiers,
-    qualifier_time_value,
+    first_qualifier_time,
     statement_entity_id,
     statement_property_id,
     statement_time_value,
@@ -60,7 +59,10 @@ def compare_statement(candidate: dict, existing: dict) -> StatementComparison:
     if property_id == _POSITION_PROPERTY_ID:
         return _compare_position(candidate, existing)
     if property_id in _ENTITY_PROPERTY_IDS:
-        return _compare_entities(candidate, existing)
+        # Same QID is the same fact (P19/P27); different QIDs are unrelated.
+        if statement_entity_id(candidate) != statement_entity_id(existing):
+            return StatementComparison.NO_MATCH
+        return StatementComparison.EQUIVALENT
 
     raise ValueError(f"Unsupported property in statement comparison: {property_id}")
 
@@ -183,37 +185,14 @@ def _compare_position(candidate: dict, existing: dict) -> StatementComparison:
     return StatementComparison.EQUIVALENT
 
 
-def _compare_entities(candidate: dict, existing: dict) -> StatementComparison:
-    """Compare two entity-valued statements (P19/P27); same QID is the same fact."""
-    if statement_entity_id(candidate) != statement_entity_id(existing):
-        return StatementComparison.NO_MATCH
-    return StatementComparison.EQUIVALENT
-
-
 def _extract_timeframe(
     document: dict,
 ) -> tuple[WikidataDate | None, WikidataDate | None]:
     """Extract start (P580) and end (P582) dates from a statement's qualifiers."""
     return (
-        _first_qualifier_time_value(document, _START_QUALIFIER_ID),
-        _first_qualifier_time_value(document, _END_QUALIFIER_ID),
+        first_qualifier_time(document, _START_QUALIFIER_ID),
+        first_qualifier_time(document, _END_QUALIFIER_ID),
     )
-
-
-def _first_qualifier_time_value(
-    document: dict, property_id: str
-) -> WikidataDate | None:
-    """Time value of a statement's first qualifier for a property, if any.
-
-    Statements without qualifiers omit the key (dump conversion and create
-    bodies do), so a missing key means no qualifiers.
-    """
-    if "qualifiers" not in document:
-        return None
-    qualifiers = find_qualifiers(document, property_id)
-    if not qualifiers:
-        return None
-    return qualifier_time_value(qualifiers[0])
 
 
 def _refines(more_precise: WikidataDate | None, date: WikidataDate | None) -> bool:
