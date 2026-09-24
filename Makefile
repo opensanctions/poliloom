@@ -1,4 +1,4 @@
-.PHONY: db-truncate db-dump db-restore export-positions-csv index-dump index-snapshot
+.PHONY: db-dump db-restore index-dump index-snapshot
 
 DB_HOST ?= localhost
 DB_PORT ?= 5432
@@ -7,11 +7,6 @@ DB_USER ?= postgres
 DB_PASSWORD ?= postgres
 
 PSQL = PGPASSWORD="$(DB_PASSWORD)" psql -h "$(DB_HOST)" -p "$(DB_PORT)" -U "$(DB_USER)" -d "$(DB_NAME)"
-
-db-truncate:
-	@echo "Truncating main database tables..."
-	@$(PSQL) -c "TRUNCATE TABLE politicians, countries, locations, positions, wikidata_classes CASCADE;"
-	@echo "Database tables truncated successfully."
 
 DUMP_FILE = poliloom-db-$(shell date +%Y%m%d-%H%M%S).sql
 
@@ -35,9 +30,6 @@ db-restore:
 	@$(PSQL) -f init-db.sql
 	@$(PSQL) -f "$(FILE)"
 	@echo "Database restored successfully from $(FILE)"
-
-export-positions-csv:
-	@$(PSQL) -c "\COPY (SELECT wikidata_id, name FROM positions ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER"
 
 index-dump:
 	@mkdir -p dumps
