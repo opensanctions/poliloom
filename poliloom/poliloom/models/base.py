@@ -103,38 +103,6 @@ class UpsertMixin:
             return None
 
 
-class EntityCreationMixin:
-    """Mixin for entities that can be created with their associated WikidataEntity."""
-
-    @classmethod
-    def create_with_entity(
-        cls,
-        session,
-        wikidata_id: str,
-        terms: dict,
-    ):
-        """Create an entity with its associated WikidataEntity.
-
-        Args:
-            session: Database session
-            wikidata_id: Wikidata ID for the entity
-            terms: Label/description/alias maps for the WikidataEntity
-
-        Returns:
-            The created entity instance (other properties can be set after creation)
-        """
-        # Import here to avoid circular dependency
-        from .wikidata import WikidataEntity
-
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, **terms)
-        session.add(wikidata_entity)
-
-        entity = cls(wikidata_id=wikidata_id)
-        session.add(entity)
-
-        return entity
-
-
 class LanguageCodeMixin:
     """Mixin for adding language code fields."""
 

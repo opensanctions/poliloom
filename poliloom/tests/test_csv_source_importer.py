@@ -16,7 +16,7 @@ from poliloom.importer.csv_source import (
 )
 from poliloom.models import Politician, Source
 
-from .conftest import make_terms
+from .conftest import create_with_entity, make_terms
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def committed_politicians(setup_test_database):
     def _create(*qids):
         with Session(engine) as db:
             for qid in qids:
-                Politician.create_with_entity(db, qid, make_terms(f"Politician {qid}"))
+                create_with_entity(Politician, db, qid, make_terms(f"Politician {qid}"))
             db.commit()
 
     yield _create

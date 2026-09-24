@@ -21,7 +21,7 @@ from poliloom.models import (
     WikidataRelation,
 )
 
-from .conftest import make_terms
+from .conftest import create_with_entity, make_terms
 
 
 def _statement_document(statement_id, property_id="P569"):
@@ -191,8 +191,8 @@ class TestStatementTracking:
 
     def test_statement_tracking_on_insert(self, db_session: Session):
         """Test that inserted statements are tracked by generated statement id."""
-        politician = Politician.create_with_entity(
-            db_session, "Q999", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q999", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -209,8 +209,8 @@ class TestStatementTracking:
 
     def test_statement_tracking_on_update(self, db_session: Session):
         """Test that updating a statement document is tracked."""
-        politician = Politician.create_with_entity(
-            db_session, "Q998", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q998", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -235,8 +235,8 @@ class TestStatementTracking:
 
     def test_statement_tracking_via_upsert_batch(self, db_session: Session):
         """Test that the importer's upsert path tracks statements once."""
-        politician = Politician.create_with_entity(
-            db_session, "Q997", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q997", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -333,8 +333,8 @@ class TestStatementTracking:
 
     def test_multiple_statements_tracked(self, db_session: Session):
         """Test that multiple statements and relations are tracked correctly."""
-        politician = Politician.create_with_entity(
-            db_session, "Q777", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q777", make_terms("Test Politician")
         )
         child = WikidataEntity(wikidata_id="Q888")
         db_session.add(child)
@@ -421,8 +421,8 @@ class TestCleanupFunctionality:
                 VALUES (gen_random_uuid(), 'Q200')
             """)
         )
-        keep_politician = Politician.create_with_entity(
-            db_session, "Q400", make_terms("Keep Politician")
+        keep_politician = create_with_entity(
+            Politician, db_session, "Q400", make_terms("Keep Politician")
         )
         db_session.flush()
         db_session.execute(
@@ -641,8 +641,8 @@ class TestCleanupFunctionality:
         db_session.add(second_dump)
         db_session.flush()
 
-        politician = Politician.create_with_entity(
-            db_session, "Q600", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q600", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -724,8 +724,8 @@ class TestCleanupFunctionality:
     ):
         """Pending edit actions die with their target; decided edits keep
         their payload with statement_id nulled."""
-        politician = Politician.create_with_entity(
-            db_session, "Q610", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q610", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -775,8 +775,8 @@ class TestCleanupFunctionality:
         """Regression: a statement deleted by cleanup is re-inserted when it
         reappears in a later dump (a tombstoned row used to stay deleted forever
         because the upsert only updated the document)."""
-        politician = Politician.create_with_entity(
-            db_session, "Q620", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q620", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -823,8 +823,8 @@ class TestCleanupFunctionality:
         self, db_session: Session
     ):
         """Test that statement cleanup with very old cutoff timestamp deletes nothing."""
-        politician = Politician.create_with_entity(
-            db_session, "Q601", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q601", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -858,8 +858,8 @@ class TestCleanupFunctionality:
         db_session.add(entity)
         db_session.flush()
 
-        politician = Politician.create_with_entity(
-            db_session, "Q456", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q456", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -909,8 +909,8 @@ class TestIntegrationWorkflow:
         )
         db_session.flush()
 
-        politician = Politician.create_with_entity(
-            db_session, "Q_pol", make_terms("Test Politician")
+        politician = create_with_entity(
+            Politician, db_session, "Q_pol", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -1029,7 +1029,8 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Create a politician
-        politician = Politician.create_with_entity(
+        politician = create_with_entity(
+            Politician,
             db_session,
             "Q_politician_in_dump",
             make_terms("Politician with Statement in Dump"),

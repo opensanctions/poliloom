@@ -16,7 +16,7 @@ from poliloom.models import (
     Statement,
 )
 
-from ..conftest import make_terms
+from ..conftest import create_with_entity, make_terms
 
 
 def statement_document(
@@ -626,7 +626,8 @@ class TestSearchPoliticiansEndpoint:
         create_action,
     ):
         """Test searching politicians by label."""
-        politician = Politician.create_with_entity(
+        politician = create_with_entity(
+            Politician,
             db_session,
             "Q999888",
             make_terms("Unique Search Test Name"),

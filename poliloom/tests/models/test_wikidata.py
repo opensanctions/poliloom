@@ -5,6 +5,8 @@ from sqlalchemy.dialects.postgresql import insert
 from poliloom.models import RelationType, WikidataEntity, WikidataRelation
 from poliloom.models.wikidata import WikidataEntityMixin
 
+from ..conftest import create_with_entity
+
 
 class TestQueryHierarchyDescendants:
     """Test query_hierarchy_descendants functionality."""
@@ -559,8 +561,8 @@ class TestCleanupOutsideHierarchy:
         self._create_orphan_position(db_session, "Q300")
 
         # Create a politician to hold statements
-        politician = Politician.create_with_entity(
-            db_session, "Q999", {"labels": {"en": "Test Politician"}}
+        politician = create_with_entity(
+            Politician, db_session, "Q999", {"labels": {"en": "Test Politician"}}
         )
         db_session.flush()
 

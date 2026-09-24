@@ -31,7 +31,7 @@ from poliloom.models import (
 )
 from poliloom.wikidata.date import WikidataDate
 
-from .conftest import make_terms
+from .conftest import create_with_entity, make_terms
 
 
 class TestEnrichment:
@@ -120,7 +120,8 @@ class TestEnrichment:
     ):
         """Test successful position extraction and mapping."""
         # Create position in database with labels matching the search query
-        Position.create_with_entity(
+        create_with_entity(
+            Position,
             db_session,
             "Q30185",
             make_terms("Mayor of Springfield", aliases=["Mayor"]),
@@ -203,7 +204,8 @@ class TestEnrichment:
     ):
         """Test successful birthplace extraction and mapping."""
         # Create location in database with labels for fuzzy search
-        Location.create_with_entity(
+        create_with_entity(
+            Location,
             db_session,
             "Q28513",
             make_terms("Springfield, Illinois", aliases=["Springfield"]),

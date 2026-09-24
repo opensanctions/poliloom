@@ -16,7 +16,7 @@ from poliloom.models import (
 from poliloom.wikidata.entity_processor import WikidataEntityProcessor
 from poliloom.wikidata.rest import action_api_statement_to_rest
 
-from .conftest import make_terms
+from .conftest import create_with_entity, make_terms
 
 _CALENDAR_MODEL = "http://www.wikidata.org/entity/Q1985727"
 
@@ -235,7 +235,7 @@ class TestWikidataPoliticianImporter:
     def test_import_position(self, db_session):
         """Test importing a position statement from a Wikidata claim."""
         # Create position first (statement entity_id references it)
-        Position.create_with_entity(db_session, "Q30185", make_terms("Mayor"))
+        create_with_entity(Position, db_session, "Q30185", make_terms("Mayor"))
         db_session.flush()
 
         politicians = [
@@ -287,7 +287,7 @@ class TestWikidataPoliticianImporter:
     def test_import_birthplace(self, db_session):
         """Test importing a birthplace statement from a Wikidata claim."""
         # Create location first (statement entity_id references it)
-        Location.create_with_entity(db_session, "Q60", make_terms("New York City"))
+        create_with_entity(Location, db_session, "Q60", make_terms("New York City"))
         db_session.flush()
 
         politicians = [
@@ -363,8 +363,8 @@ class TestWikidataPoliticianImporter:
     def test_import_all_property_types(self, db_session, sample_country):
         """Test importing statements for all tracked property types."""
         # Create required entities
-        Position.create_with_entity(db_session, "Q30185", make_terms("Mayor"))
-        Location.create_with_entity(db_session, "Q60", make_terms("New York City"))
+        create_with_entity(Position, db_session, "Q30185", make_terms("Mayor"))
+        create_with_entity(Location, db_session, "Q60", make_terms("New York City"))
 
         politicians = [
             {
@@ -474,7 +474,7 @@ class TestWikidataPoliticianImporter:
     def test_statement_metadata_preserved(self, db_session):
         """Test that rank, qualifiers, and references are kept in the document."""
         claim = _item_claim("P39", "Q1$TEST_STATEMENT", "Q30185")
-        Position.create_with_entity(db_session, "Q30185", make_terms("Mayor"))
+        create_with_entity(Position, db_session, "Q30185", make_terms("Mayor"))
         db_session.flush()
 
         claim["references"] = [
