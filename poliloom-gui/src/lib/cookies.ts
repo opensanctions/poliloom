@@ -17,10 +17,6 @@ export function getCookie(name: string): string | null {
   return match ? match.slice(prefix.length) : null
 }
 
-export function hasCookie(name: string): boolean {
-  return getCookie(name) !== null
-}
-
 // === Filter cookies ===
 
 export const FILTER_LANGUAGES_COOKIE = 'poliloom_filter_languages'
@@ -45,18 +41,10 @@ export function writeFilterCookie(name: string, qids: string[]): void {
   setCookie(name, serializeFilterCookieValue(qids))
 }
 
-export function readFilterCookie(name: string): string[] {
-  return deserializeFilterCookieValue(getCookie(name) ?? undefined)
-}
-
 // === Theme cookies ===
 
 export const THEME_COOKIE = 'poliloom_theme'
 export type Theme = 'light' | 'dark'
-
-export function serializeThemeCookieValue(theme: Theme): string {
-  return theme
-}
 
 export function deserializeThemeCookieValue(raw: string | undefined): Theme | null {
   return raw === 'light' || raw === 'dark' ? raw : null

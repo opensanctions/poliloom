@@ -4,7 +4,7 @@ import {
   FILTER_COUNTRIES_COOKIE,
   THEME_COOKIE,
   deserializeFilterCookieValue,
-  readFilterCookie,
+  getCookie,
   writeFilterCookie,
   deserializeThemeCookieValue,
   readThemeCookie,
@@ -49,17 +49,18 @@ describe('filter cookie I/O', () => {
 
   it('round-trips QIDs', () => {
     writeFilterCookie(FILTER_LANGUAGES_COOKIE, ['Q1860', 'Q7411'])
-    expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual(['Q1860', 'Q7411'])
+    expect(deserializeFilterCookieValue(getCookie(FILTER_LANGUAGES_COOKIE) ?? undefined)).toEqual([
+      'Q1860',
+      'Q7411',
+    ])
   })
 
   it('round-trips an empty array (cookie is actually present)', () => {
     writeFilterCookie(FILTER_LANGUAGES_COOKIE, [])
     expect(document.cookie).toContain(FILTER_LANGUAGES_COOKIE)
-    expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual([])
-  })
-
-  it('readFilterCookie returns [] when absent', () => {
-    expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual([])
+    expect(deserializeFilterCookieValue(getCookie(FILTER_LANGUAGES_COOKIE) ?? undefined)).toEqual(
+      [],
+    )
   })
 })
 

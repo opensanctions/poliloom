@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { FilterProvider, useFilters } from './FilterContext'
-import { FILTER_COUNTRIES_COOKIE, FILTER_LANGUAGES_COOKIE, readFilterCookie } from '@/lib/cookies'
+import {
+  FILTER_COUNTRIES_COOKIE,
+  FILTER_LANGUAGES_COOKIE,
+  deserializeFilterCookieValue,
+  getCookie,
+} from '@/lib/cookies'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({}),
@@ -48,7 +53,10 @@ describe('FilterContext', () => {
       result.current.setLanguages(['Q1860', 'Q7411'])
     })
     expect(result.current.languageQids).toEqual(['Q1860', 'Q7411'])
-    expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual(['Q1860', 'Q7411'])
+    expect(deserializeFilterCookieValue(getCookie(FILTER_LANGUAGES_COOKIE) ?? undefined)).toEqual([
+      'Q1860',
+      'Q7411',
+    ])
   })
 
   it('setLanguages ignores an empty selection', () => {
@@ -60,7 +68,9 @@ describe('FilterContext', () => {
     })
     expect(result.current.languageQids).toEqual(['Q1860'])
     expect(document.cookie).not.toContain(FILTER_LANGUAGES_COOKIE)
-    expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual([])
+    expect(deserializeFilterCookieValue(getCookie(FILTER_LANGUAGES_COOKIE) ?? undefined)).toEqual(
+      [],
+    )
   })
 
   it('setCountries writes the cookie and updates state', () => {
@@ -69,7 +79,9 @@ describe('FilterContext', () => {
       result.current.setCountries(['Q30'])
     })
     expect(result.current.countryQids).toEqual(['Q30'])
-    expect(readFilterCookie(FILTER_COUNTRIES_COOKIE)).toEqual(['Q30'])
+    expect(deserializeFilterCookieValue(getCookie(FILTER_COUNTRIES_COOKIE) ?? undefined)).toEqual([
+      'Q30',
+    ])
   })
 
   it('throws when used outside provider', () => {
