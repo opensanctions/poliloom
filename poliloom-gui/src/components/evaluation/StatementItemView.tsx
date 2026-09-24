@@ -32,27 +32,15 @@ function itemDocument(item: StatementItemType): Omit<RestStatement, 'id'> {
   return (item.createAction.payload as CreateStatementPayload).statement
 }
 
-function editPatch(action: Action) {
-  if (action.kind !== 'EDIT_STATEMENT') {
-    throw new Error(`Expected EDIT_STATEMENT action, got ${action.kind}`)
-  }
-  return (action.payload as EditStatementPayload).patch
-}
-
 // --- Value and snak display ---
-
-function timeDisplay(value: RestValue): string | null {
-  const time = timeValue(value)
-  return time ? parseTimeValue(time).display : null
-}
 
 function valueDisplay(
   value: RestValue,
   terms: TermMaps | null,
   userLanguageCodes: string[],
 ): string {
-  const time = timeDisplay(value)
-  if (time) return time
+  const time = timeValue(value)
+  if (time) return parseTimeValue(time).display
   if (value.type === 'value') {
     if (typeof value.content === 'string' && value.content.startsWith('Q')) {
       return best_label(terms, userLanguageCodes, value.content)
@@ -64,10 +52,6 @@ function valueDisplay(
 
 function snakDisplay(snak: RestSnak): string {
   return valueDisplay(snak.value, null, [])
-}
-
-function referenceDisplay(reference: RestStatement['references'][number]): string {
-  return reference.parts.map((part) => `${part.property.id}: ${snakDisplay(part)}`).join(', ')
 }
 
 // --- Edit patch descriptions ---
@@ -106,7 +90,10 @@ function PatchDescriptionView({
     case 'reference-append':
       return (
         <span className="text-foreground-secondary">
-          New reference: {referenceDisplay(description.reference)}
+          New reference:{' '}
+          {description.reference.parts
+            .map((part) => `${part.property.id}: ${snakDisplay(part)}`)
+            .join(', ')}
         </span>
       )
   }
@@ -193,7 +180,7 @@ function ActionRow({
     <div className="space-y-2">
       {action.kind === 'EDIT_STATEMENT' && (
         <PatchDescriptionView
-          description={describePatch(editPatch(action))}
+          description={describePatch((action.payload as EditStatementPayload).patch)}
           entityTerms={action.entity_terms}
           userLanguageCodes={userLanguageCodes}
         />
