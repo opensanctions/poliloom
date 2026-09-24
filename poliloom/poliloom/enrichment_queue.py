@@ -27,17 +27,6 @@ def get_enrichment_cooldown_cutoff() -> datetime:
     return datetime.now(UTC) - timedelta(days=get_enrichment_cooldown_days())
 
 
-def _ranking_order_by(
-    matches_citizenship, wikipedia_project_popularity, wikipedia_project_id
-):
-    """Return the shared deterministic ranking keys for Wikipedia links."""
-    return (
-        matches_citizenship.desc(),
-        wikipedia_project_popularity.desc(),
-        wikipedia_project_id.asc(),
-    )
-
-
 def _join_project_language_path(query, link, project, relation, language):
     """Join a link through its project to its language-of-work relation."""
     return (
@@ -50,14 +39,6 @@ def _join_project_language_path(query, link, project, relation, language):
             ),
         )
         .join(language, relation.parent_entity_id == language.wikidata_id)
-    )
-
-
-def _official_language_join_conditions(citizenship, relation):
-    """Return OFFICIAL_LANGUAGE conditions for a citizenship join."""
-    return and_(
-        citizenship.entity_id == relation.child_entity_id,
-        relation.relation_type == RelationType.OFFICIAL_LANGUAGE,
     )
 
 
@@ -187,7 +168,10 @@ def _get_ranked_wikipedia_links_cte(
         .select_from(Statement)
         .join(
             WikidataRelation,
-            _official_language_join_conditions(Statement, WikidataRelation),
+            and_(
+                Statement.entity_id == WikidataRelation.child_entity_id,
+                WikidataRelation.relation_type == RelationType.OFFICIAL_LANGUAGE,
+            ),
         )
         .where(and_(*citizenship_where))
         .distinct()
@@ -213,10 +197,10 @@ def _get_ranked_wikipedia_links_cte(
             func.row_number()
             .over(
                 partition_by=Politician.id,
-                order_by=_ranking_order_by(
-                    matches_citizenship,
-                    wikipedia_project_popularity.c.global_count,
-                    WikipediaLink.wikipedia_project_id,
+                order_by=(
+                    matches_citizenship.desc(),
+                    wikipedia_project_popularity.c.global_count.desc(),
+                    WikipediaLink.wikipedia_project_id.asc(),
                 ),
             )
             .label("rank"),
