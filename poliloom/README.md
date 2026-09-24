@@ -88,8 +88,9 @@ uv run poliloom import-politicians    # Import politicians
 
 ### Extract politician data
 
-Enrichment is demand-driven: `/politicians/next` claims and serves unevaluated
-properties in the user's selected languages, and background enrichment tops up
+Enrichment is demand-driven: `/politicians/next` claims and serves
+politicians with pending Actions in the user's selected languages, and
+background enrichment tops up
 to one serveable politician per filter combo when the pool runs dry. Each
 (politician, Wikipedia project) gets a fresh snapshot after
 `ENRICHMENT_COOLDOWN_DAYS` (default 365).
@@ -129,4 +130,4 @@ uv run alembic revision --autogenerate -m "Description"
 - `api/` — FastAPI endpoints for the evaluation interface
 - `models/` — SQLAlchemy database models
 
-See [CLAUDE.md](./CLAUDE.md) for detailed specifications.
+See [AGENTS.md](./AGENTS.md) for detailed specifications.

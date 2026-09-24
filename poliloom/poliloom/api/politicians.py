@@ -64,15 +64,6 @@ router = APIRouter()
 # =============================================================================
 
 
-def _term_maps(entity: WikidataEntity) -> TermMaps:
-    """Build TermMaps from a WikidataEntity's language-keyed term columns."""
-    return TermMaps(
-        labels=entity.labels,
-        descriptions=entity.descriptions,
-        aliases=entity.aliases,
-    )
-
-
 def build_politician_response(
     politician: Politician, db: Session
 ) -> PoliticianResponse:
@@ -100,7 +91,7 @@ def build_politician_response(
     def entity_terms(entity_id: str | None) -> TermMaps | None:
         if entity_id is None:
             return None
-        return _term_maps(entities_by_id[entity_id])
+        return TermMaps.from_entity(entities_by_id[entity_id])
 
     statements = [
         StatementResponse(
@@ -136,7 +127,7 @@ def build_politician_response(
     return PoliticianResponse(
         id=politician.id,
         wikidata_id=politician.wikidata_id,
-        terms=_term_maps(politician.wikidata_entity),
+        terms=TermMaps.from_entity(politician.wikidata_entity),
         sources=[SourceResponse.model_validate(s) for s in politician.sources],
         statements=statements,
         actions=actions,

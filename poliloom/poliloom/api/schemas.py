@@ -12,7 +12,7 @@ from pydantic import (
     field_validator,
 )
 
-from ..models import ActionKind
+from ..models import ActionKind, WikidataEntity
 
 
 class UUIDBaseModel(BaseModel):
@@ -65,6 +65,15 @@ class TermMaps(BaseModel):
     labels: dict[str, str]
     descriptions: dict[str, str]
     aliases: dict[str, list[str]]
+
+    @classmethod
+    def from_entity(cls, entity: WikidataEntity) -> "TermMaps":
+        """Build from a WikidataEntity's language-keyed term columns."""
+        return cls(
+            labels=entity.labels,
+            descriptions=entity.descriptions,
+            aliases=entity.aliases,
+        )
 
 
 class StatementResponse(UUIDBaseModel):
