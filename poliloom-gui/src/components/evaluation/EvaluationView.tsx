@@ -8,7 +8,6 @@ import {
   type SourceResponse,
 } from '@/types'
 import {
-  applyDecision,
   buildSubmission,
   effectiveDecision,
   groupStatementsIntoSections,
@@ -137,8 +136,12 @@ export function EvaluationView({
     }
   }, [quotes, isIframeLoaded, highlightText])
 
+  // Clicking the currently active choice returns the action to undecided (null).
   const handleDecision = useCallback((action: Action, isAccepted: boolean) => {
-    setDecisions((prev) => applyDecision(action, prev, isAccepted))
+    setDecisions((prev) => ({
+      ...prev,
+      [action.id]: effectiveDecision(action, prev) === isAccepted ? null : isAccepted,
+    }))
   }, [])
 
   const submit = useCallback(async () => {
@@ -221,7 +224,7 @@ export function EvaluationView({
                     >
                       <div className="space-y-3">
                         {group.items.map((item, index) => (
-                          <Fragment key={itemKey(item)}>
+                          <Fragment key={item.statement ? item.statement.id : item.createAction.id}>
                             {index > 0 && <hr className="border-border-muted my-3" />}
                             <StatementItemView
                               item={item}
@@ -264,8 +267,4 @@ export function EvaluationView({
   )
 
   return <TwoPanel left={leftPanel} right={rightPanel} />
-}
-
-function itemKey(item: StatementItem): string {
-  return item.statement ? item.statement.id : item.createAction.id
 }

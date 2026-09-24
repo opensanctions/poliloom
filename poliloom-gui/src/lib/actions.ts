@@ -23,21 +23,6 @@ export function effectiveDecision(action: Action, decisions: LocalDecisions): bo
 }
 
 /**
- * Records an accept (true) or discard (false) decision. Clicking the currently
- * active choice returns the action to undecided (null).
- */
-export function applyDecision(
-  action: Action,
-  decisions: LocalDecisions,
-  isAccepted: boolean,
-): LocalDecisions {
-  if (effectiveDecision(action, decisions) === isAccepted) {
-    return { ...decisions, [action.id]: null }
-  }
-  return { ...decisions, [action.id]: isAccepted }
-}
-
-/**
  * Builds the review submission payload: every decided action as a complete
  * submitted action, and every still-undecided action as a skip. Decisions are
  * never null on the wire — an action reset to undecided is skipped.
@@ -85,15 +70,14 @@ export interface StatementSection {
   groups: StatementGroup[]
 }
 
-function createPayload(action: Action): CreateStatementPayload {
-  if (action.kind !== 'CREATE_STATEMENT') {
-    throw new Error(`Expected CREATE_STATEMENT action, got ${action.kind}`)
-  }
-  return action.payload as CreateStatementPayload
-}
-
 function itemDocument(item: StatementItem): Omit<RestStatement, 'id'> {
-  return item.statement ? item.statement.document : createPayload(item.createAction).statement
+  if (item.statement) {
+    return item.statement.document
+  }
+  if (item.createAction.kind !== 'CREATE_STATEMENT') {
+    throw new Error(`Expected CREATE_STATEMENT action, got ${item.createAction.kind}`)
+  }
+  return (item.createAction.payload as CreateStatementPayload).statement
 }
 
 function buildItems(statements: Statement[], actions: Action[]): StatementItem[] {
