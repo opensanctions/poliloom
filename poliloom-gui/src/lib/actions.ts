@@ -70,7 +70,7 @@ export interface StatementSection {
   groups: StatementGroup[]
 }
 
-function itemDocument(item: StatementItem): Omit<RestStatement, 'id'> {
+export function itemDocument(item: StatementItem): Omit<RestStatement, 'id'> {
   if (item.statement) {
     return item.statement.document
   }

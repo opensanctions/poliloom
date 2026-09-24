@@ -1,7 +1,6 @@
 import { Fragment, ReactNode, useState } from 'react'
 import type {
   Action,
-  CreateStatementPayload,
   EditStatementPayload,
   RestSnak,
   RestStatement,
@@ -12,6 +11,7 @@ import type {
 import {
   describePatch,
   effectiveDecision,
+  itemDocument,
   type LocalDecisions,
   type PatchDescription,
   type StatementItem as StatementItemType,
@@ -23,14 +23,6 @@ import { Button } from '@/components/ui/Button'
 import { DataLabel } from '@/components/ui/DataLabel'
 import { StatementSource } from './StatementSource'
 import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
-
-function itemDocument(item: StatementItemType): Omit<RestStatement, 'id'> {
-  if (item.statement) return item.statement.document
-  if (item.createAction.kind !== 'CREATE_STATEMENT') {
-    throw new Error(`Expected CREATE_STATEMENT action, got ${item.createAction.kind}`)
-  }
-  return (item.createAction.payload as CreateStatementPayload).statement
-}
 
 // --- Value and snak display ---
 
