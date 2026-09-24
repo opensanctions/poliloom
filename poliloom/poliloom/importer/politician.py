@@ -218,16 +218,14 @@ def _process_politicians_chunk(
                 # tracked claim fails the import
                 birth_claims = entity.get_truthy_claims(PropertyType.BIRTH_DATE.value)
                 for claim in birth_claims:
-                    birth_info = entity.extract_date_from_claim(claim)
-                    if birth_info:
+                    if entity.extract_date_from_claim(claim):
                         politician_data["statements"].append(
                             action_api_statement_to_rest(claim)
                         )
 
                 death_claims = entity.get_truthy_claims(PropertyType.DEATH_DATE.value)
                 for claim in death_claims:
-                    death_info = entity.extract_date_from_claim(claim)
-                    if death_info:
+                    if entity.extract_date_from_claim(claim):
                         politician_data["statements"].append(
                             action_api_statement_to_rest(claim)
                         )

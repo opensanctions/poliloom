@@ -43,10 +43,6 @@ class StorageBackend(ABC):
         """Download a file from source to destination."""
 
     @abstractmethod
-    def stream_lines(self, path: str) -> Iterator[str]:
-        """Stream lines from a file."""
-
-    @abstractmethod
     def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
         """Stream lines from a specific byte range of a file."""
 
@@ -84,11 +80,6 @@ class LocalStorage(StorageBackend):
     def download(self, source: str, destination: str) -> None:
         """Copy a local file to another location."""
         shutil.copy2(source, destination)
-
-    def stream_lines(self, path: str) -> Iterator[str]:
-        """Stream lines from a local file."""
-        with open(path, "r", encoding="utf-8") as f:
-            yield from f
 
     def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
         """Stream lines from a specific byte range of a local file."""
@@ -222,16 +213,6 @@ class GCSStorage(StorageBackend):
             bucket = self.client.bucket(bucket_name)
             blob = bucket.blob(blob_name)
             blob.download_to_filename(destination)
-
-    def stream_lines(self, path: str) -> Iterator[str]:
-        """Stream lines from a GCS file."""
-        bucket_name, blob_name = self._parse_gcs_path(path)
-        bucket = self.client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-
-        # Stream the file content
-        with blob.open("r") as f:
-            yield from f
 
     def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
         """Stream lines from a specific byte range of a GCS file."""

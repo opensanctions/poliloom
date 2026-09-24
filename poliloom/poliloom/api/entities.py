@@ -31,15 +31,6 @@ from .schemas import (
 router = APIRouter()
 
 
-def _term_maps(entity: WikidataEntity) -> TermMaps:
-    """Build TermMaps from a WikidataEntity's language-keyed term columns."""
-    return TermMaps(
-        labels=entity.labels,
-        descriptions=entity.descriptions,
-        aliases=entity.aliases,
-    )
-
-
 # =============================================================================
 # List Endpoints - Fast, flat data for filter dropdowns
 # =============================================================================
@@ -226,7 +217,7 @@ async def search_entities(
     return [
         EntitySearchResponse(
             wikidata_id=e.wikidata_id,
-            terms=_term_maps(e.wikidata_entity),
+            terms=TermMaps.from_entity(e.wikidata_entity),
         )
         for e in entities
     ]
