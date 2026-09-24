@@ -1,10 +1,10 @@
-"""Tests for WikidataHierarchyImporter."""
+"""Tests for WikidataEntity and WikidataRelation batch upserts."""
 
 from poliloom.models import WikidataEntity, WikidataRelation
 
 
-class TestWikidataHierarchyImporter:
-    """Test hierarchy importing functionality."""
+class TestUpsertBatch:
+    """Test upsert_batch on the Wikidata entity and relation models."""
 
     def test_upsert_wikidata_entities_batch(self, db_session):
         """Test upserting a batch of WikidataEntity records."""

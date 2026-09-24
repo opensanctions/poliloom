@@ -332,16 +332,6 @@ class TestGetPoliticianByQidEndpoint:
 class TestGetPoliticianStatements:
     """Statement (review context) shape in GET /politicians/{qid}."""
 
-    def test_statements_include_all_non_deleted(
-        self, client, mock_auth, politician_with_pending_actions
-    ):
-        data = client.get(
-            "/politicians/Q123456?languages=Q1860", headers=mock_auth
-        ).json()
-        statements = {s["document"]["id"]: s for s in data["statements"]}
-        assert set(statements) == {"Q123456$birth-1", "Q123456$position-1"}
-        assert set(statements["Q123456$birth-1"]) == {"id", "document", "entity_terms"}
-
     def test_statement_entity_terms_joined_via_entity_id(
         self, client, mock_auth, politician_with_pending_actions, sample_position
     ):

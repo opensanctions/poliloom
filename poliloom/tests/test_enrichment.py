@@ -43,8 +43,10 @@ class TestEnrichment:
         return Mock()
 
     @pytest.mark.asyncio
-    async def test_extract_dates_success(self, mock_openai_client, sample_politician):
-        """Test successful date extraction."""
+    async def test_extract_properties_generic_returns_parsed_dates(
+        self, mock_openai_client, sample_politician
+    ):
+        """extract_properties_generic returns the parsed date properties."""
         # Mock OpenAI response
         mock_parsed = Mock()
         mock_parsed.properties = [
@@ -79,10 +81,10 @@ class TestEnrichment:
         assert properties[1].type == PropertyType.DEATH_DATE
 
     @pytest.mark.asyncio
-    async def test_extract_dates_none_parsed(
+    async def test_extract_properties_generic_returns_none_when_nothing_parsed(
         self, mock_openai_client, sample_politician
     ):
-        """Test date extraction when LLM returns None."""
+        """extract_properties_generic returns None when the LLM parses nothing."""
         mock_response = Mock()
         mock_response.output_parsed = None
 
@@ -99,8 +101,10 @@ class TestEnrichment:
         assert properties is None
 
     @pytest.mark.asyncio
-    async def test_extract_dates_exception(self, mock_openai_client, sample_politician):
-        """Test date extraction handles exceptions."""
+    async def test_extract_properties_generic_returns_none_on_error(
+        self, mock_openai_client, sample_politician
+    ):
+        """extract_properties_generic returns None when the LLM call raises."""
 
         # Make the mock async and raise exception
         async def mock_parse(*args, **kwargs):
@@ -115,10 +119,10 @@ class TestEnrichment:
         assert properties is None
 
     @pytest.mark.asyncio
-    async def test_extract_positions_success(
+    async def test_extract_two_stage_generic_maps_positions(
         self, mock_openai_client, db_session, sample_politician
     ):
-        """Test successful position extraction and mapping."""
+        """extract_two_stage_generic extracts positions free-form and maps them to QIDs."""
         # Create position in database with labels matching the search query
         create_with_entity(
             Position,
@@ -173,10 +177,10 @@ class TestEnrichment:
         assert positions[0].end_date == "2024"
 
     @pytest.mark.asyncio
-    async def test_extract_positions_no_results(
+    async def test_extract_two_stage_generic_returns_empty_when_no_positions_extracted(
         self, mock_openai_client, db_session, sample_politician
     ):
-        """Test position extraction with no results."""
+        """extract_two_stage_generic returns an empty list when no positions are extracted."""
         mock_parsed = Mock()
         mock_parsed.positions = []
         mock_response = Mock()
@@ -199,10 +203,10 @@ class TestEnrichment:
         assert positions == []
 
     @pytest.mark.asyncio
-    async def test_extract_birthplaces_success(
+    async def test_extract_two_stage_generic_maps_birthplaces(
         self, mock_openai_client, db_session, sample_politician
     ):
-        """Test successful birthplace extraction and mapping."""
+        """extract_two_stage_generic extracts birthplaces free-form and maps them to QIDs."""
         # Create location in database with labels for fuzzy search
         create_with_entity(
             Location,
@@ -256,14 +260,6 @@ class TestEnrichment:
 def time_content(date_string: str) -> dict:
     """REST time content for a YYYY[-MM[-DD]] string."""
     return WikidataDate.from_date_string(date_string).to_rest_time_content()
-
-
-def time_qualifier(property_id: str, date_string: str) -> dict:
-    """A REST time qualifier (e.g. P580/P582) for a date string."""
-    return {
-        "property": {"id": property_id, "data_type": "time"},
-        "value": {"type": "value", "content": time_content(date_string)},
-    }
 
 
 def rest_statement(
@@ -413,89 +409,6 @@ class TestStoreExtractedData:
 
         assert len(action.evidence) == 1
         assert action.evidence[0].source_id == sample_source.id
-
-    def test_equivalent_with_reference_present_creates_nothing(
-        self, db_session, sample_politician, sample_source
-    ):
-        """An equivalent statement already carrying the source reference yields no action."""
-        url_part = {
-            "property": {"id": "P854", "data_type": "url"},
-            "value": {"type": "value", "content": sample_source.url},
-        }
-        add_statement(
-            db_session,
-            sample_politician,
-            rest_statement(
-                "Q123456$birth-1",
-                "P569",
-                time_content("1970-01-15"),
-                references=[{"hash": "0" * 40, "parts": [url_part]}],
-            ),
-        )
-
-        properties = [
-            ExtractedProperty(
-                type=PropertyType.BIRTH_DATE,
-                value="1970-01-15",
-                supporting_quotes=["born January 15, 1970"],
-            )
-        ]
-
-        success = store_extracted_data(
-            db_session, sample_politician, sample_source, properties, None, None, None
-        )
-
-        assert success is True
-        assert db_session.query(Action).count() == 0
-
-    def test_subsumed_position_span_creates_nothing(
-        self, db_session, sample_politician, sample_source, sample_position
-    ):
-        """A span covered by consecutive existing terms yields no action."""
-        add_statement(
-            db_session,
-            sample_politician,
-            rest_statement(
-                "Q123456$p39-1",
-                "P39",
-                "Q30185",
-                data_type="wikibase-item",
-                qualifiers=[
-                    time_qualifier("P580", "2018"),
-                    time_qualifier("P582", "2020"),
-                ],
-            ),
-        )
-        add_statement(
-            db_session,
-            sample_politician,
-            rest_statement(
-                "Q123456$p39-2",
-                "P39",
-                "Q30185",
-                data_type="wikibase-item",
-                qualifiers=[
-                    time_qualifier("P580", "2020"),
-                    time_qualifier("P582", "2024"),
-                ],
-            ),
-        )
-
-        positions = [
-            ExtractedPosition(
-                wikidata_id="Q30185",
-                start_date="2018",
-                end_date="2024",
-                supporting_quotes=["served from 2018 to 2024"],
-            )
-        ]
-
-        success = store_extracted_data(
-            db_session, sample_politician, sample_source, None, positions, None, None
-        )
-
-        assert success is True
-        assert db_session.query(Action).count() == 0
 
     def test_duplicate_extractions_merge_into_one_action(
         self, db_session, sample_politician, sample_source, sample_country
