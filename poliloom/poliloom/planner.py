@@ -154,7 +154,11 @@ def persist_decision(
     if decision is None:
         return None
 
-    kind = _action_kind(decision.kind)
+    kind = (
+        ActionKind.CREATE_STATEMENT
+        if decision.kind == "create"
+        else ActionKind.EDIT_STATEMENT
+    )
     statement_id = None
     if decision.kind == "edit":
         statement_id = existing_statements[decision.target_index].id
@@ -195,13 +199,6 @@ def persist_decision(
     )
     db.flush()
     return action
-
-
-def _action_kind(kind: str) -> ActionKind:
-    """Map a Decision kind to its ActionKind."""
-    if kind == "create":
-        return ActionKind.CREATE_STATEMENT
-    return ActionKind.EDIT_STATEMENT
 
 
 def _attach_evidence(
@@ -318,7 +315,11 @@ def _position_refinement_decision(
         return Decision("edit", append_qualifier_patch(document, appends[0]), index)
     if refinements:
         qualifier_id, qualifier = refinements[0]
-        index_in_document = _qualifier_index(document, qualifier_id)
+        for index_in_document, existing in enumerate(document["qualifiers"]):
+            if existing["property"]["id"] == qualifier_id:
+                break
+        else:
+            raise ValueError(f"Statement has no {qualifier_id} qualifier")
         return Decision(
             "edit",
             refine_qualifier_patch(document, index_in_document, qualifier),
@@ -410,11 +411,3 @@ def _first_qualifier(document: dict, property_id: str) -> dict | None:
     if not qualifiers:
         return None
     return qualifiers[0]
-
-
-def _qualifier_index(document: dict, property_id: str) -> int:
-    """Index of the first qualifier for a property in document order."""
-    for index, qualifier in enumerate(document["qualifiers"]):
-        if qualifier["property"]["id"] == property_id:
-            return index
-    raise ValueError(f"Statement has no {property_id} qualifier")

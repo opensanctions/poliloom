@@ -572,14 +572,6 @@ async def extract_and_store(
     )
 
 
-def _date_candidate(property_id: str, date: WikidataDate) -> dict:
-    """REST candidate statement for a birth/death date extraction."""
-    return {
-        "property": {"id": property_id},
-        "value": {"type": "value", "content": date.to_rest_time_content()},
-    }
-
-
 def _entity_candidate(property_id: str, entity_id: str) -> dict:
     """REST candidate statement for an entity-valued extraction."""
     return {
@@ -638,7 +630,13 @@ def store_extracted_data(
                 raise ValueError(f"Unparseable date value from LLM: {p.value!r}")
             items.append(
                 (
-                    _date_candidate(p.type.value, wikidata_date),
+                    {
+                        "property": {"id": p.type.value},
+                        "value": {
+                            "type": "value",
+                            "content": wikidata_date.to_rest_time_content(),
+                        },
+                    },
                     p.supporting_quotes,
                     f"{p.type} = '{p.value}'",
                 )
