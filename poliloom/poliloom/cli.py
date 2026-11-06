@@ -7,7 +7,7 @@ import click
 import httpx2
 import meilisearch
 from google.api_core.exceptions import GoogleAPICallError
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -919,25 +919,12 @@ def index_build(batch_size, rebuild):
     task_uids = []
 
     with Session(get_engine()) as session:
-        # Count total
-        count_query = select(func.count()).select_from(query.subquery())
-        total = session.execute(count_query).scalar()
+        # Stream one pass over the aggregate. Pages must not be fetched with
+        # OFFSET: the query aggregates every entity, so each page would rerun
+        # the whole aggregation before discarding the rows already sent.
+        result = session.execute(query.execution_options(stream_results=True))
 
-        if total == 0:
-            click.echo("   No entities to index")
-            return
-
-        click.echo(f"   Found {total:,} entities to index")
-
-        # Process in batches
-        offset_val = 0
-        while offset_val < total:
-            paginated_query = query.offset(offset_val).limit(batch_size)
-            rows = session.execute(paginated_query).fetchall()
-
-            if not rows:
-                break
-
+        for rows in result.partitions(batch_size):
             # Build search documents
             documents = [
                 SearchDocument(
@@ -952,9 +939,12 @@ def index_build(batch_size, rebuild):
                 task_uids.append(task_uid)
 
             total_indexed += len(documents)
-            offset_val += batch_size
 
-            click.echo(f"   Sent: {total_indexed:,}/{total:,}")
+            click.echo(f"   Sent: {total_indexed:,} documents")
+
+    if total_indexed == 0:
+        click.echo("   No entities to index")
+        return
 
     click.echo(
         f"✅ Sent {total_indexed:,} documents for indexing ({len(task_uids)} tasks)"
