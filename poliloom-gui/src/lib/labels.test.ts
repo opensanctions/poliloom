@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { best_label } from '@/lib/labels'
+import { best_description, best_label } from '@/lib/labels'
 import type { TermMaps } from '@/types'
 
-function terms(labels: Record<string, string>): TermMaps {
-  return { labels, descriptions: {}, aliases: {} }
+function terms(
+  labels: Record<string, string>,
+  descriptions: Record<string, string> = {},
+): TermMaps {
+  return { labels, descriptions, aliases: {} }
 }
 
 describe('best_label', () => {
@@ -56,5 +59,19 @@ describe('best_label', () => {
   it('returns the fallback when terms is null or undefined', () => {
     expect(best_label(null, ['de'], 'Q42')).toBe('Q42')
     expect(best_label(undefined, ['de'], 'Q42')).toBe('Q42')
+  })
+})
+
+describe('best_description', () => {
+  it('returns the description of the first preferred language that has one', () => {
+    const maps = terms({}, { en: 'English', de: 'Deutsch' })
+
+    expect(best_description(maps, ['de', 'en'])).toBe('Deutsch')
+  })
+
+  it('falls back to any description and then to undefined', () => {
+    expect(best_description(terms({}, { es: 'España' }), ['de'])).toBe('España')
+    expect(best_description(terms({}), ['de'])).toBeUndefined()
+    expect(best_description(null, ['de'])).toBeUndefined()
   })
 })

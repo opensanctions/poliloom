@@ -22,7 +22,7 @@ import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
+import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { best_label } from '@/lib/labels'
 import type { ReviewSubmitPayload } from '@/types'
 import { groupStatementsIntoSections } from '@/lib/actions'
@@ -66,11 +66,9 @@ function TutorialReviewStepView({
   const [selection, setSelection] = useState<SourceSelection | null>(() =>
     findInitialSelection(reviewStep.politician, []),
   )
-  const userLanguageCodes = useUserLanguageCodes()
   return (
     <EvaluationView
       politician={reviewStep.politician}
-      userLanguageCodes={userLanguageCodes}
       selection={selection}
       onSelectionChange={setSelection}
       onSubmit={onSubmit}
@@ -96,7 +94,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const hasCompletedAdvancedTutorial = settings?.advanced_tutorial_completed ?? true
   const isAdvancedMode = settings?.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
-  const userLanguageCodes = useUserLanguageCodes()
+  const labelLanguages = useLabelLanguages()
 
   const startHref = !nextLoading ? nextHref : undefined
 
@@ -199,7 +197,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <PoliticianHeader
               name={best_label(
                 extractedDataPolitician.terms,
-                userLanguageCodes,
+                labelLanguages,
                 extractedDataPolitician.wikidata_id ?? extractedDataPolitician.id,
               )}
               wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
@@ -242,7 +240,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <PoliticianHeader
               name={best_label(
                 extractedDataPolitician.terms,
-                userLanguageCodes,
+                labelLanguages,
                 extractedDataPolitician.wikidata_id ?? extractedDataPolitician.id,
               )}
               wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
@@ -268,7 +266,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                             sectionType={section.sectionType}
                             groupKey={group.key}
                             terms={terms}
-                            userLanguageCodes={userLanguageCodes}
                           />
                         }
                       >
@@ -285,7 +282,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                                 onViewSource={() => {}}
                                 onHover={() => {}}
                                 activeSourceId={null}
-                                userLanguageCodes={userLanguageCodes}
                               />
                             </Fragment>
                           ))}

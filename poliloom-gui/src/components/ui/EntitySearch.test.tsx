@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { mockUseLabelLanguages } from '@/test/mocks'
 import { EntitySearch } from './EntitySearch'
 import { searchEntity } from '@/test/factories'
 import { SearchFn } from '@/types'
@@ -65,6 +66,28 @@ describe('EntitySearch', () => {
     await waitFor(() => {
       expect(screen.getByText('Q64')).toBeInTheDocument()
     })
+  })
+
+  it('renders labels and descriptions in the browser language', async () => {
+    mockUseLabelLanguages.mockReturnValue(['sv'])
+    const results = [
+      searchEntity({
+        terms: {
+          labels: { en: 'Berlin', sv: 'Berlin (sv)' },
+          descriptions: { en: 'capital of Germany', sv: 'Tysklands huvudstad' },
+          aliases: {},
+        },
+      }),
+    ]
+
+    render(<EntitySearch onSearch={createMockSearch(results)} onSelect={mockOnSelect} />)
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Berlin (sv)')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Tysklands huvudstad/)).toBeInTheDocument()
   })
 
   it('calls onSelect when a result is clicked', async () => {

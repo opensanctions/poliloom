@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Select'
 import { Footer } from '@/components/ui/Footer'
 import { StatsResponse, DecisionTimeseriesPoint, CountryCoverage } from '@/types'
 import { best_label } from '@/lib/labels'
-import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
+import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 
 function formatDateRange(startDateStr: string): string {
   const start = new Date(startDateStr)
@@ -222,28 +222,26 @@ function CoverageBar({ item, label }: { item: CountryCoverage; label: string }) 
 
 type SortOrder = 'label' | 'total' | 'enriched' | 'decided'
 
-function coverageLabel(item: CountryCoverage, userLanguageCodes: string[]): string {
-  return best_label(item.terms, userLanguageCodes, item.wikidata_id ?? 'No citizenship')
+function coverageLabel(item: CountryCoverage, labelLanguages: string[]): string {
+  return best_label(item.terms, labelLanguages, item.wikidata_id ?? 'No citizenship')
 }
 
 function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOrder, setSortOrder] = useState<SortOrder>('total')
-  const userLanguageCodes = useUserLanguageCodes()
+  const labelLanguages = useLabelLanguages()
 
   const filteredAndSortedData = useMemo(() => {
     const filtered = searchQuery
       ? data.filter((item) =>
-          coverageLabel(item, userLanguageCodes).toLowerCase().includes(searchQuery.toLowerCase()),
+          coverageLabel(item, labelLanguages).toLowerCase().includes(searchQuery.toLowerCase()),
         )
       : data
 
     return [...filtered].sort((a, b) => {
       switch (sortOrder) {
         case 'label':
-          return coverageLabel(a, userLanguageCodes).localeCompare(
-            coverageLabel(b, userLanguageCodes),
-          )
+          return coverageLabel(a, labelLanguages).localeCompare(coverageLabel(b, labelLanguages))
         case 'enriched':
           return b.enriched_count - a.enriched_count
         case 'decided':
@@ -253,7 +251,7 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
           return b.total_count - a.total_count
       }
     })
-  }, [data, searchQuery, sortOrder, userLanguageCodes])
+  }, [data, searchQuery, sortOrder, labelLanguages])
 
   if (data.length === 0) {
     return <p className="text-foreground-muted text-center py-8">No coverage data yet</p>
@@ -290,7 +288,7 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
             <CoverageBar
               key={item.wikidata_id ?? 'without-citizenship'}
               item={item}
-              label={coverageLabel(item, userLanguageCodes)}
+              label={coverageLabel(item, labelLanguages)}
             />
           ))}
         </div>

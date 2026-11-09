@@ -15,6 +15,7 @@ import {
   type StatementItem,
 } from '@/lib/actions'
 import { best_label } from '@/lib/labels'
+import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { TwoPanel } from '@/components/layout/TwoPanel'
@@ -87,7 +88,6 @@ export interface FooterContext {
 
 interface EvaluationViewProps {
   politician: Politician
-  userLanguageCodes: string[]
   selection: SourceSelection | null
   onSelectionChange: (selection: SourceSelection | null) => void
   onSubmit?: (payload: ReviewSubmitPayload) => Promise<void>
@@ -98,7 +98,6 @@ interface EvaluationViewProps {
 
 export function EvaluationView({
   politician,
-  userLanguageCodes,
   selection,
   onSelectionChange,
   onSubmit,
@@ -106,6 +105,7 @@ export function EvaluationView({
   sourcesApiPath = '/api/sources',
   onAddSource,
 }: EvaluationViewProps) {
+  const labelLanguages = useLabelLanguages()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [decisions, setDecisions] = useState<LocalDecisions>({})
 
@@ -181,7 +181,7 @@ export function EvaluationView({
 
   const politicianName = best_label(
     politician.terms,
-    userLanguageCodes,
+    labelLanguages,
     politician.wikidata_id ?? politician.id,
   )
 
@@ -217,7 +217,6 @@ export function EvaluationView({
                           sectionType={section.sectionType}
                           groupKey={group.key}
                           terms={terms}
-                          userLanguageCodes={userLanguageCodes}
                         />
                       }
                       onHover={() => handleItemHover(first)}
@@ -233,7 +232,6 @@ export function EvaluationView({
                               onViewSource={handleViewSource}
                               onHover={handleItemHover}
                               activeSourceId={activeSourceId}
-                              userLanguageCodes={userLanguageCodes}
                             />
                           </Fragment>
                         ))}

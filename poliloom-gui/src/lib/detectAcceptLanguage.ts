@@ -1,6 +1,6 @@
 import { LanguageResponse } from '@/types'
 
-function parseAcceptLanguage(header: string | null): string[] {
+export function parseAcceptLanguage(header: string | null): string[] {
   if (!header) return []
   const items: { code: string; q: number }[] = []
   for (const part of header.split(',')) {

@@ -4,14 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { SearchEntity, SearchFn } from '@/types'
-import { best_label } from '@/lib/labels'
+import { best_description, best_label } from '@/lib/labels'
+import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 
-function entityName(entity: SearchEntity): string {
-  return best_label(entity.terms, [], entity.wikidata_id)
+function entityName(entity: SearchEntity, labelLanguages: string[]): string {
+  return best_label(entity.terms, labelLanguages, entity.wikidata_id)
 }
 
-function entityDescription(entity: SearchEntity): string | undefined {
-  return entity.terms.descriptions.en ?? Object.values(entity.terms.descriptions)[0]
+function entityDescription(entity: SearchEntity, labelLanguages: string[]): string | undefined {
+  return best_description(entity.terms, labelLanguages)
 }
 
 class SelectItem {
@@ -31,6 +32,7 @@ export function EntitySearch({
   placeholder = 'Search...',
   disabled = false,
 }: EntitySearchProps) {
+  const labelLanguages = useLabelLanguages()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchEntity[]>([])
   const [isOpen, setIsOpen] = useState(false)
@@ -105,7 +107,10 @@ export function EntitySearch({
   }
 
   function selectItem(item: SelectItem) {
-    onSelect({ wikidata_id: item.entity.wikidata_id, name: entityName(item.entity) })
+    onSelect({
+      wikidata_id: item.entity.wikidata_id,
+      name: entityName(item.entity, labelLanguages),
+    })
     setQuery('')
     resetDropdown()
   }
@@ -176,9 +181,11 @@ export function EntitySearch({
               onMouseMove={() => setActiveIndex(i)}
               className={`px-3 py-2 cursor-pointer ${activeIndex === i ? 'bg-accent-muted' : ''}`}
             >
-              <div className="text-foreground">{entityName(item.entity)}</div>
+              <div className="text-foreground">{entityName(item.entity, labelLanguages)}</div>
               <div className="text-foreground-muted text-sm">
-                {entityDescription(item.entity) && <span>{entityDescription(item.entity)} · </span>}
+                {entityDescription(item.entity, labelLanguages) && (
+                  <span>{entityDescription(item.entity, labelLanguages)} · </span>
+                )}
                 {item.entity.wikidata_id}
               </div>
             </li>

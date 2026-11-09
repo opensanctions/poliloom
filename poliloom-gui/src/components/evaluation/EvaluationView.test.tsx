@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useState, ComponentProps } from 'react'
 import { screen, fireEvent, render, waitFor } from '@testing-library/react'
-import '@/test/mocks'
+import { mockUseLabelLanguages } from '@/test/mocks'
 import {
   EvaluationView,
   SourceSelection,
@@ -226,7 +226,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -242,7 +241,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -262,7 +260,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -287,7 +284,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -307,7 +303,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithStatements}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -323,7 +318,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithStatements}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -338,7 +332,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -351,11 +344,11 @@ describe('EvaluationView', () => {
       expect(screen.getAllByText('View source to decide').length).toBe(2)
     })
 
-    it('renders entity group titles with the best label in the user language', () => {
+    it('renders entity group titles with the best label in the browser language', () => {
+      mockUseLabelLanguages.mockReturnValue(['sv'])
       render(
         <ControlledEvaluationView
           politician={politicianWithStatements}
-          userLanguageCodes={['sv']}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -370,13 +363,7 @@ describe('EvaluationView', () => {
         actions: [],
       }
 
-      render(
-        <ControlledEvaluationView
-          politician={politician}
-          userLanguageCodes={[]}
-          footer={() => <div>Footer</div>}
-        />,
-      )
+      render(<ControlledEvaluationView politician={politician} footer={() => <div>Footer</div>} />)
 
       expect(screen.getByRole('link', { name: /Q500/ })).toBeInTheDocument()
     })
@@ -385,7 +372,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithStatements}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -402,7 +388,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithStatements}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -416,7 +401,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -433,7 +417,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -459,13 +442,7 @@ describe('EvaluationView', () => {
         ],
       }
 
-      render(
-        <ControlledEvaluationView
-          politician={politician}
-          userLanguageCodes={[]}
-          footer={() => <div>Footer</div>}
-        />,
-      )
+      render(<ControlledEvaluationView politician={politician} footer={() => <div>Footer</div>} />)
 
       // Source 1 is active; the two source-1 actions are live, the source-3 one is not.
       expect(screen.getAllByText('View source to decide').length).toBe(1)
@@ -483,7 +460,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           onSubmit={onSubmit}
           footer={({ submit }) => <button onClick={submit}>Submit Decisions &amp; Next</button>}
         />,
@@ -524,7 +500,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
         />,
@@ -537,7 +512,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianWithDifferentSources}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -553,7 +527,6 @@ describe('EvaluationView', () => {
       render(
         <ControlledEvaluationView
           politician={politicianNoQid}
-          userLanguageCodes={[]}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
         />,

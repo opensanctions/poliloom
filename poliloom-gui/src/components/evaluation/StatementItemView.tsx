@@ -17,6 +17,7 @@ import {
   type StatementItem as StatementItemType,
 } from '@/lib/actions'
 import { best_label } from '@/lib/labels'
+import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { parseTimeValue, timeValue } from '@/lib/wikidata/dateParser'
 import { formatTimeframe, parseTimeframe } from '@/lib/wikidata/qualifierParser'
 import { Button } from '@/components/ui/Button'
@@ -26,16 +27,12 @@ import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetada
 
 // --- Value and snak display ---
 
-function valueDisplay(
-  value: RestValue,
-  terms: TermMaps | null,
-  userLanguageCodes: string[],
-): string {
+function valueDisplay(value: RestValue, terms: TermMaps | null, labelLanguages: string[]): string {
   const time = timeValue(value)
   if (time) return parseTimeValue(time).display
   if (value.type === 'value') {
     if (typeof value.content === 'string' && value.content.startsWith('Q')) {
-      return best_label(terms, userLanguageCodes, value.content)
+      return best_label(terms, labelLanguages, value.content)
     }
     return String(value.content)
   }
@@ -51,19 +48,18 @@ function snakDisplay(snak: RestSnak): string {
 function PatchDescriptionView({
   description,
   entityTerms,
-  userLanguageCodes,
 }: {
   description: PatchDescription
   entityTerms: TermMaps | null
-  userLanguageCodes: string[]
 }) {
+  const labelLanguages = useLabelLanguages()
   switch (description.kind) {
     case 'value-refinement':
       return (
         <span className="text-foreground-secondary">
-          Value: {valueDisplay(description.oldValue, null, userLanguageCodes)}{' '}
+          Value: {valueDisplay(description.oldValue, null, labelLanguages)}{' '}
           <span aria-hidden="true">→</span>{' '}
-          {valueDisplay(description.newValue, entityTerms, userLanguageCodes)}
+          {valueDisplay(description.newValue, entityTerms, labelLanguages)}
         </span>
       )
     case 'qualifier-refinement':
@@ -151,7 +147,6 @@ interface ActionRowProps {
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
   onHover: () => void
   activeSourceId?: string | null
-  userLanguageCodes: string[]
 }
 
 function ActionRow({
@@ -162,7 +157,6 @@ function ActionRow({
   onViewSource,
   onHover,
   activeSourceId,
-  userLanguageCodes,
 }: ActionRowProps) {
   const decision = effectiveDecision(action, decisions)
   const isSourceVisible =
@@ -174,7 +168,6 @@ function ActionRow({
         <PatchDescriptionView
           description={describePatch((action.payload as EditStatementPayload).patch)}
           entityTerms={action.entity_terms}
-          userLanguageCodes={userLanguageCodes}
         />
       )}
       <StatementSource
@@ -207,7 +200,6 @@ export interface StatementItemViewProps {
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
   onHover?: (item: StatementItemType) => void
   activeSourceId?: string | null
-  userLanguageCodes: string[]
 }
 
 export function StatementItemView({
@@ -217,8 +209,8 @@ export function StatementItemView({
   onViewSource,
   onHover,
   activeSourceId,
-  userLanguageCodes,
 }: StatementItemViewProps) {
+  const labelLanguages = useLabelLanguages()
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
 
   const handleToggle = (section: 'qualifiers' | 'references') => {
@@ -234,7 +226,7 @@ export function StatementItemView({
   if (isDate) {
     content = (
       <span className="text-foreground-secondary flex-1">
-        {valueDisplay(document.value, entityTerms, userLanguageCodes)}
+        {valueDisplay(document.value, entityTerms, labelLanguages)}
       </span>
     )
   } else if (propertyId === 'P39') {
@@ -254,7 +246,6 @@ export function StatementItemView({
     onViewSource,
     onHover: () => onHover?.(item),
     activeSourceId,
-    userLanguageCodes,
   }
 
   return (

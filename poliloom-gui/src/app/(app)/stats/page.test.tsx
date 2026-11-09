@@ -1,9 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { screen, render, fireEvent } from '@testing-library/react'
 import '@/test/mocks'
-import { mockFetch, mockUseFilters, defaultFiltersContext } from '@/test/mocks'
+import { mockUseLabelLanguages } from '@/test/mocks'
 import { StatsContent } from './StatsContent'
-import { language } from '@/test/factories'
 import type { StatsResponse } from '@/types'
 
 const STATS: StatsResponse = {
@@ -67,26 +66,14 @@ describe('StatsContent', () => {
     expect(screen.getByText('No decision data yet')).toBeInTheDocument()
   })
 
-  it('renders country labels from terms in the user language', async () => {
-    mockUseFilters.mockReturnValue({
-      ...defaultFiltersContext,
-      languageQids: ['Q9027'],
-    })
-    mockFetch.mockImplementation((url) => {
-      if (url === '/api/languages') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [language({ wikidata_id: 'Q9027', wikimedia_code: 'sv' })],
-        } as Response)
-      }
-      return Promise.resolve({ ok: true, json: async () => [] } as Response)
-    })
+  it('renders country labels from terms in the browser language', () => {
+    mockUseLabelLanguages.mockReturnValue(['sv'])
 
     render(<StatsContent stats={STATS} />)
 
     // Rendered twice per row: behind the bar and inside it.
-    expect(await screen.findAllByText('Sverige')).not.toHaveLength(0)
-    // Falls back to any available label when the user language is missing.
+    expect(screen.getAllByText('Sverige')).not.toHaveLength(0)
+    // Falls back to any available label when the browser language is missing.
     expect(screen.getAllByText('日本')).not.toHaveLength(0)
   })
 

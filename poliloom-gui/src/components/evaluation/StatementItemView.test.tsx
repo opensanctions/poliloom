@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { vi } from 'vitest'
+import { beforeEach, vi } from 'vitest'
+import { mockUseLabelLanguages } from '@/test/mocks'
 import { StatementItemView } from './StatementItemView'
 import type {
   Action,
@@ -119,8 +120,11 @@ const baseProps = {
   decisions: {},
   onDecision: vi.fn(),
   activeSourceId: null as string | null,
-  userLanguageCodes: ['sv'],
 }
+
+beforeEach(() => {
+  mockUseLabelLanguages.mockReturnValue(['sv'])
+})
 
 describe('StatementItemView - statements', () => {
   it('renders a birth date statement with formatted value and existing label', () => {

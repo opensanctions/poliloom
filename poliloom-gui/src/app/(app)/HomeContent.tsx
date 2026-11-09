@@ -11,7 +11,7 @@ import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CountryResponse, LanguageResponse } from '@/types'
 import { best_label } from '@/lib/labels'
-import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
+import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 
 interface CtaState {
   href?: string
@@ -33,7 +33,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
     allCaughtUp,
     loading: loadingNext,
   } = useNextPoliticianContext()
-  const userLanguageCodes = useUserLanguageCodes()
+  const labelLanguages = useLabelLanguages()
 
   // Default tutorial completion to true when unauthenticated so we don't flash
   // a "Start Tutorial" CTA before redirect.
@@ -54,13 +54,13 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
 
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
-    label: best_label(lang.terms, userLanguageCodes, lang.wikidata_id),
+    label: best_label(lang.terms, labelLanguages, lang.wikidata_id),
     count: lang.sources_count,
   }))
 
   const countryOptions: MultiSelectOption[] = countries.map((country) => ({
     value: country.wikidata_id,
-    label: best_label(country.terms, userLanguageCodes, country.wikidata_id),
+    label: best_label(country.terms, labelLanguages, country.wikidata_id),
     count: country.citizenships_count,
   }))
 

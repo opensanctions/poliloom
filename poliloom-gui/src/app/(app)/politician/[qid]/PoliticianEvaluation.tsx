@@ -6,7 +6,6 @@ import { PatchActionsResponse, Politician, ReviewSubmitPayload, SourceResponse }
 import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
-import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 import { Button } from '@/components/ui/Button'
 import {
   EvaluationView,
@@ -23,7 +22,6 @@ interface PoliticianEvaluationProps {
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
   const { languageQids } = useFilters()
-  const userLanguageCodes = useUserLanguageCodes()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
   const [selection, setSelection] = useState<SourceSelection | null>(() =>
@@ -120,7 +118,6 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   return (
     <EvaluationView
       politician={politician}
-      userLanguageCodes={userLanguageCodes}
       selection={selection}
       onSelectionChange={setSelection}
       onSubmit={submit}

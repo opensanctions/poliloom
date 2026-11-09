@@ -9,7 +9,6 @@ import {
   defaultNextPolitician,
 } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
-import { language } from '@/test/factories'
 import type {
   Action,
   ActionEvidence,
@@ -178,9 +177,6 @@ describe('PoliticianEvaluation', () => {
   beforeEach(() => {
     CSS.highlights.clear()
     mockFetch.mockImplementation((url, options) => {
-      if (url === '/api/languages') {
-        return mockApiResponse([language({ sources_count: 1 })])
-      }
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: true, message: 'OK', errors: [] })
       }
@@ -334,9 +330,6 @@ describe('PoliticianEvaluation', () => {
   it('surfaces submission errors from the backend', async () => {
     const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     mockFetch.mockImplementation((url, options) => {
-      if (url === '/api/languages') {
-        return mockApiResponse([language({ sources_count: 1 })])
-      }
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: false, message: 'Action not claimed', errors: ['boom'] })
       }
@@ -363,9 +356,6 @@ describe('PoliticianEvaluation - no next politician', () => {
       politicianReady: false,
     })
     mockFetch.mockImplementation((url, options) => {
-      if (url === '/api/languages') {
-        return mockApiResponse([language({ sources_count: 1 })])
-      }
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: true, message: 'OK', errors: [] })
       }
