@@ -9,9 +9,10 @@ import {
   defaultFiltersContext,
   mockSetLanguages,
   mockUseFilters,
+  mockUseLabelLanguages,
 } from '@/test/mocks'
 import { HomeContent } from './HomeContent'
-import { language } from '@/test/factories'
+import { country, language, terms } from '@/test/factories'
 
 const mockUseSession = vi.fn()
 const mockSignIn = vi.fn()
@@ -75,6 +76,24 @@ describe('Home Page (Filter Selection)', () => {
     expect(english).toBeDisabled()
     fireEvent.click(english)
     expect(mockSetLanguages).not.toHaveBeenCalled()
+  })
+
+  it('renders filter options in the browser language', () => {
+    mockUseLabelLanguages.mockReturnValue(['sv'])
+
+    render(
+      <HomeContent
+        languages={[
+          language({ sources_count: 10, terms: terms({ en: 'English', sv: 'Engelska' }) }),
+        ]}
+        countries={[
+          country({ citizenships_count: 10, terms: terms({ en: 'United States', sv: 'USA' }) }),
+        ]}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /Engelska/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /USA/ })).toBeInTheDocument()
   })
 
   it('renders home page with filter options', async () => {

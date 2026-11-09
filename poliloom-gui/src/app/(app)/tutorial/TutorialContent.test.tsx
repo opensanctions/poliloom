@@ -9,6 +9,7 @@ import {
   defaultSettingsContext,
   defaultSettings,
   mockFetch,
+  mockUseLabelLanguages,
 } from '@/test/mocks'
 import { TutorialContent, TutorialStep } from './TutorialContent'
 import type { UserSettings } from '@/types'
@@ -16,6 +17,23 @@ import type { UserSettings } from '@/types'
 vi.mock('@/components/layout/Header', () => ({
   Header: () => <div data-testid="header">Header</div>,
 }))
+
+// Tutorial data carries English labels only; add a Swedish one so the
+// browser-language wiring is observable.
+vi.mock('./tutorialData', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./tutorialData')>()
+  return {
+    ...actual,
+    extractedDataPolitician: {
+      ...actual.extractedDataPolitician,
+      terms: {
+        labels: { en: 'Jane Doe', sv: 'Jane Doe (sv)' },
+        descriptions: {},
+        aliases: {},
+      },
+    },
+  }
+})
 
 /** Build settings overrides defaulting to "fresh user, basic mode". */
 function settingsWith(overrides: Partial<UserSettings> = {}): UserSettings {
@@ -120,6 +138,13 @@ describe('Tutorial Page', () => {
       expect(screen.getByText('Sources')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    })
+
+    it('renders the politician name in the browser language', () => {
+      mockUseLabelLanguages.mockReturnValue(['sv'])
+      render(<TutorialContent initialStep={TutorialStep.LinkedSources} />)
+
+      expect(screen.getByText('Jane Doe (sv)')).toBeInTheDocument()
     })
 
     it('advances to statements & proposals when clicking "Next"', () => {
