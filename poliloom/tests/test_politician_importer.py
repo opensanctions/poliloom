@@ -574,6 +574,40 @@ class TestWikidataPoliticianImporter:
             sample_french_wikipedia_project.wikidata_id,
         }
 
+    def test_insert_politicians_batch_chunks_dependent_rows(
+        self, db_session, sample_wikipedia_project, monkeypatch
+    ):
+        """Dependent rows survive spanning multiple bounded upsert chunks."""
+        monkeypatch.setattr(
+            "poliloom.importer.politician.DEPENDENT_UPSERT_CHUNK_SIZE", 1
+        )
+        politicians = [
+            {
+                "wikidata_id": qid,
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
+                "statements": [
+                    action_api_statement_to_rest(
+                        _time_claim("P569", f"{qid}$BIRTH", "+1970-01-01T00:00:00Z")
+                    )
+                ],
+                "wikipedia_links": [
+                    {
+                        "url": f"https://en.wikipedia.org/wiki/{qid}",
+                        "wikipedia_project_id": sample_wikipedia_project.wikidata_id,
+                    }
+                ],
+            }
+            for qid in ("Q1", "Q2")
+        ]
+
+        _insert_politicians_batch(politicians, db_session)
+
+        inserted = db_session.query(Politician).order_by(Politician.wikidata_id).all()
+        assert [politician.wikidata_id for politician in inserted] == ["Q1", "Q2"]
+        for politician in inserted:
+            assert len(politician.statements) == 1
+            assert len(politician.wikipedia_links) == 1
+
 
 class TestIsPolitician:
     """Test the _is_politician helper function."""

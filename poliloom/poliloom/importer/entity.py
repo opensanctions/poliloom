@@ -145,7 +145,23 @@ def _process_supporting_entities_chunk(
             if not entity_id:
                 continue
 
-            # Create shared entity data
+            # Check entity type before extracting potentially large term maps
+            instance_ids = entity.get_instance_of_ids()
+            subclass_ids = entity.get_subclass_of_ids()
+            all_class_ids = instance_ids.union(subclass_ids)
+
+            matching_collections = [
+                collection
+                for collection in entity_collections
+                if not all_class_ids.isdisjoint(collection.shared_classes)
+                and (
+                    not collection.ignored_classes
+                    or all_class_ids.isdisjoint(collection.ignored_classes)
+                )
+            ]
+            if not matching_collections:
+                continue
+
             terms = entity.get_terms()
             if not terms["labels"]:
                 continue  # Skip entities without labels - needed for search indexing
@@ -154,27 +170,10 @@ def _process_supporting_entities_chunk(
                 "wikidata_id": entity_id,
                 "terms": terms,
             }
+            entity_relations = None
 
-            # Check entity type and add type-specific fields
-            # Check if entity is a position based on instance or subclass hierarchy
-            instance_ids = entity.get_instance_of_ids()
-            subclass_ids = entity.get_subclass_of_ids()
-            all_class_ids = instance_ids.union(subclass_ids)
-
-            # Process each entity type
-            for collection in entity_collections:
-                # Check if entity matches hierarchy classes
-                if not any(
-                    class_id in collection.shared_classes for class_id in all_class_ids
-                ):
-                    continue
-
-                # Skip if entity matches any ignored hierarchy classes
-                if collection.ignored_classes and any(
-                    class_id in collection.ignored_classes for class_id in all_class_ids
-                ):
-                    continue
-
+            # Process each matching entity type
+            for collection in matching_collections:
                 # Ask the model class if this entity should be imported
                 additional_fields = collection.model_class.should_import(
                     entity, instance_ids, subclass_ids
@@ -186,8 +185,8 @@ def _process_supporting_entities_chunk(
                     import_data.update(additional_fields)
                     collection.add_entity(import_data)
 
-                    # Extract relations for this entity
-                    entity_relations = entity.extract_all_relations()
+                    if entity_relations is None:
+                        entity_relations = entity.extract_all_relations()
                     collection.add_relations(entity_relations)
 
             # Process batches when they reach the batch size

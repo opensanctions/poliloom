@@ -2,7 +2,9 @@
 
 import logging
 import multiprocessing as mp
+from itertools import islice
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import dump_reader
@@ -196,6 +198,7 @@ def import_hierarchy_trees(
         )
 
         first_pass_results = async_result.get()
+        del async_result
 
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, cleaning up workers...")
@@ -219,6 +222,9 @@ def import_hierarchy_trees(
     for chunk_parent_ids, chunk_count in first_pass_results:
         total_entities += chunk_count
         all_parent_ids.update(chunk_parent_ids)
+    if first_pass_results:
+        del chunk_parent_ids
+    del first_pass_results
 
     logger.info(f"First pass complete: Processed {total_entities} entities")
     logger.info(f"Found {len(all_parent_ids)} unique parent IDs")
@@ -226,8 +232,7 @@ def import_hierarchy_trees(
     # Get existing QIDs from database
     logger.info("Loading existing QIDs from database...")
     with Session(get_engine()) as session:
-        existing_qids = session.query(WikidataEntity.wikidata_id).all()
-        existing_qids = {qid[0] for qid in existing_qids}
+        existing_qids = set(session.scalars(select(WikidataEntity.wikidata_id)))
         logger.info(f"Found {len(existing_qids)} existing entities in database")
 
     # Combine all target QIDs for second pass
@@ -239,17 +244,21 @@ def import_hierarchy_trees(
     new_entities = all_parent_ids - existing_qids
     if new_entities:
         logger.info(f"Inserting {len(new_entities)} new WikidataEntity records...")
-        entity_data = [{"wikidata_id": qid} for qid in new_entities]
+        new_entity_iter = iter(new_entities)
 
         batch_size_inserts = 10000
-        for i in range(0, len(entity_data), batch_size_inserts):
-            batch = entity_data[i : i + batch_size_inserts]
+        batch_number = 0
+        while batch := [
+            {"wikidata_id": qid} for qid in islice(new_entity_iter, batch_size_inserts)
+        ]:
             with Session(get_engine()) as session:
                 WikidataEntity.upsert_batch(session, batch)
                 session.commit()
-            logger.info(
-                f"Inserted batch {i // batch_size_inserts + 1} ({len(batch)} records)"
-            )
+            batch_number += 1
+            logger.info(f"Inserted batch {batch_number} ({len(batch)} records)")
+        del new_entity_iter
+
+    del all_parent_ids, existing_qids, new_entities
 
     # ========== SECOND PASS: Update names and insert relations ==========
     logger.info("Starting second pass: updating terms and inserting relations...")
@@ -257,6 +266,7 @@ def import_hierarchy_trees(
     # Set global BEFORE creating Pool so workers inherit via fork copy-on-write
     global shared_target_qids
     shared_target_qids = frozenset(target_qids)
+    del target_qids
 
     pool = None
     try:

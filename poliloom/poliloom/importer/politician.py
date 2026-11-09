@@ -2,6 +2,7 @@
 
 import logging
 import multiprocessing as mp
+from itertools import batched
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
+DEPENDENT_UPSERT_CHUNK_SIZE = 5000
 
 # Worker config - set in parent process before fork, shared via copy-on-write
 shared_position_qids: frozenset[str] | None = None
@@ -126,31 +128,31 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
         ).all()
     }
 
-    # Process statements for each politician
+    # Collect dependent rows for bounded batch upserts
+    statement_batch = []
+    wikipedia_batch = []
     for politician_data in politicians:
         politician_id = ids_by_qid[politician_data["wikidata_id"]]
         # Store canonical REST statement documents for tracked claims
         # (birth/death dates, positions, citizenships, birthplaces)
-        statement_batch = [
+        statement_batch.extend(
             {"politician_id": politician_id, "document": document}
             for document in politician_data.get("statements", [])
-        ]
+        )
 
-        if statement_batch:
-            Statement.upsert_batch(session, statement_batch)
-
-        # Add Wikipedia links using batch UPSERT
-        wikipedia_batch = [
+        wikipedia_batch.extend(
             {
                 "politician_id": politician_id,
                 "url": wiki_link["url"],
                 "wikipedia_project_id": wiki_link["wikipedia_project_id"],
             }
             for wiki_link in politician_data.get("wikipedia_links", [])
-        ]
+        )
 
-        if wikipedia_batch:
-            WikipediaLink.upsert_batch(session, wikipedia_batch)
+    for chunk in batched(statement_batch, DEPENDENT_UPSERT_CHUNK_SIZE):
+        Statement.upsert_batch(session, list(chunk))
+    for chunk in batched(wikipedia_batch, DEPENDENT_UPSERT_CHUNK_SIZE):
+        WikipediaLink.upsert_batch(session, list(chunk))
 
     session.commit()
 
@@ -342,30 +344,25 @@ def import_politicians(
     # Load existing entity QIDs from database for filtering
     with Session(get_engine()) as session:
         position_qids = set(
-            session.query(Position.wikidata_id)
-            .filter(Position.wikidata_id.isnot(None))
-            .all()
+            session.scalars(
+                select(Position.wikidata_id).where(Position.wikidata_id.isnot(None))
+            )
         )
         location_qids = set(
-            session.query(Location.wikidata_id)
-            .filter(Location.wikidata_id.isnot(None))
-            .all()
+            session.scalars(
+                select(Location.wikidata_id).where(Location.wikidata_id.isnot(None))
+            )
         )
         country_qids = set(
-            session.query(Country.wikidata_id)
-            .filter(Country.wikidata_id.isnot(None))
-            .all()
+            session.scalars(
+                select(Country.wikidata_id).where(Country.wikidata_id.isnot(None))
+            )
         )
 
         # Load wikipedia projects to map URLs to project IDs
         wikipedia_project_rows = session.query(
             WikipediaProject.wikidata_id, WikipediaProject.official_website
         ).all()
-
-        # Convert to sets of strings (flatten tuples)
-        position_qids = {qid[0] for qid in position_qids}
-        location_qids = {qid[0] for qid in location_qids}
-        country_qids = {qid[0] for qid in country_qids}
 
         # Create mapping from URL prefix to wikidata_id
         # e.g., "https://en.wikipedia.org" -> "Q328"
@@ -390,6 +387,7 @@ def import_politicians(
     shared_location_qids = frozenset(location_qids)
     shared_country_qids = frozenset(country_qids)
     shared_wikipedia_projects = wikipedia_projects
+    del position_qids, location_qids, country_qids
 
     num_workers = mp.cpu_count()
     logger.info(f"Using parallel processing with {num_workers} workers")
