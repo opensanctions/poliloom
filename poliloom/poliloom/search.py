@@ -7,9 +7,12 @@ Uses a single 'entities' index with a 'type' field for filtering.
 import logging
 import os
 from typing import TypedDict
+from urllib import parse
 
 import meilisearch
 from dotenv import load_dotenv
+from meilisearch.models.task import Batch
+from pydantic import BaseModel
 
 # Single index for all searchable entities
 INDEX_NAME = "entities"
@@ -37,6 +40,25 @@ def get_client() -> meilisearch.Client:
         url = os.getenv("MEILI_URL", "http://localhost:7700")
         _client = meilisearch.Client(url, os.getenv("MEILI_MASTER_KEY"))
     return _client
+
+
+class BatchPage(BaseModel):
+    """GET /batches response, typed from the API instead of the SDK's BatchResults.
+
+    The API types `from` as nullable and returns null for an empty page; the
+    SDK declares it as an int, so empty status pages raise on deserialization.
+    """
+
+    results: list[Batch]
+    total: int
+
+
+def get_batches(status: str, limit: int = 10) -> BatchPage:
+    """Fetch one page of batches matching a status."""
+    client = get_client()
+    query = parse.urlencode({"statuses": status, "limit": limit})
+    raw = client.http.get(f"{client.config.paths.batch}?{query}")
+    return BatchPage(**raw)
 
 
 def create_index() -> None:

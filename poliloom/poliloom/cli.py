@@ -986,7 +986,7 @@ def index_stats():
     icons = {"succeeded": "✅", "processing": "⏳", "enqueued": "📥", "failed": "❌"}
     for status in ["processing", "enqueued", "succeeded", "failed"]:
         try:
-            batches = client.get_batches({"statuses": [status], "limit": 10})
+            batches = search.get_batches(status)
         except meilisearch.errors.MeilisearchError as e:
             logging.getLogger(__name__).warning(
                 "Failed to fetch %s batches: %s", status, e
@@ -994,7 +994,7 @@ def index_stats():
             continue
 
         count = batches.total
-        if count == 0 or count is None:
+        if count == 0:
             continue
 
         click.echo(f"   {icons.get(status, '•')} {status}: {count}")
