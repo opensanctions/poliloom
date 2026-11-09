@@ -42,29 +42,16 @@ async def get_languages(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve all languages with source counts for filter dropdowns.
+    Retrieve languages with source counts for filter dropdowns.
 
-    Returns a flat list of languages ordered by number of sources.
+    Only languages with at least one linked source are returned. The counts are
+    aggregated separately from the term maps: grouping over the term columns
+    would hash every language's full term maps once per link row.
     """
-    query = (
+    counts = (
         select(
-            Language.wikidata_id,
-            WikidataEntity.labels,
-            WikidataEntity.descriptions,
-            WikidataEntity.aliases,
-            Language.wikimedia_code,
-            Language.iso_639_1,
-            Language.iso_639_3,
+            WikidataRelation.parent_entity_id.label("language_id"),
             func.count(WikipediaLink.id).label("sources_count"),
-        )
-        .select_from(Language)
-        .join(
-            WikidataEntity,
-            Language.wikidata_id == WikidataEntity.wikidata_id,
-        )
-        .join(
-            WikidataRelation,
-            WikidataRelation.parent_entity_id == Language.wikidata_id,
         )
         .join(
             WikipediaProject,
@@ -77,7 +64,12 @@ async def get_languages(
             WikipediaLink,
             WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
         )
-        .group_by(
+        .group_by(WikidataRelation.parent_entity_id)
+        .subquery()
+    )
+
+    query = (
+        select(
             Language.wikidata_id,
             WikidataEntity.labels,
             WikidataEntity.descriptions,
@@ -85,8 +77,18 @@ async def get_languages(
             Language.wikimedia_code,
             Language.iso_639_1,
             Language.iso_639_3,
+            counts.c.sources_count,
         )
-        .order_by(func.count(WikipediaLink.id).desc())
+        .select_from(Language)
+        .join(
+            WikidataEntity,
+            Language.wikidata_id == WikidataEntity.wikidata_id,
+        )
+        .join(
+            counts,
+            counts.c.language_id == Language.wikidata_id,
+        )
+        .order_by(counts.c.sources_count.desc())
     )
 
     results = db.execute(query).all()
@@ -119,14 +121,27 @@ async def get_countries(
     The citizenship count is the number of live P27 citizenship statements
     pointing at the country. Returns a flat list ordered by citizenship count.
     For searching countries, use /countries/search.
+
+    The counts are aggregated separately from the term maps: grouping over the
+    term columns would hash every country's full term maps once per statement.
     """
+    counts = (
+        select(
+            Statement.entity_id.label("country_id"),
+            func.count(Statement.id).label("citizenships_count"),
+        )
+        .where(*active_citizenship_conditions(Statement))
+        .group_by(Statement.entity_id)
+        .subquery()
+    )
+
     query = (
         select(
             Country.wikidata_id,
             WikidataEntity.labels,
             WikidataEntity.descriptions,
             WikidataEntity.aliases,
-            func.count(Statement.id).label("citizenships_count"),
+            counts.c.citizenships_count,
         )
         .select_from(Country)
         .join(
@@ -134,19 +149,10 @@ async def get_countries(
             Country.wikidata_id == WikidataEntity.wikidata_id,
         )
         .join(
-            Statement,
-            and_(
-                Statement.entity_id == Country.wikidata_id,
-                *active_citizenship_conditions(Statement),
-            ),
+            counts,
+            counts.c.country_id == Country.wikidata_id,
         )
-        .group_by(
-            Country.wikidata_id,
-            WikidataEntity.labels,
-            WikidataEntity.descriptions,
-            WikidataEntity.aliases,
-        )
-        .order_by(func.count(Statement.id).desc())
+        .order_by(counts.c.citizenships_count.desc())
     )
 
     results = db.execute(query).all()
