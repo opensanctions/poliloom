@@ -50,13 +50,7 @@ def qualifier_time_value(qualifier: dict) -> WikidataDate | None:
 
 
 def first_qualifier_time(document: dict, property_id: str) -> WikidataDate | None:
-    """Time value of the first qualifier for a property, if any.
-
-    Statements without qualifiers omit the key (import shape and create
-    bodies do), so a missing key means no qualifiers.
-    """
-    if "qualifiers" not in document:
-        return None
+    """Time value of the first qualifier for a property, if any."""
     qualifiers = find_qualifiers(document, property_id)
     if not qualifiers:
         return None

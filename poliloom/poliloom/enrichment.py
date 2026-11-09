@@ -577,6 +577,7 @@ def _entity_candidate(property_id: str, entity_id: str) -> dict:
     return {
         "property": {"id": property_id},
         "value": {"type": "value", "content": entity_id},
+        "qualifiers": [],
     }
 
 
@@ -600,8 +601,7 @@ def _position_candidate(
                     },
                 }
             )
-    if qualifiers:
-        candidate["qualifiers"] = qualifiers
+    candidate["qualifiers"] = qualifiers
     return candidate
 
 
@@ -636,6 +636,7 @@ def store_extracted_data(
                             "type": "value",
                             "content": wikidata_date.to_rest_time_content(),
                         },
+                        "qualifiers": [],
                     },
                     p.supporting_quotes,
                     f"{p.type} = '{p.value}'",

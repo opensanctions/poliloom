@@ -230,6 +230,8 @@ class TestWikidataPoliticianImporter:
                     "calendarmodel": _CALENDAR_MODEL,
                 },
             },
+            "qualifiers": [],
+            "references": [],
         }
 
     def test_import_position(self, db_session):

@@ -31,6 +31,8 @@ def statement_document(
         "rank": "normal",
         "property": {"id": property_id, "data_type": data_type},
         "value": value,
+        "qualifiers": [],
+        "references": [],
     }
 
 

@@ -20,6 +20,7 @@ def date_statement(property_id: str, date_string: str) -> dict:
                 date_string
             ).to_rest_time_content(),
         },
+        "qualifiers": [],
     }
 
 
@@ -28,6 +29,7 @@ def entity_statement(property_id: str, entity_id: str) -> dict:
     return {
         "property": {"id": property_id},
         "value": {"type": "value", "content": entity_id},
+        "qualifiers": [],
     }
 
 
@@ -41,8 +43,7 @@ def position_statement(
         qualifiers.append(time_qualifier("P580", start_date))
     if end_date:
         qualifiers.append(time_qualifier("P582", end_date))
-    if qualifiers:
-        statement["qualifiers"] = qualifiers
+    statement["qualifiers"] = qualifiers
     return statement
 
 

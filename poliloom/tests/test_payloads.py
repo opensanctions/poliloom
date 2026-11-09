@@ -38,12 +38,14 @@ _URL_REFERENCE = {
 
 
 def _statement() -> dict:
-    """P39 statement without qualifiers or references (import shape)."""
+    """P39 statement with empty qualifiers and references."""
     return {
         "id": "Q42$7b80d2d0-4cc1-8d1e-1a1f-2f3f4f5f6f7f",
         "rank": "normal",
         "property": {"id": "P39", "data_type": "wikibase-item"},
         "value": {"type": "value", "content": "Q11696"},
+        "qualifiers": [],
+        "references": [],
     }
 
 
@@ -55,7 +57,7 @@ def _full_statement() -> dict:
     return statement
 
 
-def test_create_body_wraps_bare_statement():
+def test_create_body_wraps_statement_without_qualifiers_or_references():
     statement = _statement()
 
     assert create_body(statement) == {"statement": statement}
@@ -124,8 +126,7 @@ def test_append_qualifier_patch_tests_existing_array_before_adding():
     }
 
 
-def test_append_qualifier_patch_missing_key_tests_empty_array():
-    """A missing qualifiers key is an empty array on Wikidata's document."""
+def test_append_qualifier_patch_tests_empty_array():
     statement = _statement()
 
     result = append_qualifier_patch(statement, _START_TIME_QUALIFIER)
@@ -155,8 +156,7 @@ def test_append_reference_patch_tests_existing_array_before_adding():
     }
 
 
-def test_append_reference_patch_missing_key_tests_empty_array():
-    """A missing references key is an empty array on Wikidata's document."""
+def test_append_reference_patch_tests_empty_array():
     statement = _statement()
 
     result = append_reference_patch(statement, _URL_REFERENCE)

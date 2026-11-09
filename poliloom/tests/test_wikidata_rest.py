@@ -307,7 +307,7 @@ class TestValueConversion:
 
         assert result["value"] == {"type": "novalue"}
 
-    def test_claim_without_qualifiers_or_references_omits_keys(self):
+    def test_claim_without_qualifiers_or_references_uses_empty_arrays(self):
         claim = _minimal_claim(
             {
                 "snaktype": "value",
@@ -326,8 +326,8 @@ class TestValueConversion:
 
         result = action_api_statement_to_rest(claim)
 
-        assert "qualifiers" not in result
-        assert "references" not in result
+        assert result["qualifiers"] == []
+        assert result["references"] == []
 
     def test_only_reference_hash_is_retained(self):
         result = action_api_statement_to_rest(_p39_claim())

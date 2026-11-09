@@ -25,17 +25,12 @@ def action_api_statement_to_rest(claim: dict) -> dict:
         "value": _snak_value(mainsnak),
     }
 
-    qualifiers = _snak_map_to_rest(
+    statement["qualifiers"] = _snak_map_to_rest(
         claim.get("qualifiers", {}), claim.get("qualifiers-order")
     )
-    if qualifiers:
-        statement["qualifiers"] = qualifiers
-
-    references = claim.get("references", [])
-    if references:
-        statement["references"] = [
-            _reference_to_rest(reference) for reference in references
-        ]
+    statement["references"] = [
+        _reference_to_rest(reference) for reference in claim.get("references", [])
+    ]
 
     return statement
 

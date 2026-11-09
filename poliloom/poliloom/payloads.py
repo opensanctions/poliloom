@@ -6,9 +6,8 @@ JSON Patch whose ``test`` operations pin the patch to the document state it
 was built against (no ETags): a failed test aborts the patch before any
 mutation applies.
 
-Imported statements omit ``qualifiers``/``references`` when empty while the
-Wikibase REST API always returns them as arrays; for tests, a missing key
-means an empty array.
+Statements always carry ``qualifiers`` and ``references`` arrays, matching the
+Wikibase REST API response shape.
 """
 
 
@@ -62,7 +61,7 @@ def append_qualifier_patch(existing: dict, qualifier: dict) -> dict:
             {
                 "op": "test",
                 "path": "/qualifiers",
-                "value": existing.get("qualifiers", []),
+                "value": existing["qualifiers"],
             },
             {"op": "add", "path": "/qualifiers/-", "value": qualifier},
         ]
@@ -78,7 +77,7 @@ def append_reference_patch(existing: dict, reference: dict) -> dict:
             {
                 "op": "test",
                 "path": "/references",
-                "value": existing.get("references", []),
+                "value": existing["references"],
             },
             {"op": "add", "path": "/references/-", "value": reference},
         ]

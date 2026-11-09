@@ -85,14 +85,10 @@ def reference_identity(reference: dict) -> str:
 
 
 def reference_present(document: dict, reference: dict) -> bool:
-    """Check whether a statement document already carries a reference.
-
-    A missing ``references`` key means the document has none (import shape).
-    """
+    """Check whether a statement document already carries a reference."""
     identity = reference_identity(reference)
     return any(
-        reference_identity(existing) == identity
-        for existing in document.get("references", [])
+        reference_identity(existing) == identity for existing in document["references"]
     )
 
 
@@ -102,7 +98,7 @@ def plan(
     """Decide what change (if any) to persist for a candidate statement.
 
     Args:
-        candidate: REST statement body (``property``/``value``, optional
+        candidate: REST statement body (``property``/``value``/
             ``qualifiers``) extracted from a source.
         existing_documents: the politician's cached statement documents, all
             properties; filtered to the candidate's property internally.
@@ -400,14 +396,6 @@ def _compatible_targets(
 
 
 def _first_qualifier(document: dict, property_id: str) -> dict | None:
-    """First qualifier for a property, or None when absent.
-
-    Statements without qualifiers omit the key (import shape and create
-    bodies do), so a missing key means no qualifiers.
-    """
-    if "qualifiers" not in document:
-        return None
+    """First qualifier for a property, or None when absent."""
     qualifiers = find_qualifiers(document, property_id)
-    if not qualifiers:
-        return None
-    return qualifiers[0]
+    return qualifiers[0] if qualifiers else None

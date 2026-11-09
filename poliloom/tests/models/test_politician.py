@@ -21,9 +21,9 @@ def statement_document(
         "rank": "normal",
         "property": {"id": property_id, "data_type": data_type},
         "value": {"type": "value", "content": content},
+        "qualifiers": qualifiers or [],
+        "references": [],
     }
-    if qualifiers is not None:
-        document["qualifiers"] = qualifiers
     return document
 
 

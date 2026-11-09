@@ -81,6 +81,7 @@ def date_statement(property_id: str, date_string: str) -> dict:
                 date_string
             ).to_rest_time_content(),
         },
+        "qualifiers": [],
     }
 
 
@@ -89,6 +90,7 @@ def entity_statement(property_id: str, entity_id: str) -> dict:
     return {
         "property": {"id": property_id},
         "value": {"type": "value", "content": entity_id},
+        "qualifiers": [],
     }
 
 
@@ -114,8 +116,7 @@ def position_statement(
         qualifiers.append(time_qualifier("P580", start_date))
     if end_date:
         qualifiers.append(time_qualifier("P582", end_date))
-    if qualifiers:
-        statement["qualifiers"] = qualifiers
+    statement["qualifiers"] = qualifiers
     return statement
 
 
@@ -123,14 +124,12 @@ def as_document(
     statement: dict, references: list[dict] | None = None, suffix: str = "0000"
 ) -> dict:
     """A cached statement document (REST shape with id and rank)."""
-    document = {
+    return {
         "id": f"Q42${suffix}-4cc1-8d1e-1a1f-2f3f4f5f6f7f",
         "rank": "normal",
         **deepcopy(statement),
+        "references": references or [],
     }
-    if references is not None:
-        document["references"] = references
-    return document
 
 
 def with_reference(statement: dict, reference: dict) -> dict:
@@ -190,7 +189,7 @@ class TestReferenceIdentity:
 class TestReferencePresent:
     """Tests for reference_present()."""
 
-    def test_missing_references_key_means_none(self):
+    def test_no_references_means_none(self):
         assert not reference_present(
             as_document(date_statement("P569", "1950")), url_reference()
         )
