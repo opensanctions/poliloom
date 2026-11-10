@@ -50,6 +50,13 @@ services:
       - production
       - init
 
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    command: npx -y playwright@1.64.1 run-server --port 9222 --host 0.0.0.0
+    init: true
+    profiles:
+      - production
+
   api:
     image: ghcr.io/opensanctions/poliloom:${API_IMAGE_TAG:-latest}
     build:
@@ -63,11 +70,14 @@ services:
       - PYTHONPATH=/app
       - PORT=8000
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - PLAYWRIGHT_WS_ENDPOINT=ws://playwright:9222/
     volumes:
       - wikidata_cache:/var/cache/wikidata
     depends_on:
       db-migrate:
         condition: service_completed_successfully
+      playwright:
+        condition: service_started
     profiles:
       - production
 

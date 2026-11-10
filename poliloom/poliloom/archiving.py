@@ -74,8 +74,9 @@ def convert_mhtml_to_html(mhtml_content: str | None) -> str | None:
 async def fetch_page(url: str) -> FetchedPage:
     """Fetch a web page and return its content as MHTML and HTML.
 
-    Uses Playwright to render the page fully (including JavaScript) and
-    captures a complete MHTML snapshot.
+    Connects to the Playwright browser server at PLAYWRIGHT_WS_ENDPOINT to
+    render the page fully (including JavaScript) and captures a complete MHTML
+    snapshot.
 
     Args:
         url: The URL to fetch
@@ -94,7 +95,7 @@ async def fetch_page(url: str) -> FetchedPage:
     )
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.connect(os.environ["PLAYWRIGHT_WS_ENDPOINT"])
         context = await browser.new_context(user_agent=USER_AGENT)
         page = await context.new_page()
 

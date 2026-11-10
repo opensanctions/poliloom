@@ -1,0 +1,18 @@
+[Unit]
+Description=PoliLoom development Playwright browser server
+
+[Container]
+Image=mcr.microsoft.com/playwright:v1.64.1-noble
+ContainerName=poliloom-playwright
+PublishPort=127.0.0.1:9222:9222
+Exec=npx -y playwright@1.64.1 run-server --port 9222 --host 0.0.0.0
+RunInit=true
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=5min
+TimeoutStopSec=70s
+
+[Install]
+WantedBy=default.target

@@ -68,10 +68,10 @@ class TestFetchPage:
 
         mock_chromium = Mock()
 
-        async def mock_launch():
+        async def mock_connect(endpoint):
             return mock_browser
 
-        mock_chromium.launch = mock_launch
+        mock_chromium.connect = mock_connect
 
         mock_playwright = Mock()
         mock_playwright.chromium = mock_chromium
@@ -170,10 +170,10 @@ class TestFetchPage:
 
         mock_chromium = Mock()
 
-        async def mock_launch():
+        async def mock_connect(endpoint):
             return mock_browser
 
-        mock_chromium.launch = mock_launch
+        mock_chromium.connect = mock_connect
 
         mock_playwright.chromium = mock_chromium
 
@@ -231,10 +231,10 @@ class TestFetchPage:
 
         mock_chromium = Mock()
 
-        async def mock_launch():
+        async def mock_connect(endpoint):
             return mock_browser
 
-        mock_chromium.launch = mock_launch
+        mock_chromium.connect = mock_connect
 
         mock_playwright.chromium = mock_chromium
 
@@ -292,10 +292,10 @@ class TestFetchPage:
 
         mock_chromium = Mock()
 
-        async def mock_launch():
+        async def mock_connect(endpoint):
             return mock_browser
 
-        mock_chromium.launch = mock_launch
+        mock_chromium.connect = mock_connect
 
         mock_playwright.chromium = mock_chromium
 
