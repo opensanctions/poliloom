@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { getCountries, getLanguages } from '@/lib/api-auth'
-import { country, language, terms } from '@/test/factories'
+import { country, language, labelTerms } from '@/test/factories'
 
 const mockCookiesGet = vi.fn()
 const mockHeadersGet = vi.fn()
@@ -28,7 +28,7 @@ beforeEach(() => {
 describe('resolveLanguageQids', () => {
   const languages = [
     language(),
-    language({ wikidata_id: 'Q7411', terms: terms({ en: 'Dutch' }), iso_639_1: 'nl' }),
+    language({ wikidata_id: 'Q7411', terms: labelTerms({ en: 'Dutch' }), iso_639_1: 'nl' }),
   ]
 
   it('returns valid QIDs from the cookie without autodetecting', async () => {
@@ -79,8 +79,8 @@ describe('getFilterCountryQids', () => {
     mockCookiesGet.mockReturnValue({ value: 'Q30%2CQ183' })
     mockGetCountries.mockResolvedValue([
       country(),
-      country({ wikidata_id: 'Q183', terms: terms({ en: 'Germany' }) }),
-      country({ wikidata_id: 'Q142', terms: terms({ en: 'France' }) }),
+      country({ wikidata_id: 'Q183', terms: labelTerms({ en: 'Germany' }) }),
+      country({ wikidata_id: 'Q142', terms: labelTerms({ en: 'France' }) }),
     ])
 
     const result = await getFilterCountryQids()

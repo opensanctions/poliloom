@@ -76,6 +76,12 @@ class TermMaps(BaseModel):
         )
 
 
+class TermLabels(BaseModel):
+    """Labels-only term map, sent by list endpoints that render a single label."""
+
+    labels: dict[str, str]
+
+
 class StatementResponse(UUIDBaseModel):
     """Cached Wikidata statement document shown as review context."""
 
@@ -165,7 +171,7 @@ class LanguageResponse(BaseModel):
     """Schema for language response."""
 
     wikidata_id: str
-    terms: TermMaps
+    terms: TermLabels
     wikimedia_code: str | None = None
     iso_639_1: str | None = None
     iso_639_3: str | None = None
@@ -178,7 +184,7 @@ class CountryResponse(BaseModel):
     """Schema for country response."""
 
     wikidata_id: str
-    terms: TermMaps
+    terms: TermLabels
     citizenships_count: int
 
     model_config = ConfigDict(from_attributes=True)

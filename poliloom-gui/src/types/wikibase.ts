@@ -7,6 +7,9 @@ export interface TermMaps {
   aliases: Record<string, string[]>
 }
 
+/** Labels-only term map, as sent by the list endpoints. */
+export type TermLabels = Pick<TermMaps, 'labels'>
+
 export interface RestProperty {
   id: string
   data_type?: string

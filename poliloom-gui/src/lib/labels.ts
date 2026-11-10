@@ -1,4 +1,4 @@
-import type { TermMaps } from '@/types'
+import type { TermLabels, TermMaps } from '@/types'
 
 /** First term in the preferred languages, then `mul`, `en`, then any available. */
 function best_term(terms: Record<string, string>, languages: string[]): string | undefined {
@@ -10,7 +10,7 @@ function best_term(terms: Record<string, string>, languages: string[]): string |
 }
 
 export function best_label(
-  terms: TermMaps | null | undefined,
+  terms: TermLabels | null | undefined,
   languages: string[],
   fallback: string,
 ): string {

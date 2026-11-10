@@ -12,7 +12,7 @@ import {
   mockUseLabelLanguages,
 } from '@/test/mocks'
 import { HomeContent } from './HomeContent'
-import { country, language, terms } from '@/test/factories'
+import { country, language, labelTerms } from '@/test/factories'
 
 const mockUseSession = vi.fn()
 const mockSignIn = vi.fn()
@@ -84,10 +84,13 @@ describe('Home Page (Filter Selection)', () => {
     render(
       <HomeContent
         languages={[
-          language({ sources_count: 10, terms: terms({ en: 'English', sv: 'Engelska' }) }),
+          language({ sources_count: 10, terms: labelTerms({ en: 'English', sv: 'Engelska' }) }),
         ]}
         countries={[
-          country({ citizenships_count: 10, terms: terms({ en: 'United States', sv: 'USA' }) }),
+          country({
+            citizenships_count: 10,
+            terms: labelTerms({ en: 'United States', sv: 'USA' }),
+          }),
         ]}
       />,
     )

@@ -1,4 +1,4 @@
-import type { CountryResponse, LanguageResponse, SearchEntity, TermMaps } from '@/types'
+import type { CountryResponse, LanguageResponse, SearchEntity, TermLabels, TermMaps } from '@/types'
 
 // Typed factories for backend-mirrored response types. Each returns a
 // complete, schema-exact object; tests override only the fields they
@@ -11,10 +11,13 @@ export const terms = (labels: Record<string, string>): TermMaps => ({
   aliases: {},
 })
 
+/** Term map of the list endpoints, which ship labels only. */
+export const labelTerms = (labels: Record<string, string>): TermLabels => ({ labels })
+
 export function language(overrides: Partial<LanguageResponse> = {}): LanguageResponse {
   return {
     wikidata_id: 'Q1860',
-    terms: terms({ en: 'English' }),
+    terms: labelTerms({ en: 'English' }),
     wikimedia_code: 'en',
     iso_639_1: 'en',
     iso_639_3: 'eng',
@@ -26,7 +29,7 @@ export function language(overrides: Partial<LanguageResponse> = {}): LanguageRes
 export function country(overrides: Partial<CountryResponse> = {}): CountryResponse {
   return {
     wikidata_id: 'Q30',
-    terms: terms({ en: 'United States' }),
+    terms: labelTerms({ en: 'United States' }),
     citizenships_count: 0,
     ...overrides,
   }

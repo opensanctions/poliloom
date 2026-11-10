@@ -1,4 +1,4 @@
-import type { Action, ActionKind, Statement, TermMaps } from './wikibase'
+import type { Action, ActionKind, Statement, TermLabels, TermMaps } from './wikibase'
 
 export type SourceStatus = 'processing' | 'done'
 
@@ -33,7 +33,7 @@ export interface NextPoliticianResponse {
 
 export interface LanguageResponse {
   wikidata_id: string
-  terms: TermMaps
+  terms: TermLabels
   wikimedia_code: string | null
   iso_639_1?: string
   iso_639_3?: string
@@ -42,7 +42,7 @@ export interface LanguageResponse {
 
 export interface CountryResponse {
   wikidata_id: string
-  terms: TermMaps
+  terms: TermLabels
   citizenships_count: number
 }
 

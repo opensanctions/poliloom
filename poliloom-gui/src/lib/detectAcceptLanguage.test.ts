@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { detectAcceptLanguage } from './detectAcceptLanguage'
-import { language, terms } from '@/test/factories'
+import { language, labelTerms } from '@/test/factories'
 import type { LanguageResponse } from '@/types'
 
 const CATALOG: LanguageResponse[] = [
   language(),
   language({
     wikidata_id: 'Q7411',
-    terms: terms({ en: 'Dutch' }),
+    terms: labelTerms({ en: 'Dutch' }),
     iso_639_1: 'nl',
     iso_639_3: 'nld',
   }),
   language({
     wikidata_id: 'Q188',
-    terms: terms({ en: 'German' }),
+    terms: labelTerms({ en: 'German' }),
     iso_639_1: 'de',
     iso_639_3: 'deu',
   }),
@@ -46,7 +46,7 @@ describe('detectAcceptLanguage', () => {
     const catalog: LanguageResponse[] = [
       language({
         wikidata_id: 'Q33',
-        terms: terms({ en: 'Finnish' }),
+        terms: labelTerms({ en: 'Finnish' }),
         wikimedia_code: null,
         iso_639_1: undefined,
         iso_639_3: 'fin',

@@ -25,6 +25,7 @@ from .schemas import (
     CountryResponse,
     EntitySearchResponse,
     LanguageResponse,
+    TermLabels,
     TermMaps,
 )
 
@@ -45,8 +46,8 @@ async def get_languages(
     Retrieve languages with source counts for filter dropdowns.
 
     Only languages with at least one linked source are returned. The counts are
-    aggregated separately from the term maps: grouping over the term columns
-    would hash every language's full term maps once per link row.
+    aggregated separately from the label maps: grouping over the label column
+    would hash every language's label map once per link row.
     """
     counts = (
         select(
@@ -72,8 +73,6 @@ async def get_languages(
         select(
             Language.wikidata_id,
             WikidataEntity.labels,
-            WikidataEntity.descriptions,
-            WikidataEntity.aliases,
             Language.wikimedia_code,
             Language.iso_639_1,
             Language.iso_639_3,
@@ -96,11 +95,7 @@ async def get_languages(
     return [
         LanguageResponse(
             wikidata_id=row.wikidata_id,
-            terms=TermMaps(
-                labels=row.labels,
-                descriptions=row.descriptions,
-                aliases=row.aliases,
-            ),
+            terms=TermLabels(labels=row.labels),
             wikimedia_code=row.wikimedia_code,
             iso_639_1=row.iso_639_1,
             iso_639_3=row.iso_639_3,
@@ -120,10 +115,10 @@ async def get_countries(
 
     The citizenship count is the number of live P27 citizenship statements
     pointing at the country. Returns a flat list ordered by citizenship count.
-    For searching countries, use /countries/search.
+    For searching countries, use /entities/search with type=country.
 
-    The counts are aggregated separately from the term maps: grouping over the
-    term columns would hash every country's full term maps once per statement.
+    The counts are aggregated separately from the label maps: grouping over the
+    label column would hash every country's label map once per statement.
     """
     counts = (
         select(
@@ -139,8 +134,6 @@ async def get_countries(
         select(
             Country.wikidata_id,
             WikidataEntity.labels,
-            WikidataEntity.descriptions,
-            WikidataEntity.aliases,
             counts.c.citizenships_count,
         )
         .select_from(Country)
@@ -160,11 +153,7 @@ async def get_countries(
     return [
         CountryResponse(
             wikidata_id=row.wikidata_id,
-            terms=TermMaps(
-                labels=row.labels,
-                descriptions=row.descriptions,
-                aliases=row.aliases,
-            ),
+            terms=TermLabels(labels=row.labels),
             citizenships_count=row.citizenships_count,
         )
         for row in results

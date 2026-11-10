@@ -30,7 +30,7 @@ def citizenship_statement(politician, country, statement_id):
 class TestGetLanguages:
     """Test the GET /languages endpoint."""
 
-    def test_languages_carry_term_maps(
+    def test_languages_carry_labels(
         self,
         client,
         mock_auth,
@@ -40,7 +40,7 @@ class TestGetLanguages:
         sample_wikipedia_project,
         create_wikipedia_link,
     ):
-        """Languages should return language-keyed term maps and codes."""
+        """Languages should return language-keyed labels and codes only."""
         sample_language.wikimedia_code = "en"
         sample_language.iso_639_3 = "eng"
         set_terms(
@@ -58,18 +58,14 @@ class TestGetLanguages:
         languages = response.json()
         english = next(lang for lang in languages if lang["wikidata_id"] == "Q1860")
 
-        assert english["terms"] == {
-            "labels": {"en": "English", "sv": "engelska"},
-            "descriptions": {"en": "West Germanic language"},
-            "aliases": {"en": ["English language"]},
-        }
+        assert english["terms"] == {"labels": {"en": "English", "sv": "engelska"}}
         assert english["wikimedia_code"] == "en"
         assert english["iso_639_1"] == "en"
         assert english["iso_639_3"] == "eng"
         assert english["sources_count"] == 1
-        # Resolved names are gone; only term maps are exposed
-        assert "name" not in english
-        assert "description" not in english
+        # Descriptions and aliases are never rendered for list endpoints
+        assert "descriptions" not in english["terms"]
+        assert "aliases" not in english["terms"]
 
     def test_languages_with_wikipedia_links(
         self,
@@ -176,10 +172,10 @@ class TestGetLanguages:
 class TestGetCountries:
     """Test the GET /countries endpoint."""
 
-    def test_countries_carry_term_maps(
+    def test_countries_carry_labels(
         self, client, mock_auth, db_session, sample_country, sample_politician
     ):
-        """Countries should return language-keyed term maps."""
+        """Countries should return language-keyed labels only."""
         set_terms(
             sample_country,
             labels={"en": "United States", "sv": "USA"},
@@ -195,15 +191,11 @@ class TestGetCountries:
         countries = response.json()
         us = next(ctry for ctry in countries if ctry["wikidata_id"] == "Q30")
 
-        assert us["terms"] == {
-            "labels": {"en": "United States", "sv": "USA"},
-            "descriptions": {"en": "country in North America"},
-            "aliases": {"en": ["USA", "America"]},
-        }
+        assert us["terms"] == {"labels": {"en": "United States", "sv": "USA"}}
         assert us["citizenships_count"] == 1
-        # Resolved names are gone; only term maps are exposed
-        assert "name" not in us
-        assert "description" not in us
+        # Descriptions and aliases are never rendered for list endpoints
+        assert "descriptions" not in us["terms"]
+        assert "aliases" not in us["terms"]
 
     def test_countries_count_p27_statements(
         self,
