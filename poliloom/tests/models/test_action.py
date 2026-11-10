@@ -178,7 +178,7 @@ class TestActionEvidence:
 
 
 class TestActionClaims:
-    """Claims are unique per action."""
+    """Unreleased claims are unique per action; released claims remain as history."""
 
     def test_claim_created(self, db_session, create_action):
         action = create_action(
@@ -192,7 +192,9 @@ class TestActionClaims:
         assert claim.user_id == "user123"
         assert claim.claimed_at is not None
 
-    def test_second_claim_for_same_action_rejected(self, db_session, create_action):
+    def test_second_unreleased_claim_for_same_action_rejected(
+        self, db_session, create_action
+    ):
         action = create_action(
             ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
         )
@@ -202,6 +204,21 @@ class TestActionClaims:
 
         with pytest.raises(IntegrityError):
             db_session.flush()
+
+    def test_released_claim_allows_new_claim_for_same_action(
+        self, db_session, create_action
+    ):
+        action = create_action(
+            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
+        )
+        first = ActionClaim(action_id=action.id, user_id="user123")
+        db_session.add(first)
+        db_session.flush()
+        first.released_at = first.claimed_at
+        db_session.add(ActionClaim(action_id=action.id, user_id="user456"))
+        db_session.flush()
+
+        assert db_session.query(ActionClaim).filter_by(action_id=action.id).count() == 2
 
 
 class TestActionSkips:

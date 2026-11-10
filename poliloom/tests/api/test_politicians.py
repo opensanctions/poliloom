@@ -538,6 +538,13 @@ class TestGetPoliticianActions:
         foreign_expired = create_action(
             sample_politician, birth_date_create_payload("Q123456$expired")
         )
+        db_session.add(
+            ActionClaim(
+                user_id="12345",
+                action_id=foreign_live.id,
+                released_at=datetime.now(UTC),
+            )
+        )
         db_session.add(ActionClaim(user_id="other", action_id=foreign_live.id))
         db_session.add(ActionClaim(user_id="12345", action_id=own.id))
         db_session.add(
@@ -556,6 +563,16 @@ class TestGetPoliticianActions:
         # Live foreign claims hide actions; own claims and expired claims don't
         assert "Q123456$foreign" not in ids
         assert {"Q123456$own", "Q123456$expired"} <= ids
+
+        claims = (
+            db_session.query(ActionClaim)
+            .filter_by(action_id=foreign_expired.id)
+            .order_by(ActionClaim.claimed_at)
+            .all()
+        )
+        assert [claim.user_id for claim in claims] == ["other", "12345"]
+        assert claims[0].released_at is not None
+        assert claims[1].released_at is None
 
     def test_get_claims_all_visible_pending_actions(
         self, client, mock_auth, db_session, politician_with_pending_actions

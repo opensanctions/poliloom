@@ -14,7 +14,6 @@ from ..database import get_db_session
 from ..enrichment_queue import create_enrichment_sources
 from ..models import (
     Action,
-    ActionClaim,
     ActionEvidence,
     ActionKind,
     ActionSkip,
@@ -25,11 +24,12 @@ from ..models import (
 )
 from ..review_queue import (
     available_to_user,
+    claim_cutoff,
     claim_next,
     claim_visible_actions,
     count_serveable,
-    get_claim_ttl,
     language_visible,
+    live_claim,
     not_skipped,
     pending,
     refresh_claims,
@@ -347,7 +347,7 @@ async def patch_actions(
 
     user_id = str(current_user.user_id)
     refresh_claims(db, user_id, politician.id)
-    cutoff = datetime.now(UTC) - get_claim_ttl()
+    cutoff = claim_cutoff()
 
     decided_actions = []
     accepted_actions = []
@@ -376,14 +376,10 @@ async def patch_actions(
                 if action.is_accepted is not None:
                     errors.append(f"Action {submitted.id} is not pending")
                     continue
-                live_claim = db.scalar(
-                    select(ActionClaim.id).where(
-                        ActionClaim.action_id == action.id,
-                        ActionClaim.user_id == user_id,
-                        ActionClaim.claimed_at > cutoff,
-                    )
+                has_live_claim = db.scalar(
+                    select(live_claim(action, user_id=user_id, cutoff=cutoff))
                 )
-                if live_claim is None:
+                if not has_live_claim:
                     errors.append(
                         f"Action {submitted.id} is not claimed by user {user_id}"
                     )

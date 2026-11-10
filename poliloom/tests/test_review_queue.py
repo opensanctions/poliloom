@@ -11,12 +11,9 @@ from poliloom.models import (
     ActionEvidence,
     ActionKind,
     ActionSkip,
-    Politician,
     Statement,
 )
 from poliloom.review_queue import claim_next, count_serveable
-
-from .conftest import create_with_entity, make_terms
 
 
 def birth_date_payload():
@@ -170,47 +167,6 @@ class TestReviewQueue:
         assert claim_next(db_session, "user-b", ["Q188"]) == "Q123456"
         assert claim_next(db_session, "user-c", ["Q1860"]) is None
 
-    def test_housekeeping_keeps_two_most_recent_politicians(
-        self, db_session, sample_source, create_action
-    ):
-        politicians = []
-        for number in (7001, 7002, 7003):
-            politician = create_with_entity(
-                Politician, db_session, f"Q{number}", make_terms(f"Politician {number}")
-            )
-            db_session.add(politician)
-            db_session.flush()
-            create_action(politician, sources=[sample_source])
-            politicians.append(politician)
-        db_session.flush()
-
-        served = []
-        for index in range(3):
-            served.append(claim_next(db_session, "user-a", ["Q1860"]))
-            if index < 2:
-                claim = (
-                    db_session.query(ActionClaim)
-                    .join(Action, ActionClaim.action_id == Action.id)
-                    .join(Politician, Action.politician_id == Politician.id)
-                    .filter(Politician.wikidata_id == served[-1])
-                    .one()
-                )
-                claim.claimed_at = datetime.now(UTC) - timedelta(minutes=3 - index)
-                db_session.commit()
-        assert set(served) == {politician.wikidata_id for politician in politicians}
-
-        claimed_politicians = {
-            politician_id
-            for (politician_id,) in db_session.query(Action.politician_id)
-            .join(ActionClaim, ActionClaim.action_id == Action.id)
-            .filter(ActionClaim.user_id == "user-a")
-            .all()
-        }
-        ids_by_qid = {
-            politician.wikidata_id: politician.id for politician in politicians
-        }
-        assert claimed_politicians == {ids_by_qid[qid] for qid in served[-2:]}
-
     def test_other_and_own_live_claims_exclude_but_expired_claim_does_not(
         self, db_session, sample_politician, sample_source, create_action
     ):
@@ -224,7 +180,12 @@ class TestReviewQueue:
         claim.claimed_at = datetime.now(UTC) - timedelta(hours=1)
         db_session.commit()
         assert claim_next(db_session, "user-b", ["Q1860"]) == "Q123456"
-        assert (
-            db_session.query(ActionClaim).filter_by(action_id=action.id).one().user_id
-            == "user-b"
+        claims = (
+            db_session.query(ActionClaim)
+            .filter_by(action_id=action.id)
+            .order_by(ActionClaim.claimed_at)
+            .all()
         )
+        assert [claim.user_id for claim in claims] == ["user-a", "user-b"]
+        assert claims[0].released_at is not None
+        assert claims[1].released_at is None

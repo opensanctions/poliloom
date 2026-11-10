@@ -253,6 +253,22 @@ class TestSubmissionValidation:
         db_session.refresh(action)
         assert action.is_accepted is None
 
+    def test_released_own_claim_is_not_sufficient(
+        self, client, mock_auth, db_session, create_action
+    ):
+        action = create_action()
+        claim_action(db_session, action)
+        claim = db_session.query(ActionClaim).filter_by(action_id=action.id).one()
+        claim.released_at = datetime.now(UTC)
+        db_session.flush()
+
+        response = submit(client, [action_body(id=action.id)], headers=mock_auth)
+        result = response.json()
+        assert result["errors"] == [f"Action {action.id} is not claimed by user 12345"]
+
+        db_session.refresh(action)
+        assert action.is_accepted is None
+
     @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
     def test_expired_own_claim_is_refreshed(
         self, mock_apply, client, mock_auth, db_session, create_action

@@ -128,12 +128,21 @@ class ActionEvidence(Base, TimestampMixin):
 
 
 class ActionClaim(Base, TimestampMixin):
-    """Tracks an action currently claimed by a user for review.
+    """Tracks a user's current or past claim on an action for review.
 
-    Liveness is evaluated via claimed_at; expired claims are pruned opportunistically.
+    Liveness is evaluated via claimed_at for unreleased claims. Expired claims
+    are released opportunistically and retained as history.
     """
 
     __tablename__ = "action_claims"
+    __table_args__ = (
+        Index(
+            "uq_action_claims_unreleased_action",
+            "action_id",
+            unique=True,
+            postgresql_where=text("released_at IS NULL"),
+        ),
+    )
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -142,12 +151,13 @@ class ActionClaim(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("actions.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,
+        index=True,
     )
     user_id = Column(String, nullable=False, index=True)
     claimed_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
     )
+    released_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class ActionSkip(Base, TimestampMixin):

@@ -3,7 +3,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, exists, func, or_, select, update
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -24,7 +24,7 @@ def get_claim_ttl() -> timedelta:
     return timedelta(minutes=int(os.getenv("CLAIM_TTL_MINUTES", "30")))
 
 
-def _claim_cutoff() -> datetime:
+def claim_cutoff() -> datetime:
     return datetime.now(UTC) - get_claim_ttl()
 
 
@@ -72,28 +72,38 @@ def not_skipped(action_model, user_id: str):
     )
 
 
-def no_live_claim(action_model=Action, *, cutoff=None):
-    """Return a predicate excluding actions with any live claim."""
-    cutoff = cutoff or _claim_cutoff()
-    return ~exists(
+def live_claim_conditions(action_id, *, user_id=None, cutoff=None):
+    """Return conditions matching an unreleased, unexpired claim."""
+    conditions = [
+        ActionClaim.action_id == action_id,
+        ActionClaim.claimed_at > (cutoff or claim_cutoff()),
+        ActionClaim.released_at.is_(None),
+    ]
+    if user_id is not None:
+        conditions.append(ActionClaim.user_id == user_id)
+    return conditions
+
+
+def live_claim(action_model=Action, *, user_id=None, cutoff=None):
+    """Return an EXISTS predicate for a live claim."""
+    return exists(
         select(1).where(
-            ActionClaim.action_id == action_model.id,
-            ActionClaim.claimed_at > cutoff,
+            *live_claim_conditions(action_model.id, user_id=user_id, cutoff=cutoff)
         )
     )
 
 
+def no_live_claim(action_model=Action, *, cutoff=None):
+    """Return a predicate excluding actions with any live claim."""
+    return ~live_claim(action_model, cutoff=cutoff)
+
+
 def available_to_user(action_model, user_id: str, *, cutoff=None):
     """Return a predicate allowing unclaimed actions or this user's claims."""
-    cutoff = cutoff or _claim_cutoff()
+    cutoff = cutoff or claim_cutoff()
     return or_(
         no_live_claim(action_model, cutoff=cutoff),
-        exists(
-            select(1).where(
-                ActionClaim.action_id == action_model.id,
-                ActionClaim.user_id == user_id,
-            )
-        ),
+        live_claim(action_model, user_id=user_id, cutoff=cutoff),
     )
 
 
@@ -142,31 +152,20 @@ def _candidate_query(
     return query
 
 
-def _prune_claims(db: Session, user_id: str, cutoff: datetime) -> None:
-    db.execute(delete(ActionClaim).where(ActionClaim.claimed_at <= cutoff))
-
-    recent_politicians = (
-        db.execute(
-            select(Action.politician_id)
-            .join(ActionClaim, ActionClaim.action_id == Action.id)
-            .where(ActionClaim.user_id == user_id)
-            .group_by(Action.politician_id)
-            .order_by(func.max(ActionClaim.claimed_at).desc())
-            .limit(2)
-        )
-        .scalars()
-        .all()
-    )
-    if len(recent_politicians) < 2:
-        return
-    db.execute(
-        delete(ActionClaim).where(
-            ActionClaim.user_id == user_id,
+def _release_expired_claims(
+    db: Session, cutoff: datetime, *, politician_id=None
+) -> None:
+    conditions = [
+        ActionClaim.claimed_at <= cutoff,
+        ActionClaim.released_at.is_(None),
+    ]
+    if politician_id is not None:
+        conditions.append(
             ActionClaim.action_id.in_(
-                select(Action.id).where(Action.politician_id.notin_(recent_politicians))
-            ),
+                select(Action.id).where(Action.politician_id == politician_id)
+            )
         )
-    )
+    db.execute(update(ActionClaim).where(*conditions).values(released_at=func.now()))
 
 
 def claim_next(
@@ -176,7 +175,7 @@ def claim_next(
     countries: list[str] | None = None,
 ) -> str | None:
     """Atomically claim and return the next deterministic review candidate."""
-    cutoff = _claim_cutoff()
+    cutoff = claim_cutoff()
     candidates = db.execute(
         _candidate_query(languages, countries, user_id=user_id, cutoff=cutoff)
         .with_only_columns(Politician.id, Politician.wikidata_id)
@@ -195,8 +194,8 @@ def claim_next(
                 db.rollback()
                 continue
 
-            # Expired rows cannot retain the unique action_id slot.
-            db.execute(delete(ActionClaim).where(ActionClaim.claimed_at <= cutoff))
+            # Release expired claims before acquiring their action again.
+            _release_expired_claims(db, cutoff)
             action_ids = db.scalars(
                 _serveable_actions(
                     politician_id, languages, user_id=user_id, cutoff=cutoff
@@ -213,7 +212,6 @@ def claim_next(
                 ]
             )
             db.flush()
-            _prune_claims(db, user_id, cutoff)
             db.commit()
             return wikidata_id
         except IntegrityError:
@@ -229,25 +227,21 @@ def claim_visible_actions(
     languages: list[str],
 ) -> None:
     """Claim all rendered pending actions while its politician is locked."""
-    cutoff = _claim_cutoff()
+    cutoff = claim_cutoff()
     politician_action_ids = select(Action.id).where(
         Action.politician_id == politician.id
     )
-    db.execute(
-        delete(ActionClaim).where(
-            ActionClaim.action_id.in_(politician_action_ids),
-            ActionClaim.claimed_at <= cutoff,
-        )
-    )
+    _release_expired_claims(db, cutoff, politician_id=politician.id)
     db.execute(
         update(ActionClaim)
         .where(
             ActionClaim.user_id == user_id,
+            ActionClaim.released_at.is_(None),
             ActionClaim.action_id.in_(politician_action_ids),
         )
         .values(claimed_at=func.now())
     )
-    claimed_ids = select(ActionClaim.action_id)
+    claimed_ids = select(ActionClaim.action_id).where(ActionClaim.released_at.is_(None))
     action_ids = db.scalars(
         select(Action.id).where(
             Action.politician_id == politician.id,
@@ -268,6 +262,7 @@ def refresh_claims(db: Session, user_id: str, politician_id) -> None:
         update(ActionClaim)
         .where(
             ActionClaim.user_id == user_id,
+            ActionClaim.released_at.is_(None),
             ActionClaim.action_id.in_(
                 select(Action.id).where(Action.politician_id == politician_id)
             ),
