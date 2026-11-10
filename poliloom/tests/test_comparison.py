@@ -154,6 +154,15 @@ class TestCompareStatement:
 
         assert result is StatementComparison.EQUIVALENT
 
+    def test_position_open_candidate_matches_closed_existing_term(self):
+        """A matching start date identifies a term despite its known end."""
+        candidate = position_statement("Q123", start_date="2020-01-01")
+        existing = position_statement("Q123", "2020-01-01", "2021-06-30")
+
+        result = compare_statement(candidate, existing)
+
+        assert result is StatementComparison.EXISTING_SUBSUMES_CANDIDATE
+
     def test_position_different_timeframes_incomparable(self):
         """Positions with different starts conflict."""
         candidate = position_statement("Q123", start_date="2020-01-01")

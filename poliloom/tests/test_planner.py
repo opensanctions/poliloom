@@ -397,6 +397,16 @@ class TestPlanPositions:
             "edit", append_reference_patch(document, proposed_reference()), 0
         )
 
+    def test_open_ended_candidate_references_matching_closed_term(self):
+        candidate = position_statement("Q123", start_date="1998-08-25")
+        document = as_document(position_statement("Q123", "1998-08-25", "2002-05-22"))
+
+        decision = plan(candidate, [document], proposed_reference())
+
+        assert decision == Decision(
+            "edit", append_reference_patch(document, proposed_reference()), 0
+        )
+
     def test_incompatible_timeframe_creates(self):
         candidate = position_statement("Q123", start_date="2020-01-01")
         document = as_document(position_statement("Q123", start_date="2015-01-01"))

@@ -160,6 +160,22 @@ def _compare_position(candidate: dict, existing: dict) -> StatementComparison:
     if existing_has_dates and not candidate_has_dates:
         return StatementComparison.EXISTING_SUBSUMES_CANDIDATE
 
+    # An open-ended extraction does not conflict with a known end date when
+    # it identifies the same term by its start date.
+    if (
+        candidate_start is not None
+        and candidate_end is None
+        and existing_start is not None
+        and existing_end is not None
+        and WikidataDate.dates_could_be_same(candidate_start, existing_start)
+    ):
+        if (
+            WikidataDate.more_precise_date(candidate_start, existing_start)
+            == candidate_start
+        ):
+            return StatementComparison.CANDIDATE_REFINES_EXISTING
+        return StatementComparison.EXISTING_SUBSUMES_CANDIDATE
+
     if not (
         WikidataDate.dates_could_be_same(candidate_start, existing_start)
         and WikidataDate.dates_could_be_same(candidate_end, existing_end)
