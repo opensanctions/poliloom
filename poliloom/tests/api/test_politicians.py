@@ -604,6 +604,38 @@ class TestGetPoliticianSources:
         source_ids = {s["id"] for s in data["sources"]}
         assert source_ids == {str(languageless.id)}
 
+    def test_language_less_sources_of_other_politicians_are_excluded(
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_politician,
+        sample_language,
+        create_source,
+    ):
+        own = create_source(
+            url="https://en.wikipedia.org/wiki/Test_Page",
+            url_hash="en-page",
+            languages=[sample_language],
+        )
+        own_languageless = create_source(url="https://example.com/own", url_hash="own")
+        sample_politician.sources.extend([own, own_languageless])
+
+        other_politician = create_with_entity(
+            Politician, db_session, "Q654321", make_terms("Other Politician")
+        )
+        other_languageless = create_source(
+            url="https://example.com/other", url_hash="other"
+        )
+        other_politician.sources.append(other_languageless)
+        db_session.flush()
+
+        data = client.get(
+            "/politicians/Q123456?languages=Q1860", headers=mock_auth
+        ).json()
+        source_ids = {s["id"] for s in data["sources"]}
+        assert source_ids == {str(own.id), str(own_languageless.id)}
+
 
 class TestSearchPoliticiansEndpoint:
     """Test the GET /politicians/search endpoint."""

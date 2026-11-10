@@ -258,6 +258,9 @@ async def get_politician(
         ),
         ~exists(select(1).where(SourceLanguage.source_id == Source.id)),
     )
+    # The loader folds extra criteria into the relationship's secondary join.
+    # Pass the rule as set membership so that join stays a single conjunct.
+    visible_source_ids = select(Source.id).where(source_filter)
     query = (
         Politician.query_base()
         .where(Politician.wikidata_id == qid)
@@ -268,9 +271,9 @@ async def get_politician(
                 .selectinload(ActionEvidence.source)
                 .selectinload(Source.source_languages),
             ),
-            selectinload(Politician.sources.and_(source_filter)).selectinload(
-                Source.source_languages
-            ),
+            selectinload(
+                Politician.sources.and_(Source.id.in_(visible_source_ids))
+            ).selectinload(Source.source_languages),
         )
         .execution_options(populate_existing=True)
         .with_for_update(of=Politician)
