@@ -38,11 +38,11 @@ beforeEach(() => {
   })
 })
 
-describe('Home Page - waiting for enrichment', () => {
-  it('CTA links to /session/enriching when waiting for enrichment', async () => {
+describe('Home Page - review navigation', () => {
+  it('CTA links directly to the next politician', async () => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
-      nextHref: '/session/enriching',
+      nextHref: '/politician/Q12345',
     })
     mockUseSettings.mockReturnValue({
       ...defaultSettingsContext,
@@ -58,7 +58,7 @@ describe('Home Page - waiting for enrichment', () => {
 
     await waitFor(() => {
       const ctaButton = screen.getByRole('link', { name: 'Start Your Session' })
-      expect(ctaButton).toHaveAttribute('href', '/session/enriching')
+      expect(ctaButton).toHaveAttribute('href', '/politician/Q12345')
     })
   })
 })

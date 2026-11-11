@@ -8,7 +8,6 @@ from poliloom.models import Source, SourceStatus
 from poliloom.scheduling import (
     ScheduledEnrichment,
     enrich_until_serveable,
-    has_enrichment_candidate,
     process_next_politician,
     schedule_enrichment,
 )
@@ -35,6 +34,7 @@ class TestScheduleEnrichment:
 
         assert result is not None
         assert result.politician_id == sample_politician.id
+        assert result.wikidata_id == sample_politician.wikidata_id
         assert len(result.source_ids) >= 1
 
         # Source creation claims the linked Wikipedia project.
@@ -46,43 +46,6 @@ class TestScheduleEnrichment:
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
         assert schedule_enrichment(db_session, ["Q1860"]) is None
-
-
-class TestHasEnrichmentCandidate:
-    """Test has_enrichment_candidate mirrors schedule_enrichment eligibility."""
-
-    def test_false_when_no_politicians(self, db_session):
-        assert has_enrichment_candidate(db_session, ["Q1860"]) is False
-
-    def test_false_when_no_wikipedia_links(self, db_session, sample_politician):
-        assert has_enrichment_candidate(db_session, ["Q1860"]) is False
-
-    def test_true_for_politician_with_wikipedia_links(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        assert has_enrichment_candidate(db_session, ["Q1860"]) is True
-
-    def test_false_after_source_claims_the_project(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-        schedule_enrichment(db_session, ["Q1860"])
-
-        assert has_enrichment_candidate(db_session, ["Q1860"]) is False
 
 
 class TestProcessNextPolitician:
@@ -107,7 +70,9 @@ class TestProcessNextPolitician:
     @pytest.mark.asyncio
     async def test_silent_when_no_properties_extracted(self, db_session):
         """Dry passes stay silent while callers chain the next candidate."""
-        scheduled = ScheduledEnrichment(politician_id="p1", source_ids=["s1", "s2"])
+        scheduled = ScheduledEnrichment(
+            politician_id="p1", wikidata_id="Q1", source_ids=["s1", "s2"]
+        )
 
         with (
             patch("poliloom.scheduling.schedule_enrichment", return_value=scheduled),
@@ -125,7 +90,9 @@ class TestProcessNextPolitician:
     @pytest.mark.asyncio
     async def test_returns_extracted_property_count(self, db_session):
         """Returns the total number of properties extracted across sources."""
-        scheduled = ScheduledEnrichment(politician_id="p1", source_ids=["s1", "s2"])
+        scheduled = ScheduledEnrichment(
+            politician_id="p1", wikidata_id="Q1", source_ids=["s1", "s2"]
+        )
 
         with (
             patch("poliloom.scheduling.schedule_enrichment", return_value=scheduled),
@@ -143,7 +110,9 @@ class TestProcessNextPolitician:
     @pytest.mark.asyncio
     async def test_notifies_when_processing_fails(self, db_session):
         """Waiting clients must be woken even when source processing errors out."""
-        scheduled = ScheduledEnrichment(politician_id="p1", source_ids=["s1"])
+        scheduled = ScheduledEnrichment(
+            politician_id="p1", wikidata_id="Q1", source_ids=["s1"]
+        )
 
         with (
             patch("poliloom.scheduling.schedule_enrichment", return_value=scheduled),

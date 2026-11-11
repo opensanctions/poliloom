@@ -36,8 +36,8 @@ from ..review_queue import (
 )
 from ..scheduling import (
     enrich_until_serveable,
-    has_enrichment_candidate,
     process_source_task,
+    schedule_enrichment,
 )
 from ..sse import DecisionCountEvent, event_bus
 from ..wikidata.execution import apply_action
@@ -46,7 +46,6 @@ from .schemas import (
     ActionEvidenceResponse,
     ActionResponse,
     CreateSourceRequest,
-    EnrichmentMetadata,
     NextPoliticianResponse,
     PatchActionsRequest,
     PatchActionsResponse,
@@ -146,28 +145,26 @@ async def get_next_politician(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Claim and return the next deterministic review candidate.
+    """Return a review candidate, scheduling its enrichment when necessary.
 
-    Serving creates per-action claims immediately. Background enrichment only
-    maintains a floor of one additional serveable politician for these filters.
+    When no actions are serveable, the returned politician has newly created
+    processing sources. Its page displays source progress while extraction runs.
     """
     country_filter = countries or None
     qid = claim_next(db, str(current_user.user_id), languages, country_filter)
     if qid:
         if count_serveable(db, languages, country_filter) == 0:
             asyncio.create_task(enrich_until_serveable(languages, country_filter))
-        return NextPoliticianResponse(
-            wikidata_id=qid,
-            meta=EnrichmentMetadata(has_enrichable_politicians=False),
-        )
+        return NextPoliticianResponse(wikidata_id=qid)
 
-    has_candidates = has_enrichment_candidate(db, languages, countries)
-    if has_candidates:
-        asyncio.create_task(enrich_until_serveable(languages, country_filter))
+    scheduled = schedule_enrichment(db, languages, country_filter)
+    if scheduled is None:
+        return NextPoliticianResponse()
 
-    return NextPoliticianResponse(
-        meta=EnrichmentMetadata(has_enrichable_politicians=has_candidates)
-    )
+    for source_id in scheduled.source_ids:
+        asyncio.create_task(process_source_task(source_id, scheduled.politician_id))
+
+    return NextPoliticianResponse(wikidata_id=scheduled.wikidata_id)
 
 
 @router.get("/search", response_model=list[PoliticianResponse])

@@ -352,7 +352,7 @@ describe('PoliticianEvaluation - no next politician', () => {
   beforeEach(() => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
-      nextHref: '/session/enriching',
+      nextHref: '/',
       politicianReady: false,
     })
     mockFetch.mockImplementation((url, options) => {
@@ -363,14 +363,14 @@ describe('PoliticianEvaluation - no next politician', () => {
     })
   })
 
-  it('navigates to /session/enriching on submit when no next politician is available', async () => {
+  it('returns home on submit when no next politician is available', async () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     fireEvent.click(screen.getAllByText('✓ Accept')[0])
     fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
     await waitFor(() => {
-      expect(mockRouterPush).toHaveBeenCalledWith('/session/enriching')
+      expect(mockRouterPush).toHaveBeenCalledWith('/')
     })
   })
 
@@ -390,7 +390,7 @@ describe('PoliticianEvaluation - no next politician', () => {
           }),
         }),
       )
-      expect(mockRouterPush).toHaveBeenCalledWith('/session/enriching')
+      expect(mockRouterPush).toHaveBeenCalledWith('/')
     })
   })
 })

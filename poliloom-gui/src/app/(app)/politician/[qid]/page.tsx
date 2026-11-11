@@ -20,5 +20,5 @@ export default async function PoliticianPage({ params }: { params: Promise<{ qid
   if (!response.ok) throw new Error(`Failed to fetch politician ${qid}: ${response.status}`)
 
   const politician: Politician = await response.json()
-  return <PoliticianEvaluation politician={politician} />
+  return <PoliticianEvaluation key={politician.id} politician={politician} />
 }

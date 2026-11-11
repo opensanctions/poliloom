@@ -27,19 +27,8 @@ class ScheduledEnrichment:
     """Result of scheduling a politician for enrichment."""
 
     politician_id: Any
+    wikidata_id: str
     source_ids: list
-
-
-def has_enrichment_candidate(
-    db: Session,
-    languages: list[str],
-    countries: list[str] | None = None,
-) -> bool:
-    """Return True if any politician is currently eligible for enrichment."""
-    query = enrichment_candidates_query(languages=languages, countries=countries)
-    return (
-        db.scalars(query.with_only_columns(Politician.id).limit(1)).first() is not None
-    )
 
 
 def schedule_enrichment(
@@ -84,6 +73,7 @@ def schedule_enrichment(
 
         return ScheduledEnrichment(
             politician_id=politician.id,
+            wikidata_id=politician.wikidata_id,
             source_ids=[s.id for s in sources],
         )
 

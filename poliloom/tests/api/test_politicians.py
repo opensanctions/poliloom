@@ -1,7 +1,7 @@
 """Tests for the /politicians endpoints (next/get/search)."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
@@ -15,6 +15,7 @@ from poliloom.models import (
     Politician,
     Statement,
 )
+from poliloom.scheduling import ScheduledEnrichment
 
 from ..conftest import create_with_entity, make_terms
 
@@ -144,9 +145,7 @@ class TestGetNextPoliticianEndpoint:
         assert response.status_code == 200
         data = response.json()
 
-        assert "wikidata_id" in data
-        assert "meta" in data
-        assert data["wikidata_id"] == "Q123456"
+        assert data == {"wikidata_id": "Q123456"}
 
     def test_returns_null_when_no_politicians(self, client, mock_auth):
         """Test that endpoint returns null when no politicians available."""
@@ -155,8 +154,7 @@ class TestGetNextPoliticianEndpoint:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["wikidata_id"] is None
-        assert "meta" in data
+        assert data == {"wikidata_id": None}
 
     def test_languages_are_required(self, client, mock_auth):
         response = client.get("/politicians/next", headers=mock_auth)
@@ -166,15 +164,6 @@ class TestGetNextPoliticianEndpoint:
         """Test that endpoint requires authentication."""
         response = client.get("/politicians/next")
         assert response.status_code in [401, 403]
-
-    def test_meta_has_expected_fields(
-        self, client, mock_auth, politician_with_pending_actions
-    ):
-        """Test that meta includes enrichment status fields."""
-        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
-        data = response.json()
-
-        assert set(data["meta"]) == {"has_enrichable_politicians"}
 
     def test_country_filter_excludes_non_matching(
         self,
@@ -260,38 +249,40 @@ class TestGetNextPoliticianEndpoint:
         create_task.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_empty_pool_with_candidates_enriches_in_background(self):
+    async def test_empty_pool_returns_politician_whose_sources_are_processing(self):
         user = Mock(user_id="user")
+        scheduled = ScheduledEnrichment(
+            politician_id="p1", wikidata_id="Q2", source_ids=["s1", "s2"]
+        )
         with (
             patch("poliloom.api.politicians.claim_next", return_value=None),
             patch(
-                "poliloom.api.politicians.has_enrichment_candidate", return_value=True
-            ),
+                "poliloom.api.politicians.schedule_enrichment", return_value=scheduled
+            ) as schedule,
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
             response = await get_next_politician(
                 languages=["Q1860"], countries=["Q30"], db=Mock(), current_user=user
             )
-            create_task.call_args.args[0].close()
-        assert response.wikidata_id is None
-        assert response.meta.has_enrichable_politicians is True
-        create_task.assert_called_once()
+            for call in create_task.call_args_list:
+                call.args[0].close()
+
+        assert response.wikidata_id == "Q2"
+        schedule.assert_called_once_with(ANY, ["Q1860"], ["Q30"])
+        assert create_task.call_count == 2
 
     @pytest.mark.asyncio
     async def test_empty_pool_with_no_candidates_is_all_caught_up(self):
         user = Mock(user_id="user")
         with (
             patch("poliloom.api.politicians.claim_next", return_value=None),
-            patch(
-                "poliloom.api.politicians.has_enrichment_candidate", return_value=False
-            ),
+            patch("poliloom.api.politicians.schedule_enrichment", return_value=None),
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
             response = await get_next_politician(
                 languages=["Q1860"], countries=[], db=Mock(), current_user=user
             )
         assert response.wikidata_id is None
-        assert response.meta.has_enrichable_politicians is False
         create_task.assert_not_called()
 
 

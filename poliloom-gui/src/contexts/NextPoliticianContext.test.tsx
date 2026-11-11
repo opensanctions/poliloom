@@ -7,6 +7,11 @@ import type { SSEEvent, NextPoliticianResponse } from '@/types'
 
 let mockLanguageQids: string[] = ['Q1860']
 let mockCountryQids: string[] = []
+let mockParams: Record<string, string> = {}
+
+vi.mock('next/navigation', () => ({
+  useParams: () => mockParams,
+}))
 
 vi.mock('@/contexts/FilterContext', () => ({
   useFilters: () => ({
@@ -27,13 +32,13 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 const nextResponse: NextPoliticianResponse = {
   wikidata_id: 'Q12345',
-  meta: { has_enrichable_politicians: true },
 }
 
 describe('NextPoliticianContext', () => {
   beforeEach(() => {
     mockLanguageQids = ['Q1860']
     mockCountryQids = []
+    mockParams = {}
   })
 
   it('fetches next politician on mount', async () => {
@@ -99,6 +104,28 @@ describe('NextPoliticianContext', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
   })
 
+  it('refetches the next politician when the current route changes', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => nextResponse,
+    } as Response)
+
+    const { result, rerender } = renderHook(() => useNextPoliticianContext(), { wrapper })
+    await waitFor(() => expect(result.current.nextHref).toBe('/politician/Q12345'))
+
+    mockParams = { qid: 'Q12345' }
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ wikidata_id: 'Q67890' }),
+    } as Response)
+    rerender()
+
+    expect(result.current.loading).toBe(true)
+    await waitFor(() => expect(result.current.nextHref).toBe('/politician/Q67890'))
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(fetch).mock.calls[1][0]).toBe('/api/politicians/next?languages=Q1860')
+  })
+
   it('does not send the obsolete exclude_ids parameter', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -145,7 +172,6 @@ describe('NextPoliticianContext', () => {
       json: async () =>
         ({
           wikidata_id: null,
-          meta: { has_enrichable_politicians: false },
         }) satisfies NextPoliticianResponse,
     } as Response)
 

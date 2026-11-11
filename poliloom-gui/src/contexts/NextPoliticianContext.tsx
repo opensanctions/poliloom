@@ -1,9 +1,10 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { useFilters } from '@/contexts/FilterContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
-import { NextPoliticianResponse, EnrichmentMetadata } from '@/types'
+import { NextPoliticianResponse } from '@/types'
 
 interface NextPoliticianContextType {
   nextHref: string
@@ -16,6 +17,8 @@ const NextPoliticianContext = createContext<NextPoliticianContextType | undefine
 
 export function NextPoliticianProvider({ children }: { children: React.ReactNode }) {
   const { languageQids, countryQids } = useFilters()
+  const params = useParams()
+  const currentQid = (params?.qid as string) ?? null
 
   const searchParams = new URLSearchParams()
   for (const qid of languageQids) searchParams.append('languages', qid)
@@ -24,9 +27,8 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   const requestUrl = `/api/politicians/next${query ? `?${query}` : ''}`
 
   const [nextQid, setNextQid] = useState<string | null>(null)
-  const [enrichmentMeta, setEnrichmentMeta] = useState<EnrichmentMetadata | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
-  const requestKey = `${requestUrl}#${refreshNonce}`
+  const requestKey = `${currentQid ?? 'none'}:${requestUrl}#${refreshNonce}`
   const [completedRequestKey, setCompletedRequestKey] = useState<string | null>(null)
 
   useEffect(() => {
@@ -41,7 +43,6 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
         const data: NextPoliticianResponse = await response.json()
         if (cancelled) return
         setNextQid(data.wikidata_id)
-        setEnrichmentMeta(data.meta)
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
       } finally {
@@ -68,11 +69,8 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   const loading = completedRequestKey !== requestKey
 
   const politicianReady = nextQid !== null
-  const hasEnrichablePoliticians = enrichmentMeta?.has_enrichable_politicians ?? false
-  const politicianHref = nextQid ? `/politician/${nextQid}` : null
-  const nextHref = politicianHref ?? (hasEnrichablePoliticians ? '/session/enriching' : '/')
-
-  const allCaughtUp = !loading && !politicianReady && !hasEnrichablePoliticians
+  const nextHref = politicianReady ? `/politician/${nextQid}` : '/'
+  const allCaughtUp = !loading && !politicianReady
 
   const value: NextPoliticianContextType = {
     nextHref,

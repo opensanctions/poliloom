@@ -22,13 +22,8 @@ export interface Politician {
   actions: Action[]
 }
 
-export interface EnrichmentMetadata {
-  has_enrichable_politicians: boolean
-}
-
 export interface NextPoliticianResponse {
   wikidata_id: string | null
-  meta: EnrichmentMetadata
 }
 
 export interface LanguageResponse {

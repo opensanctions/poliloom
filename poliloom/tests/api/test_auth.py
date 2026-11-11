@@ -206,7 +206,6 @@ class TestAuthIntegration:
         response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert "meta" in data
         assert "wikidata_id" in data
 
         # Test patch actions endpoint with auth

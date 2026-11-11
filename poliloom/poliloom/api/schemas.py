@@ -123,17 +123,10 @@ class PoliticianResponse(UUIDBaseModel):
     actions: list[ActionResponse] = []
 
 
-class EnrichmentMetadata(BaseModel):
-    """Metadata about enrichment status for empty state UX."""
-
-    has_enrichable_politicians: bool
-
-
 class NextPoliticianResponse(BaseModel):
     """Response for next politician endpoint - lightweight, returns only QID."""
 
     wikidata_id: str | None = None
-    meta: EnrichmentMetadata
 
 
 class SubmittedAction(BaseModel):

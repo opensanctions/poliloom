@@ -27,12 +27,7 @@ interface HomeContentProps {
 export function HomeContent({ languages, countries }: HomeContentProps) {
   const { settings, patch } = useSettings()
   const { languageQids, countryQids, setLanguages, setCountries } = useFilters()
-  const {
-    nextHref,
-    politicianReady,
-    allCaughtUp,
-    loading: loadingNext,
-  } = useNextPoliticianContext()
+  const { nextHref, allCaughtUp, loading: loadingNext } = useNextPoliticianContext()
   const labelLanguages = useLabelLanguages()
 
   // Default tutorial completion to true when unauthenticated so we don't flash
@@ -106,9 +101,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
               <p className="text-foreground-tertiary">
                 {allCaughtUp
                   ? 'No more politicians to review for your current filters. Try different filters to continue contributing.'
-                  : !politicianReady && !loadingNext
-                    ? "Our AI is reading Wikipedia so you don't have to. Hang tight!"
-                    : 'Your filters are set. Begin reviewing politicians that match your criteria.'}
+                  : 'Your filters are set. Begin reviewing politicians that match your criteria.'}
               </p>
             </div>
             <Button href={cta.href} disabled={cta.disabled} size="xlarge" className="shrink-0">
