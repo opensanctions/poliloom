@@ -18,34 +18,11 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Stop tracking P37 and remove its existing relations."""
+    """Remove existing P37 relations; new imports no longer track them."""
     op.execute(
         "DELETE FROM wikidata_relations WHERE relation_type = 'OFFICIAL_LANGUAGE'"
     )
-    op.execute("ALTER TYPE relationtype RENAME TO relationtype_old")
-    op.execute(
-        """
-        CREATE TYPE relationtype AS ENUM (
-            'SUBCLASS_OF',
-            'INSTANCE_OF',
-            'PART_OF',
-            'LOCATED_IN',
-            'COUNTRY',
-            'APPLIES_TO_JURISDICTION',
-            'LANGUAGE_OF_WORK'
-        )
-        """
-    )
-    op.execute(
-        """
-        ALTER TABLE wikidata_relations
-        ALTER COLUMN relation_type TYPE relationtype
-        USING relation_type::text::relationtype
-        """
-    )
-    op.execute("DROP TYPE relationtype_old")
 
 
 def downgrade() -> None:
-    """Restore the P37 enum value; deleted relations cannot be restored."""
-    op.execute("ALTER TYPE relationtype ADD VALUE 'OFFICIAL_LANGUAGE'")
+    """Deleted relations cannot be restored."""
