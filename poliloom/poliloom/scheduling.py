@@ -57,9 +57,6 @@ def schedule_enrichment(
             languages=languages,
             countries=countries,
         )
-        .options(
-            selectinload(Politician.wikipedia_links),
-        )
         .order_by(Politician.wikidata_id_numeric.desc())
         .limit(1)
         .with_for_update(skip_locked=True)

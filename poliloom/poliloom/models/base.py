@@ -29,7 +29,6 @@ class RelationType(str, Enum):
     LOCATED_IN = "P131"  # Located in administrative territorial entity
     COUNTRY = "P17"  # Country relation
     APPLIES_TO_JURISDICTION = "P1001"  # Applies to jurisdiction relation
-    OFFICIAL_LANGUAGE = "P37"  # Official language relation
     LANGUAGE_OF_WORK = "P407"  # Language of work or name relation
 
 
