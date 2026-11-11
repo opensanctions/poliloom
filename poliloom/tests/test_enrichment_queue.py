@@ -9,7 +9,6 @@ from poliloom.enrichment_queue import (
     create_enrichment_sources,
     enrichment_candidates_query,
     get_enrichment_cooldown_cutoff,
-    get_priority_wikipedia_links,
 )
 from poliloom.models import (
     Politician,
@@ -19,6 +18,7 @@ from poliloom.models import (
     SourceStatus,
     Statement,
     WikidataRelation,
+    WikipediaLink,
 )
 
 from .conftest import create_with_entity, make_terms
@@ -45,286 +45,36 @@ def create_citizenship(db_session):
     return _create_citizenship
 
 
-class TestPriorityWikipediaLinks:
-    def test_get_priority_wikipedia_links_no_links(self, db_session, sample_politician):
-        """Test get_priority_wikipedia_links when politician has no Wikipedia links."""
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-        assert result == []
-
-    def test_get_priority_wikipedia_links_english_only(
+class TestEnrichmentSourceSelection:
+    def test_caps_sources_in_deterministic_project_order(
         self,
         db_session,
         sample_politician,
-        sample_wikipedia_link,
-        sample_language,
-    ):
-        """Test get_priority_wikipedia_links when only English link available."""
-        # sample_wikipedia_link fixture creates an English link
-        # sample_language fixture creates the English language with LANGUAGE_OF_WORK relation
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-
-        assert len(result) == 1
-        url, wikipedia_project_id = result[0]
-        assert "en.wikipedia.org" in url
-        assert wikipedia_project_id == "Q328"  # English Wikipedia project
-
-    def test_get_priority_wikipedia_links_citizenship_priority(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_german_language,
-        sample_germany_country,
+        sample_wikipedia_project,
         sample_german_wikipedia_project,
-        sample_wikipedia_project,
-        create_wikipedia_link,
-        create_citizenship,
-    ):
-        """Test get_priority_wikipedia_links with citizenship-based prioritization."""
-        # Create official language relation: German is official language of Germany
-        relation = WikidataRelation(
-            parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=sample_germany_country.wikidata_id,
-            relation_type=RelationType.OFFICIAL_LANGUAGE,
-            statement_id="test_statement_1",
-        )
-        db_session.add(relation)
-
-        # Create citizenship property for politician
-        create_citizenship(sample_politician, sample_germany_country)
-
-        # Create Wikipedia links for both German and English
-        # Add more German wikipedia links globally to make it "popular"
-        create_with_entity(
-            Politician, db_session, "Q999", make_terms("Other Politician")
-        )
-        db_session.flush()
-
-        # Create multiple German links to simulate popularity
-        for i in range(5):  # Make German popular
-            dummy_politician = create_with_entity(
-                Politician, db_session, f"Q{1000 + i}", make_terms(f"Dummy {i}")
-            )
-            db_session.flush()
-            create_wikipedia_link(
-                dummy_politician, sample_german_wikipedia_project, f"Dummy_{i}"
-            )
-
-        # Create the actual politician's links
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
-        db_session.flush()
-
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-
-        # Should get both German (from citizenship) and English, but German should be prioritized
-        assert len(result) >= 1
-        # German should be first due to citizenship priority
-        url, _wikipedia_project_id = result[0]
-        assert "de.wikipedia.org" in url
-
-    def test_get_priority_wikipedia_links_no_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_project,
         sample_french_wikipedia_project,
-        sample_german_wikipedia_project,
         sample_spanish_wikipedia_project,
         create_wikipedia_link,
     ):
-        """Test get_priority_wikipedia_links when politician has no citizenship."""
-        # Map ISO codes to Wikipedia projects for convenience
-        wikipedia_projects = {
-            "en": sample_wikipedia_project,
-            "fr": sample_french_wikipedia_project,
-            "de": sample_german_wikipedia_project,
-            "es": sample_spanish_wikipedia_project,
-        }
-
-        # Create many links for each language to simulate different popularity
-        # Make French most popular (10), German second (7), Spanish third (5), English least (3)
-        popularity_data = [("fr", 10), ("de", 7), ("es", 5), ("en", 3)]
-
-        base_qid = 50000  # Use a higher base to avoid conflicts
-        for iso_code, count in popularity_data:
-            for i in range(count):
-                qid = f"Q{base_qid + i}"
-                dummy_politician = create_with_entity(
-                    Politician,
-                    db_session,
-                    qid,
-                    make_terms(f"Dummy {iso_code} {i}"),
-                )
-                db_session.flush()
-                create_wikipedia_link(
-                    dummy_politician, wikipedia_projects[iso_code], f"Dummy_{i}"
-                )
-            base_qid += count  # Increment base to avoid overlaps
-
-        # Create politician's actual links
-        for iso_code in ["en", "fr", "de", "es"]:
-            create_wikipedia_link(sample_politician, wikipedia_projects[iso_code])
-
-        db_session.flush()
-
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-
-        # Should return exactly 3 languages (the most popular ones available)
-        assert len(result) == 3, f"Expected exactly 3 results, got {len(result)}"
-
-        # Get the Wikipedia project IDs of returned results
-        returned_project_ids = {project_id for _, project_id in result}
-
-        # Should contain the 3 most popular: French (10), German (7), Spanish (5)
-        # Should NOT contain English (3) as it's the 4th most popular
-        expected_priority_projects = {
-            "Q8447",
-            "Q48183",
-            "Q8449",
-        }  # French, German, Spanish Wikipedia
-        assert returned_project_ids == expected_priority_projects, (
-            "Expected priority projects "
-            f"{expected_priority_projects}, got {returned_project_ids}"
-        )
-
-    def test_get_priority_wikipedia_links_multiple_citizenships(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_germany_country,
-        sample_language,
-        sample_wikipedia_project,
-        sample_german_language,
-        sample_german_wikipedia_project,
-        create_wikipedia_link,
-        create_citizenship,
-    ):
-        """Test get_priority_wikipedia_links with multiple citizenships."""
-        # Create official language relations
-        relations = [
-            WikidataRelation(
-                parent_entity_id=sample_language.wikidata_id,
-                child_entity_id=sample_country.wikidata_id,
-                relation_type=RelationType.OFFICIAL_LANGUAGE,
-                statement_id="test_statement_en_us",
-            ),
-            WikidataRelation(
-                parent_entity_id=sample_german_language.wikidata_id,
-                child_entity_id=sample_germany_country.wikidata_id,
-                relation_type=RelationType.OFFICIAL_LANGUAGE,
-                statement_id="test_statement_de_de",
-            ),
-        ]
-        for relation in relations:
-            db_session.add(relation)
-
-        # Create dual citizenship
-        create_citizenship(sample_politician, sample_country)
-        create_citizenship(sample_politician, sample_germany_country)
-
-        # Create Wikipedia links using the factory
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-
-        db_session.flush()
-
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-
-        # Should get languages from citizenships prioritized, up to 3 total
-        assert len(result) <= 3
-        assert len(result) >= 1
-
-        # Both citizenship languages should be represented (they get priority boost)
-        project_ids = {project_id for _, project_id in result}
-        assert (
-            "Q328" in project_ids or "Q48183" in project_ids
-        )  # At least one citizenship language (English or German Wikipedia)
-
-    def test_get_priority_wikipedia_links_citizenship_no_matching_language(
-        self,
-        db_session,
-        sample_politician,
-        sample_argentina_country,
-        sample_spanish_language,
-        sample_language,
-        sample_wikipedia_project,
-        create_wikipedia_link,
-        create_citizenship,
-    ):
-        """Test get_priority_wikipedia_links when politician has citizenship but Wikipedia link language doesn't match official languages."""
-        # Create official language relation: Spanish is official language of Argentina
-        relation = WikidataRelation(
-            parent_entity_id=sample_spanish_language.wikidata_id,
-            child_entity_id=sample_argentina_country.wikidata_id,
-            relation_type=RelationType.OFFICIAL_LANGUAGE,
-            statement_id="test_statement_es_ar",
-        )
-        db_session.add(relation)
-
-        # Give politician Argentine citizenship
-        create_citizenship(sample_politician, sample_argentina_country)
-
-        # Create only an English Wikipedia link (not matching the official language)
-        # sample_language and sample_wikipedia_project provide English language/project
-        create_wikipedia_link(
-            sample_politician, sample_wikipedia_project, "Carlos_Cánepa"
-        )
-        db_session.flush()
-
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-
-        # Should return the English link even though it's not an official language
-        # When no links match official languages, should fall back to all available links
-        assert len(result) == 1, f"Expected 1 result but got {len(result)}: {result}"
-        url, wikipedia_project_id = result[0]
-        assert "en.wikipedia.org" in url
-        assert wikipedia_project_id == "Q328"  # English Wikipedia project
-
-    def test_get_priority_wikipedia_links_returns_all_three_with_citizenship_match(
-        self,
-        db_session,
-        sample_politician,
-        sample_germany_country,
-        sample_language,
-        sample_wikipedia_project,
-        sample_german_language,
-        sample_german_wikipedia_project,
-        sample_french_wikipedia_project,
-        create_wikipedia_link,
-        create_citizenship,
-    ):
-        """Test get_priority_wikipedia_links returns all 3 links when one matches citizenship language."""
-        # Create official language relation: German is official language of Germany
-        relation = WikidataRelation(
-            parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=sample_germany_country.wikidata_id,
-            relation_type=RelationType.OFFICIAL_LANGUAGE,
-            statement_id="test_statement_de_de",
-        )
-        db_session.add(relation)
-
-        # Give politician German citizenship
-        create_citizenship(sample_politician, sample_germany_country)
-
-        # Create 3 Wikipedia links
+        """The workload cap is independent of project popularity."""
+        # Create four eligible Wikipedia links
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
         create_wikipedia_link(sample_politician, sample_french_wikipedia_project)
+        create_wikipedia_link(sample_politician, sample_spanish_wikipedia_project)
         db_session.flush()
 
-        result = get_priority_wikipedia_links(sample_politician, db_session)
-
-        # Should return all 3 links
-        assert len(result) == 3, f"Expected 3 results but got {len(result)}: {result}"
-
-        project_ids = {project_id for _, project_id in result}
-        assert "Q48183" in project_ids, (
-            "German Wikipedia should be included (citizenship match)"
+        sources = create_enrichment_sources(
+            sample_politician,
+            db_session,
+            languages=["Q1860", "Q188", "Q150", "Q1321"],
         )
-        assert "Q328" in project_ids, "English Wikipedia should also be included"
-        assert "Q8447" in project_ids, "French Wikipedia should also be included"
+
+        assert [source.wikipedia_project_id for source in sources] == [
+            "Q328",
+            "Q48183",
+            "Q8447",
+        ]
 
     def test_filters_languages_and_claimed_projects(
         self,
@@ -343,13 +93,12 @@ class TestPriorityWikipediaLinks:
         db_session.add(claimed)
         db_session.flush()
 
-        links = get_priority_wikipedia_links(
+        sources = create_enrichment_sources(
             sample_politician,
             db_session,
             languages=["Q1860", "Q188"],
-            eligible_only=True,
         )
-        assert [project_id for _, project_id in links] == [
+        assert [source.wikipedia_project_id for source in sources] == [
             sample_german_wikipedia_project.wikidata_id
         ]
 
@@ -362,7 +111,7 @@ class TestEnrichmentCandidatesQuery:
     ):
         """Test that query finds politicians with Wikipedia links."""
         # sample_wikipedia_link fixture creates a Wikipedia link for sample_politician
-        query = enrichment_candidates_query()
+        query = enrichment_candidates_query(["Q1860"])
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
@@ -373,7 +122,7 @@ class TestEnrichmentCandidatesQuery:
     ):
         """Test that query excludes politicians without Wikipedia links."""
         # sample_politician has no Wikipedia links by default
-        query = enrichment_candidates_query()
+        query = enrichment_candidates_query(["Q1860"])
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
@@ -393,7 +142,9 @@ class TestEnrichmentCandidatesQuery:
         db_session.add(source)
         db_session.flush()
 
-        result = db_session.execute(enrichment_candidates_query()).scalars().all()
+        result = (
+            db_session.execute(enrichment_candidates_query(["Q1860"])).scalars().all()
+        )
 
         assert [politician.id for politician in result] == [sample_politician.id]
 
@@ -412,7 +163,44 @@ class TestEnrichmentCandidatesQuery:
         db_session.add(source)
         db_session.flush()
 
-        assert db_session.execute(enrichment_candidates_query()).scalars().all() == []
+        assert (
+            db_session.execute(enrichment_candidates_query(["Q1860"])).scalars().all()
+            == []
+        )
+
+    def test_fresh_source_for_another_politician_does_not_block(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_wikipedia_project,
+    ):
+        """Snapshots are checked per politician, not across the whole project."""
+        other = create_with_entity(
+            Politician, db_session, "Q999001", make_terms("Other Politician")
+        )
+        db_session.flush()
+        db_session.add(
+            WikipediaLink(
+                politician_id=other.id,
+                url="https://en.wikipedia.org/wiki/Other_Politician",
+                wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+            )
+        )
+        source = Source(
+            url="https://en.wikipedia.org/wiki/Other_Politician",
+            wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+            fetch_timestamp=datetime.now(UTC),
+        )
+        source.politicians.append(other)
+        db_session.add(source)
+        db_session.flush()
+
+        result = (
+            db_session.execute(enrichment_candidates_query(["Q1860"])).scalars().all()
+        )
+
+        assert [politician.id for politician in result] == [sample_politician.id]
 
     def test_query_excludes_link_without_language_of_work_relation(
         self,
@@ -435,7 +223,10 @@ class TestEnrichmentCandidatesQuery:
         db_session.delete(relation)
         db_session.flush()
 
-        assert db_session.execute(enrichment_candidates_query()).scalars().all() == []
+        assert (
+            db_session.execute(enrichment_candidates_query(["Q1860"])).scalars().all()
+            == []
+        )
 
     def test_query_with_language_filter_citizenship_match(
         self,
@@ -530,7 +321,7 @@ class TestEnrichmentCandidatesQuery:
         db_session.flush()
 
         # Query with US country filter
-        query = enrichment_candidates_query(countries=["Q30"])
+        query = enrichment_candidates_query(["Q1860"], countries=["Q30"])
         result = db_session.execute(query).scalars().all()
 
         # Should find politician with US citizenship
@@ -588,7 +379,7 @@ class TestEnrichmentCandidatesQuery:
         db_session.flush()
 
         # Query with German country filter (politician has no German citizenship)
-        query = enrichment_candidates_query(countries=["Q183"])
+        query = enrichment_candidates_query(["Q188"], countries=["Q183"])
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
@@ -679,7 +470,7 @@ class TestEnrichmentCandidatesQuery:
         # Should NOT find politician - they have German citizenship but no German Wikipedia link
         assert len(result) == 0
 
-    def test_query_respects_priority_wikipedia_project_limit(
+    def test_query_considers_every_requested_language(
         self,
         db_session,
         sample_politician,
@@ -693,44 +484,7 @@ class TestEnrichmentCandidatesQuery:
         sample_spanish_wikipedia_project,
         create_wikipedia_link,
     ):
-        """Test that only three highest-priority Wikipedia projects are considered."""
-        # Set up four projects with different global link-count popularity levels
-        # English: 5, German: 4, French: 3, Spanish: 2
-        languages_data = [
-            (sample_language, sample_wikipedia_project, 5),  # English - most popular
-            (
-                sample_german_language,
-                sample_german_wikipedia_project,
-                4,
-            ),  # German - 2nd
-            (
-                sample_french_language,
-                sample_french_wikipedia_project,
-                3,
-            ),  # French - 3rd
-            (
-                sample_spanish_language,
-                sample_spanish_wikipedia_project,
-                2,
-            ),  # Spanish - 4th
-        ]
-
-        base_qid = 60000
-        for lang, wp, popularity in languages_data:
-            # Create dummy politicians to establish global project popularity.
-            # Each has one project link, so it does not affect priority ranking.
-            for i in range(popularity):
-                dummy = create_with_entity(
-                    Politician,
-                    db_session,
-                    f"Q{base_qid + i}",
-                    make_terms(f"Dummy {lang.iso_639_1} {i}"),
-                )
-                db_session.flush()
-                create_wikipedia_link(dummy, wp)
-
-            base_qid += popularity
-
+        """Candidate selection does not rank or cap a politician's links."""
         # Create Wikipedia links for all 4 languages for sample_politician
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
@@ -738,26 +492,25 @@ class TestEnrichmentCandidatesQuery:
         create_wikipedia_link(sample_politician, sample_spanish_wikipedia_project)
         db_session.flush()
 
-        # Query with English (most popular) - sample_politician should be in results
+        # Every requested language is considered, regardless of link count.
         query = enrichment_candidates_query(languages=["Q1860"])
         result = db_session.execute(query).scalars().all()
         result_ids = {p.id for p in result}
-        assert sample_politician.id in result_ids, "English (top 1) should match"
+        assert sample_politician.id in result_ids
 
-        # Query with German (2nd most popular) - sample_politician should be in results
+        # Query with German
         query = enrichment_candidates_query(languages=["Q188"])
         result = db_session.execute(query).scalars().all()
         result_ids = {p.id for p in result}
-        assert sample_politician.id in result_ids, "German (top 2) should match"
+        assert sample_politician.id in result_ids
 
-        # Query with French (3rd most popular) - sample_politician should be in results
+        # Query with French
         query = enrichment_candidates_query(languages=["Q150"])
         result = db_session.execute(query).scalars().all()
         result_ids = {p.id for p in result}
-        assert sample_politician.id in result_ids, "French (top 3) should match"
+        assert sample_politician.id in result_ids
 
-        # Query with Spanish (4th most popular) - sample_politician should NOT be in results
-        # Spanish is outside sample_politician's top 3
+        # Query with Spanish
         query = enrichment_candidates_query(languages=["Q1321"])
         result = db_session.execute(query).scalars().all()
         result_ids = {p.id for p in result}
@@ -840,7 +593,9 @@ class TestCreateEnrichmentSources:
         old_source_id = old_source.id
         old_fetch_timestamp = old_source.fetch_timestamp
 
-        sources = create_enrichment_sources(sample_politician, db_session)
+        sources = create_enrichment_sources(
+            sample_politician, db_session, languages=["Q1860"]
+        )
         db_session.flush()
 
         assert len(sources) == 1
@@ -861,4 +616,9 @@ class TestCreateEnrichmentSources:
         db_session.add(source)
         db_session.flush()
 
-        assert create_enrichment_sources(sample_politician, db_session) == []
+        assert (
+            create_enrichment_sources(
+                sample_politician, db_session, languages=["Q1860"]
+            )
+            == []
+        )

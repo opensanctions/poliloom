@@ -171,12 +171,9 @@ async def get_stats(
 
     # Main query: Start from ALL politicians, LEFT JOIN to citizenship statements
     # Use conditional counting for enriched and decided
-    coverage_query = (
+    coverage_counts = (
         select(
             Statement.entity_id.label("wikidata_id"),
-            country_entity.c.labels,
-            country_entity.c.descriptions,
-            country_entity.c.aliases,
             func.count(func.distinct(Politician.id)).label("total_count"),
             func.count(func.distinct(case((enriched_recently, Politician.id)))).label(
                 "enriched_count"
@@ -205,23 +202,34 @@ async def get_stats(
                 *active_citizenship_conditions(Statement, politician_id=Politician.id),
             ),
         )
-        # LEFT JOIN to get country terms (NULL when citizenship is absent)
-        .outerjoin(
-            country_entity,
-            country_entity.c.wikidata_id == Statement.entity_id,
-        )
         # LEFT JOIN to decided politicians CTE
         .outerjoin(
             decided_politicians_cte,
             decided_politicians_cte.c.politician_id == Politician.id,
         )
-        .group_by(
-            Statement.entity_id,
+        .group_by(Statement.entity_id)
+        .subquery("coverage_counts")
+    )
+
+    # Terms are joined after aggregating: they depend only on the country QID, and
+    # grouping by them sorts every politician row as JSONB.
+    coverage_query = (
+        select(
+            coverage_counts.c.wikidata_id,
             country_entity.c.labels,
             country_entity.c.descriptions,
             country_entity.c.aliases,
+            coverage_counts.c.total_count,
+            coverage_counts.c.enriched_count,
+            coverage_counts.c.decided_count,
         )
-        .order_by(func.count(func.distinct(Politician.id)).desc())
+        .select_from(coverage_counts)
+        # LEFT JOIN to get country terms (NULL when citizenship is absent)
+        .outerjoin(
+            country_entity,
+            country_entity.c.wikidata_id == coverage_counts.c.wikidata_id,
+        )
+        .order_by(coverage_counts.c.total_count.desc())
     )
 
     country_results = db.execute(coverage_query).all()

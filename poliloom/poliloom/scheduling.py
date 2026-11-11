@@ -32,7 +32,7 @@ class ScheduledEnrichment:
 
 def has_enrichment_candidate(
     db: Session,
-    languages: list[str] | None = None,
+    languages: list[str],
     countries: list[str] | None = None,
 ) -> bool:
     """Return True if any politician is currently eligible for enrichment."""
@@ -44,7 +44,7 @@ def has_enrichment_candidate(
 
 def schedule_enrichment(
     db: Session,
-    languages: list[str] | None = None,
+    languages: list[str],
     countries: list[str] | None = None,
 ) -> ScheduledEnrichment | None:
     """Pick the next politician and create sources for its Wikipedia links.
@@ -128,7 +128,7 @@ async def process_source_task(source_id, politician_id) -> int:
 
 
 async def process_next_politician(
-    languages: list[str] | None = None,
+    languages: list[str],
     countries: list[str] | None = None,
 ) -> int | None:
     """Schedule and process enrichment for a single politician.
@@ -172,7 +172,7 @@ async def process_next_politician(
 
 
 async def enrich_until_serveable(
-    languages: list[str] | None = None,
+    languages: list[str],
     countries: list[str] | None = None,
 ) -> int:
     """Maintain a floor of one serveable politician for the given filters."""

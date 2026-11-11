@@ -18,7 +18,7 @@ class TestScheduleEnrichment:
     """Test schedule_enrichment selects a politician and creates sources."""
 
     def test_returns_none_when_no_politicians(self, db_session):
-        assert schedule_enrichment(db_session) is None
+        assert schedule_enrichment(db_session, ["Q1860"]) is None
 
     def test_schedules_politician_with_wikipedia_links(
         self,
@@ -31,7 +31,7 @@ class TestScheduleEnrichment:
         create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
-        result = schedule_enrichment(db_session)
+        result = schedule_enrichment(db_session, ["Q1860"])
 
         assert result is not None
         assert result.politician_id == sample_politician.id
@@ -45,17 +45,17 @@ class TestScheduleEnrichment:
         assert all(p.status == SourceStatus.PROCESSING for p in pages)
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
-        assert schedule_enrichment(db_session) is None
+        assert schedule_enrichment(db_session, ["Q1860"]) is None
 
 
 class TestHasEnrichmentCandidate:
     """Test has_enrichment_candidate mirrors schedule_enrichment eligibility."""
 
     def test_false_when_no_politicians(self, db_session):
-        assert has_enrichment_candidate(db_session) is False
+        assert has_enrichment_candidate(db_session, ["Q1860"]) is False
 
     def test_false_when_no_wikipedia_links(self, db_session, sample_politician):
-        assert has_enrichment_candidate(db_session) is False
+        assert has_enrichment_candidate(db_session, ["Q1860"]) is False
 
     def test_true_for_politician_with_wikipedia_links(
         self,
@@ -68,7 +68,7 @@ class TestHasEnrichmentCandidate:
         create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
-        assert has_enrichment_candidate(db_session) is True
+        assert has_enrichment_candidate(db_session, ["Q1860"]) is True
 
     def test_false_after_source_claims_the_project(
         self,
@@ -80,9 +80,9 @@ class TestHasEnrichmentCandidate:
     ):
         create_citizenship(sample_politician, sample_country)
         db_session.flush()
-        schedule_enrichment(db_session)
+        schedule_enrichment(db_session, ["Q1860"])
 
-        assert has_enrichment_candidate(db_session) is False
+        assert has_enrichment_candidate(db_session, ["Q1860"]) is False
 
 
 class TestProcessNextPolitician:
@@ -91,7 +91,7 @@ class TestProcessNextPolitician:
     @pytest.mark.asyncio
     async def test_no_wikipedia_links(self, db_session, sample_politician):
         """Test that no enrichment occurs when no politicians have Wikipedia links."""
-        extracted = await process_next_politician()
+        extracted = await process_next_politician(["Q1860"])
 
         assert extracted is None
 
@@ -99,7 +99,7 @@ class TestProcessNextPolitician:
     async def test_notifies_when_no_candidate_found(self, db_session):
         """Waiting clients must be woken even when nothing was available to enrich."""
         with patch("poliloom.scheduling.event_bus.notify") as mock_notify:
-            extracted = await process_next_politician()
+            extracted = await process_next_politician(["Q1860"])
 
         assert extracted is None
         mock_notify.assert_called_once()
@@ -117,7 +117,7 @@ class TestProcessNextPolitician:
             patch("poliloom.scheduling.event_bus.notify") as mock_notify,
         ):
             mock_process.return_value = 0
-            extracted = await process_next_politician()
+            extracted = await process_next_politician(["Q1860"])
 
         assert extracted == 0
         mock_notify.assert_not_called()
@@ -135,7 +135,7 @@ class TestProcessNextPolitician:
             patch("poliloom.scheduling.event_bus.notify") as mock_notify,
         ):
             mock_process.side_effect = [3, 4]
-            extracted = await process_next_politician()
+            extracted = await process_next_politician(["Q1860"])
 
         assert extracted == 7
         mock_notify.assert_called_once()
@@ -154,7 +154,7 @@ class TestProcessNextPolitician:
         ):
             mock_process.side_effect = RuntimeError("archiving failed")
             with pytest.raises(RuntimeError):
-                await process_next_politician()
+                await process_next_politician(["Q1860"])
 
         mock_notify.assert_called_once()
 
@@ -195,5 +195,5 @@ class TestEnrichUntilServeable:
                 return_value=None,
             ) as process,
         ):
-            assert await enrich_until_serveable() == 0
-        process.assert_awaited_once_with(None, None)
+            assert await enrich_until_serveable(["Q1860"]) == 0
+        process.assert_awaited_once_with(["Q1860"], None)
