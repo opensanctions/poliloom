@@ -269,7 +269,7 @@ class TestClaimPoliticianEndpoint:
 
         assert response.wikidata_id == "Q2"
         schedule.assert_called_once_with(ANY, ["Q1860"], ["Q30"])
-        assert create_task.call_count == 2
+        create_task.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_empty_pool_with_no_candidates_is_all_caught_up(self):

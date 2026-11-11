@@ -3,7 +3,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, select, true
 from sqlalchemy.orm import Session
 
 from .models.base import RelationType
@@ -97,11 +97,17 @@ def enrichment_candidates_query(
     Returns:
         SQLAlchemy select statement for Politician entities
     """
-    eligible_links = _eligible_links_query(languages).where(
-        WikipediaLink.politician_id == Politician.id
+    eligible_link = (
+        _eligible_links_query(languages)
+        .with_only_columns(WikipediaLink.id)
+        .where(WikipediaLink.politician_id == Politician.id)
+        .limit(1)
+        .lateral()
     )
-    query = Politician.query_base().where(
-        Politician.wikidata_id.isnot(None), exists(eligible_links)
+    query = (
+        Politician.query_base()
+        .join(eligible_link, true())
+        .where(Politician.wikidata_id.isnot(None))
     )
     if countries:
         query = query.where(Politician.id.in_(_politicians_with_citizenship(countries)))

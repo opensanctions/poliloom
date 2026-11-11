@@ -8,7 +8,7 @@ from poliloom.models import Source, SourceStatus
 from poliloom.scheduling import (
     ScheduledEnrichment,
     enrich_until_serveable,
-    process_next_politician,
+    process_enrichment,
     schedule_enrichment,
 )
 
@@ -48,50 +48,20 @@ class TestScheduleEnrichment:
         assert schedule_enrichment(db_session, ["Q1860"]) is None
 
 
-class TestProcessNextPolitician:
-    """Test process_next_politician end-to-end orchestration."""
-
+class TestProcessEnrichment:
     @pytest.mark.asyncio
-    async def test_no_wikipedia_links(self, db_session, sample_politician):
-        """Test that no enrichment occurs when no politicians have Wikipedia links."""
-        extracted = await process_next_politician(["Q1860"])
-
-        assert extracted is None
-
-    @pytest.mark.asyncio
-    async def test_returns_zero_when_no_properties_extracted(self, db_session):
+    async def test_processes_every_scheduled_source(self):
         scheduled = ScheduledEnrichment(
             politician_id="p1", wikidata_id="Q1", source_ids=["s1", "s2"]
         )
+        with patch(
+            "poliloom.scheduling.process_source_task", new_callable=AsyncMock
+        ) as process:
+            await process_enrichment(scheduled)
 
-        with (
-            patch("poliloom.scheduling.schedule_enrichment", return_value=scheduled),
-            patch(
-                "poliloom.scheduling.process_source_task", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            mock_process.return_value = 0
-            extracted = await process_next_politician(["Q1860"])
-
-        assert extracted == 0
-
-    @pytest.mark.asyncio
-    async def test_returns_extracted_property_count(self, db_session):
-        """Returns the total number of properties extracted across sources."""
-        scheduled = ScheduledEnrichment(
-            politician_id="p1", wikidata_id="Q1", source_ids=["s1", "s2"]
-        )
-
-        with (
-            patch("poliloom.scheduling.schedule_enrichment", return_value=scheduled),
-            patch(
-                "poliloom.scheduling.process_source_task", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            mock_process.side_effect = [3, 4]
-            extracted = await process_next_politician(["Q1860"])
-
-        assert extracted == 7
+        assert process.await_count == 2
+        process.assert_any_await("s1", "p1")
+        process.assert_any_await("s2", "p1")
 
 
 class TestEnrichUntilServeable:
@@ -99,36 +69,38 @@ class TestEnrichUntilServeable:
     async def test_stops_without_enriching_when_floor_exists(self):
         with (
             patch("poliloom.scheduling.count_serveable", return_value=1),
-            patch(
-                "poliloom.scheduling.process_next_politician",
-                new_callable=AsyncMock,
-            ) as process,
+            patch("poliloom.scheduling.schedule_enrichment") as schedule,
         ):
-            assert await enrich_until_serveable(["Q1860"], ["Q30"]) == 0
-        process.assert_not_awaited()
+            await enrich_until_serveable(["Q1860"], ["Q30"])
+        schedule.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_enriches_until_floor_is_reached(self):
+        scheduled = ScheduledEnrichment(
+            politician_id="p1", wikidata_id="Q1", source_ids=["s1"]
+        )
         with (
             patch("poliloom.scheduling.count_serveable", side_effect=[0, 0, 1]),
             patch(
-                "poliloom.scheduling.process_next_politician",
-                new_callable=AsyncMock,
-                side_effect=[0, 2],
+                "poliloom.scheduling.schedule_enrichment", return_value=scheduled
+            ) as schedule,
+            patch(
+                "poliloom.scheduling.process_enrichment", new_callable=AsyncMock
             ) as process,
         ):
-            assert await enrich_until_serveable(["Q1860"], ["Q30"]) == 2
+            await enrich_until_serveable(["Q1860"], ["Q30"])
+
+        assert schedule.call_count == 2
         assert process.await_count == 2
 
     @pytest.mark.asyncio
     async def test_stops_when_no_candidates_remain(self):
         with (
             patch("poliloom.scheduling.count_serveable", return_value=0),
+            patch("poliloom.scheduling.schedule_enrichment", return_value=None),
             patch(
-                "poliloom.scheduling.process_next_politician",
-                new_callable=AsyncMock,
-                return_value=None,
+                "poliloom.scheduling.process_enrichment", new_callable=AsyncMock
             ) as process,
         ):
-            assert await enrich_until_serveable(["Q1860"]) == 0
-        process.assert_awaited_once_with(["Q1860"], None)
+            await enrich_until_serveable(["Q1860"])
+        process.assert_not_awaited()

@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
@@ -47,7 +48,7 @@ def schedule_enrichment(
         )
         .order_by(Politician.wikidata_id_numeric.desc())
         .limit(1)
-        .with_for_update(skip_locked=True)
+        .with_for_update(of=Politician, skip_locked=True)
     )
 
     politician = db.scalars(query).first()
@@ -113,43 +114,34 @@ async def process_source_task(source_id, politician_id) -> int:
         return await process_source(db, source, politician)
 
 
-async def process_next_politician(
-    languages: list[str],
-    countries: list[str] | None = None,
-) -> int | None:
-    """Schedule and process enrichment for a single politician.
-
-    Returns:
-        Number of properties extracted, or None if no politician was available.
-    """
-    with Session(get_engine()) as db:
-        scheduled = schedule_enrichment(db, languages, countries)
-
-    if scheduled is None:
-        return None
-
-    counts = await asyncio.gather(
+async def process_enrichment(scheduled: ScheduledEnrichment) -> None:
+    """Process all sources for a scheduled politician concurrently."""
+    await asyncio.gather(
         *(
             process_source_task(source_id, scheduled.politician_id)
             for source_id in scheduled.source_ids
         )
     )
-    return sum(counts)
+
+
+def _schedule_unless_serveable(
+    languages: list[str], countries: list[str] | None
+) -> ScheduledEnrichment | None:
+    with Session(get_engine()) as db:
+        if count_serveable(db, languages, countries) > 0:
+            return None
+        return schedule_enrichment(db, languages, countries)
 
 
 async def enrich_until_serveable(
     languages: list[str],
     countries: list[str] | None = None,
-) -> int:
+) -> None:
     """Maintain a floor of one serveable politician for the given filters."""
-    enriched = 0
-
     while True:
-        with Session(get_engine()) as db:
-            if count_serveable(db, languages, countries) > 0:
-                break
-        if await process_next_politician(languages, countries) is None:
-            break
-        enriched += 1
-
-    return enriched
+        scheduled = await run_in_threadpool(
+            _schedule_unless_serveable, languages, countries
+        )
+        if scheduled is None:
+            return
+        await process_enrichment(scheduled)

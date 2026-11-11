@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import httpx2
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -36,6 +37,7 @@ from ..review_queue import (
 )
 from ..scheduling import (
     enrich_until_serveable,
+    process_enrichment,
     process_source_task,
     schedule_enrichment,
 )
@@ -151,19 +153,24 @@ async def claim_politician(
     processing sources. Its page displays source progress while extraction runs.
     """
     country_filter = countries or None
-    qid = claim_next(db, str(current_user.user_id), languages, country_filter)
+    qid = await run_in_threadpool(
+        claim_next, db, str(current_user.user_id), languages, country_filter
+    )
     if qid:
-        if count_serveable(db, languages, country_filter) == 0:
+        serveable = await run_in_threadpool(
+            count_serveable, db, languages, country_filter
+        )
+        if serveable == 0:
             asyncio.create_task(enrich_until_serveable(languages, country_filter))
         return ClaimPoliticianResponse(wikidata_id=qid)
 
-    scheduled = schedule_enrichment(db, languages, country_filter)
+    scheduled = await run_in_threadpool(
+        schedule_enrichment, db, languages, country_filter
+    )
     if scheduled is None:
         return ClaimPoliticianResponse()
 
-    for source_id in scheduled.source_ids:
-        asyncio.create_task(process_source_task(source_id, scheduled.politician_id))
-
+    asyncio.create_task(process_enrichment(scheduled))
     return ClaimPoliticianResponse(wikidata_id=scheduled.wikidata_id)
 
 
