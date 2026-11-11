@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, render } from '@testing-library/react'
+import { screen, fireEvent, render, waitFor } from '@testing-library/react'
 import {
   mockUseSettings,
   mockSettingsPatch,
@@ -9,6 +9,7 @@ import {
   defaultSettingsContext,
   defaultSettings,
   mockFetch,
+  mockRouterPush,
   mockUseLabelLanguages,
 } from '@/test/mocks'
 import { TutorialContent, TutorialStep } from './TutorialContent'
@@ -64,7 +65,7 @@ describe('Tutorial Page', () => {
     })
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve({ ok: true, json: async () => [] } as Response),
+      Promise.resolve({ ok: true, json: async () => ({ wikidata_id: 'Q12345' }) } as Response),
     )
   })
 
@@ -79,7 +80,7 @@ describe('Tutorial Page', () => {
         ),
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: "Let's Go" })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Skip Tutorial' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Skip Tutorial' })).toBeInTheDocument()
     })
 
     it('advances when clicking "Let\'s Go"', () => {
@@ -543,17 +544,22 @@ describe('Tutorial Page', () => {
   })
 
   describe('Tutorial Completion (Basic Mode)', () => {
-    it('shows completion screen with link to the review session', () => {
+    it('claims a politician when starting to review after the tutorial', async () => {
       render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(
         screen.getByText(/You're all set! You now have everything you need/),
       ).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Start Reviewing' })).toHaveAttribute(
-        'href',
-        '/politician/Q12345',
-      )
+      expect(mockFetch).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Start Reviewing' }))
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1)
+        expect(mockFetch).toHaveBeenCalledWith('/api/politicians/claim', { method: 'POST' })
+        expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
+      })
     })
   })
 
@@ -875,18 +881,22 @@ describe('Tutorial Page', () => {
       render(<TutorialContent />)
 
       // Step 0
-      expect(screen.getByRole('link', { name: 'Skip Tutorial' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Skip Tutorial' })).toBeInTheDocument()
 
       // Step 1
       fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      expect(screen.getByRole('link', { name: 'Skip Tutorial' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Skip Tutorial' })).toBeInTheDocument()
     })
 
-    it('Skip Tutorial links to next politician', () => {
+    it('claims a politician when skipping the tutorial', async () => {
       render(<TutorialContent />)
 
-      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      expect(skipLink).toHaveAttribute('href', '/politician/Q12345')
+      fireEvent.click(screen.getByRole('button', { name: 'Skip Tutorial' }))
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/politicians/claim', { method: 'POST' })
+        expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
+      })
     })
 
     it('marks basic tutorial as completed when skipping from basic steps', () => {
@@ -897,9 +907,7 @@ describe('Tutorial Page', () => {
 
       render(<TutorialContent />)
 
-      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      skipLink.addEventListener('click', (e) => e.preventDefault())
-      fireEvent.click(skipLink)
+      fireEvent.click(screen.getByRole('button', { name: 'Skip Tutorial' }))
 
       expect(mockSettingsPatch).toHaveBeenCalledWith({
         basic_tutorial_completed: true,
@@ -917,9 +925,7 @@ describe('Tutorial Page', () => {
 
       render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
-      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      skipLink.addEventListener('click', (e) => e.preventDefault())
-      fireEvent.click(skipLink)
+      fireEvent.click(screen.getByRole('button', { name: 'Skip Tutorial' }))
 
       expect(mockSettingsPatch).toHaveBeenCalledWith({
         advanced_tutorial_completed: true,
@@ -937,9 +943,7 @@ describe('Tutorial Page', () => {
 
       render(<TutorialContent />)
 
-      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      skipLink.addEventListener('click', (e) => e.preventDefault())
-      fireEvent.click(skipLink)
+      fireEvent.click(screen.getByRole('button', { name: 'Skip Tutorial' }))
 
       expect(mockSettingsPatch).not.toHaveBeenCalled()
     })

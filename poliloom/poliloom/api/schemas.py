@@ -123,8 +123,8 @@ class PoliticianResponse(UUIDBaseModel):
     actions: list[ActionResponse] = []
 
 
-class NextPoliticianResponse(BaseModel):
-    """Response for next politician endpoint - lightweight, returns only QID."""
+class ClaimPoliticianResponse(BaseModel):
+    """Claimed politician QID, or null when no review work is available."""
 
     wikidata_id: str | None = None
 

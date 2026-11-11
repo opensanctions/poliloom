@@ -45,8 +45,8 @@ from .auth import User, get_current_user
 from .schemas import (
     ActionEvidenceResponse,
     ActionResponse,
+    ClaimPoliticianResponse,
     CreateSourceRequest,
-    NextPoliticianResponse,
     PatchActionsRequest,
     PatchActionsResponse,
     PoliticianResponse,
@@ -138,8 +138,8 @@ def build_politician_response(
 # =============================================================================
 
 
-@router.get("/next", response_model=NextPoliticianResponse)
-async def get_next_politician(
+@router.post("/claim", response_model=ClaimPoliticianResponse)
+async def claim_politician(
     languages: list[str] = Query(...),
     countries: list[str] = Query(default=[]),
     db: Session = Depends(get_db_session),
@@ -155,16 +155,16 @@ async def get_next_politician(
     if qid:
         if count_serveable(db, languages, country_filter) == 0:
             asyncio.create_task(enrich_until_serveable(languages, country_filter))
-        return NextPoliticianResponse(wikidata_id=qid)
+        return ClaimPoliticianResponse(wikidata_id=qid)
 
     scheduled = schedule_enrichment(db, languages, country_filter)
     if scheduled is None:
-        return NextPoliticianResponse()
+        return ClaimPoliticianResponse()
 
     for source_id in scheduled.source_ids:
         asyncio.create_task(process_source_task(source_id, scheduled.politician_id))
 
-    return NextPoliticianResponse(wikidata_id=scheduled.wikidata_id)
+    return ClaimPoliticianResponse(wikidata_id=scheduled.wikidata_id)
 
 
 @router.get("/search", response_model=list[PoliticianResponse])

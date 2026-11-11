@@ -35,15 +35,6 @@ class SourceStatusEvent(Event):
 
 
 @dataclass
-class EnrichmentCompleteEvent(Event):
-    """Broadcast when an enrichment pass ends, telling clients to re-check for work."""
-
-    type: str = field(init=False, default="enrichment_complete")
-    languages: list[str] = field(default_factory=list)
-    countries: list[str] = field(default_factory=list)
-
-
-@dataclass
 class DecisionCountEvent(Event):
     """Broadcast when actions are decided, carrying the updated decided total."""
 

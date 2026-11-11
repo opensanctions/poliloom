@@ -22,7 +22,7 @@ export interface Politician {
   actions: Action[]
 }
 
-export interface NextPoliticianResponse {
+export interface ClaimPoliticianResponse {
   wikidata_id: string | null
 }
 
@@ -106,18 +106,12 @@ export interface SourceStatusEvent {
   http_status_code?: number
 }
 
-export interface EnrichmentCompleteEvent {
-  type: 'enrichment_complete'
-  languages: string[]
-  countries: string[]
-}
-
 export interface DecisionCountEvent {
   type: 'decision_count'
   total: number
 }
 
-export type SSEEvent = SourceStatusEvent | EnrichmentCompleteEvent | DecisionCountEvent
+export type SSEEvent = SourceStatusEvent | DecisionCountEvent
 
 export type SSEEventType = SSEEvent['type']
 

@@ -5,15 +5,20 @@ interface TutorialFooterProps {
   isComplete: boolean
   onSubmit: () => void
   onBack: () => void
-  skipHref?: string
+  onSkip: () => void
 }
 
-export function TutorialFooter({ isComplete, onSubmit, onBack, skipHref }: TutorialFooterProps) {
+export function TutorialFooter({ isComplete, onSubmit, onBack, onSkip }: TutorialFooterProps) {
   const handleSkip = useSkipTutorial()
+
+  const skip = () => {
+    handleSkip()
+    onSkip()
+  }
 
   return (
     <div className="flex justify-between items-center">
-      <Button href={skipHref} variant="secondary" onClick={handleSkip} disabled={!skipHref}>
+      <Button variant="secondary" onClick={skip}>
         Skip Tutorial
       </Button>
       <div className="flex gap-3">

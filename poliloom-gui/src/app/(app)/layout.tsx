@@ -2,7 +2,6 @@ import { headers } from 'next/headers'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { EventStreamProvider } from '@/contexts/EventStreamContext'
 import { DecisionCountProvider } from '@/contexts/DecisionCountContext'
-import { NextPoliticianProvider } from '@/contexts/NextPoliticianContext'
 import { FilterProvider } from '@/contexts/FilterContext'
 import { LabelLanguageProvider } from '@/contexts/LabelLanguageContext'
 import { Header } from '@/components/layout/Header'
@@ -33,19 +32,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         >
           <EventStreamProvider>
             <DecisionCountProvider initialCount={decisionCount}>
-              <NextPoliticianProvider>
-                <Header
-                  left={<SearchBox />}
-                  right={
-                    <>
-                      <DecisionCountButton />
-                      <ThemeToggle />
-                      <AuthButton />
-                    </>
-                  }
-                />
-                {children}
-              </NextPoliticianProvider>
+              <Header
+                left={<SearchBox />}
+                right={
+                  <>
+                    <DecisionCountButton />
+                    <ThemeToggle />
+                    <AuthButton />
+                  </>
+                }
+              />
+              {children}
             </DecisionCountProvider>
           </EventStreamProvider>
         </FilterProvider>

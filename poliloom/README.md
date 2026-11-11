@@ -88,7 +88,7 @@ uv run poliloom import-politicians    # Import politicians
 
 ### Extract politician data
 
-Enrichment is demand-driven: `/politicians/next` claims and serves
+Enrichment is demand-driven: `POST /politicians/claim` claims and serves
 politicians with pending Actions in the user's selected languages, and
 background enrichment tops up
 to one serveable politician per filter combo when the pool runs dry. Each

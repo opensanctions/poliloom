@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, act, render, fireEvent } from '@testing-library/react'
 import {
-  mockUseNextPoliticianContext,
   mockUseSettings,
-  defaultNextPolitician,
+  mockRouterPush,
+  mockRouterReplace,
+  mockFetch,
   defaultSettingsContext,
   defaultSettings,
   defaultFiltersContext,
@@ -22,12 +23,11 @@ vi.mock('next-auth/react', () => ({
 }))
 
 beforeEach(() => {
-  mockUseNextPoliticianContext.mockReturnValue({
-    ...defaultNextPolitician,
-    nextHref: '/',
-    politicianReady: false,
-  })
   mockUseSession.mockReturnValue({ data: null, status: 'loading' })
+  mockFetch.mockResolvedValue({
+    ok: true,
+    json: async () => ({ wikidata_id: 'Q12345' }),
+  } as Response)
   mockUseSettings.mockReturnValue({
     ...defaultSettingsContext,
     settings: {
@@ -39,27 +39,70 @@ beforeEach(() => {
 })
 
 describe('Home Page - review navigation', () => {
-  it('CTA links directly to the next politician', async () => {
-    mockUseNextPoliticianContext.mockReturnValue({
-      ...defaultNextPolitician,
-      nextHref: '/politician/Q12345',
-    })
-    mockUseSettings.mockReturnValue({
-      ...defaultSettingsContext,
-      settings: {
-        ...defaultSettings,
-        advanced_tutorial_completed: false,
-      },
-    })
+  beforeEach(() => {
+    mockUseSettings.mockReturnValue(defaultSettingsContext)
+  })
 
-    await act(async () => {
-      render(<HomeContent languages={[]} countries={[]} />)
+  it('claims a politician only when starting a session and navigates to its QID', async () => {
+    mockUseFilters.mockReturnValue({
+      ...defaultFiltersContext,
+      languageQids: ['Q1860'],
+      countryQids: ['Q30'],
     })
+    render(<HomeContent languages={[]} countries={[]} />)
+
+    expect(mockFetch).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start Your Session' }))
 
     await waitFor(() => {
-      const ctaButton = screen.getByRole('link', { name: 'Start Your Session' })
-      expect(ctaButton).toHaveAttribute('href', '/politician/Q12345')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/politicians/claim?languages=Q1860&countries=Q30',
+        { method: 'POST' },
+      )
+      expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
     })
+  })
+
+  it('shows the disabled empty state after a null claim', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ wikidata_id: null }),
+    } as Response)
+    render(<HomeContent languages={[]} countries={[]} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Your Session' }))
+
+    await waitFor(() => {
+      expect(mockRouterPush).toHaveBeenCalledWith('/?empty=1')
+      expect(screen.getByText(/No politicians found for your current filters/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Start Your Session' })).toBeDisabled()
+    })
+  })
+
+  it('renders the empty state when returning home after a null claim', () => {
+    render(<HomeContent languages={[]} countries={[]} initialEmptyResult />)
+
+    expect(screen.getByText(/No politicians found for your current filters/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start Your Session' })).toBeDisabled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('re-enables Start Session when filters change after an empty result', () => {
+    render(
+      <HomeContent
+        languages={[language({ sources_count: 10 })]}
+        countries={[]}
+        initialEmptyResult
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /English/ }))
+
+    expect(mockSetLanguages).toHaveBeenCalledWith(['Q1860'])
+    expect(mockRouterReplace).toHaveBeenCalledWith('/')
+    expect(screen.getByRole('button', { name: 'Start Your Session' })).not.toBeDisabled()
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })
 

@@ -12,7 +12,6 @@ export const mockUsePathname = vi.fn()
 export const mockUseSearchParams = vi.fn()
 
 // Contexts
-export const mockUseNextPoliticianContext = vi.fn()
 export const mockUseSettings = vi.fn()
 export const mockUseFilters = vi.fn()
 export const mockUseLabelLanguages = vi.fn()
@@ -48,10 +47,6 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockUseSearchParams(),
 }))
 
-vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
-}))
-
 vi.mock('@/contexts/SettingsContext', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/contexts/SettingsContext')>()
   return {
@@ -78,13 +73,6 @@ vi.mock('@/contexts/LabelLanguageContext', async (importOriginal) => {
 
 // --- Default return values ---
 
-export const defaultNextPolitician = {
-  nextHref: '/politician/Q12345',
-  politicianReady: true,
-  allCaughtUp: false,
-  loading: false,
-}
-
 export const defaultSettings: UserSettings = {
   advanced_mode: false,
   basic_tutorial_completed: true,
@@ -106,7 +94,6 @@ export const defaultFiltersContext = {
 // --- Reset defaults before each test ---
 
 beforeEach(() => {
-  mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   mockUseSettings.mockReturnValue(defaultSettingsContext)
   mockUseFilters.mockReturnValue(defaultFiltersContext)
   mockUseLabelLanguages.mockReturnValue([])

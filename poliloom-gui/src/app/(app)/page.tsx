@@ -1,7 +1,17 @@
 import { getLanguages, getCountries } from '@/lib/api-auth'
 import { HomeContent } from './HomeContent'
 
-export default async function Home() {
-  const [languages, countries] = await Promise.all([getLanguages(), getCountries()])
-  return <HomeContent languages={languages} countries={countries} />
+interface HomeProps {
+  searchParams: Promise<{ empty?: string }>
+}
+
+export default async function Home({ searchParams }: HomeProps) {
+  const [languages, countries, { empty }] = await Promise.all([
+    getLanguages(),
+    getCountries(),
+    searchParams,
+  ])
+  return (
+    <HomeContent languages={languages} countries={countries} initialEmptyResult={empty === '1'} />
+  )
 }

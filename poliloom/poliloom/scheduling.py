@@ -17,7 +17,6 @@ from .models import (
     Source,
 )
 from .review_queue import count_serveable
-from .sse import EnrichmentCompleteEvent, event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -120,42 +119,22 @@ async def process_next_politician(
 ) -> int | None:
     """Schedule and process enrichment for a single politician.
 
-    Broadcasts EnrichmentCompleteEvent only when there's something for waiting
-    clients to act on: new unevaluated data (clients re-check /next and find
-    the politician) or no candidate available (clients settle on the
-    all-caught-up state). Dry passes stay silent — callers chain the next
-    candidate themselves, so waking clients would only trigger
-    redundant /next polls.
-
     Returns:
         Number of properties extracted, or None if no politician was available.
     """
     with Session(get_engine()) as db:
         scheduled = schedule_enrichment(db, languages, countries)
 
-    extracted = None
-    try:
-        if scheduled:
-            counts = await asyncio.gather(
-                *(
-                    process_source_task(source_id, scheduled.politician_id)
-                    for source_id in scheduled.source_ids
-                )
-            )
-            extracted = sum(counts)
-    finally:
-        if extracted is None or extracted > 0:
-            with Session(get_engine()) as db:
-                event_bus.notify(
-                    EnrichmentCompleteEvent(
-                        languages=languages or [],
-                        countries=countries or [],
-                    ),
-                    db,
-                )
-                db.commit()
+    if scheduled is None:
+        return None
 
-    return extracted
+    counts = await asyncio.gather(
+        *(
+            process_source_task(source_id, scheduled.politician_id)
+            for source_id in scheduled.source_ids
+        )
+    )
+    return sum(counts)
 
 
 async def enrich_until_serveable(

@@ -1,28 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor, render, within } from '@testing-library/react'
+import { screen, fireEvent, waitFor, render, within, act } from '@testing-library/react'
 import '@/test/mocks'
-import {
-  mockRouterPush,
-  mockFetch,
-  mockUseNextPoliticianContext,
-  mockUseFilters,
-  defaultNextPolitician,
-} from '@/test/mocks'
+import { mockRouterPush, mockFetch, mockUseFilters } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type {
   Action,
   ActionEvidence,
   JsonPatchOperation,
-  LanguageResponse,
-  PatchActionsResponse,
   Politician,
   RestSnak,
   RestStatement,
   RestValue,
   SourceResponse,
+  SourceStatusEvent,
   Statement,
   TermMaps,
 } from '@/types'
+
+const mockUseEventStream = vi.fn()
+vi.mock('@/contexts/EventStreamContext', () => ({
+  useEventStream: (...args: unknown[]) => mockUseEventStream(...args),
+}))
 
 // --- Fixtures ---
 
@@ -163,7 +161,7 @@ const politician: Politician = {
   ],
 }
 
-function mockApiResponse(body: LanguageResponse[] | PatchActionsResponse | Politician, ok = true) {
+function mockApiResponse(body: unknown, ok = true) {
   return Promise.resolve({ ok, json: async () => body } as Response)
 }
 
@@ -179,6 +177,9 @@ describe('PoliticianEvaluation', () => {
     mockFetch.mockImplementation((url, options) => {
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: true, message: 'OK', errors: [] })
+      }
+      if (options?.method === 'POST') {
+        return mockApiResponse({ wikidata_id: 'Q12345' })
       }
       return mockApiResponse(politician)
     })
@@ -285,6 +286,8 @@ describe('PoliticianEvaluation', () => {
       skips: ['action-3'],
     })
 
+    expect(mockFetch).toHaveBeenCalledWith('/api/politicians/claim', { method: 'POST' })
+    expect(mockFetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1)
     expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
   })
 
@@ -304,14 +307,18 @@ describe('PoliticianEvaluation', () => {
           }),
         }),
       )
+      expect(mockFetch).toHaveBeenCalledWith('/api/politicians/claim', { method: 'POST' })
+      expect(mockFetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(
+        1,
+      )
       expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
     })
   })
 
-  it('preserves language filters when refetching after submission', async () => {
+  it('uses current language and country filters when claiming after submission', async () => {
     mockUseFilters.mockReturnValue({
       languageQids: ['Q1860', 'Q188'],
-      countryQids: [],
+      countryQids: ['Q30'],
       setLanguages: vi.fn(),
       setCountries: vi.fn(),
     })
@@ -322,7 +329,8 @@ describe('PoliticianEvaluation', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/politicians/Q987654?languages=Q1860&languages=Q188',
+        '/api/politicians/claim?languages=Q1860&languages=Q188&countries=Q30',
+        { method: 'POST' },
       )
     })
   })
@@ -346,18 +354,74 @@ describe('PoliticianEvaluation', () => {
     expect(mockRouterPush).not.toHaveBeenCalled()
     alertMock.mockRestore()
   })
+
+  it('does not claim work when entering, changing, or leaving politician routes', () => {
+    const { rerender, unmount } = render(<PoliticianEvaluation politician={politician} />)
+
+    rerender(<PoliticianEvaluation politician={{ ...politician, wikidata_id: 'Q111111' }} />)
+    unmount()
+
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockRouterPush).not.toHaveBeenCalled()
+  })
+
+  it('disables submission and skipping while sources are processing without actions', () => {
+    const processing: Politician = {
+      ...politician,
+      sources: [{ ...testSource, status: 'processing' }],
+      actions: [],
+    }
+    render(<PoliticianEvaluation politician={processing} />)
+
+    expect(
+      screen.getByText('Source ingestion is in progress. Review items will appear automatically.'),
+    ).toBeInTheDocument()
+    const skip = screen.getByRole('button', { name: 'Skip Politician' })
+    expect(skip).toBeDisabled()
+    fireEvent.click(skip)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('shows newly extracted actions after a source-status refresh', async () => {
+    const processing: Politician = {
+      ...politician,
+      sources: [{ ...testSource, status: 'processing' }],
+      actions: [],
+    }
+    render(<PoliticianEvaluation politician={processing} />)
+
+    const handler = mockUseEventStream.mock.calls.find(
+      ([eventType]) => eventType === 'source_status',
+    )?.[1] as (event: SourceStatusEvent) => Promise<void>
+    await act(async () => {
+      await handler({
+        type: 'source_status',
+        politician_ids: [processing.id],
+        source_id: testSource.id,
+        status: 'done',
+      })
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/politicians/Q987654')
+    expect(screen.getByText('Birthplaces')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Skip Politician' })).not.toBeDisabled()
+    expect(
+      screen.queryByText(
+        'Source ingestion is in progress. Review items will appear automatically.',
+      ),
+    ).not.toBeInTheDocument()
+    expect(mockFetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0)
+  })
 })
 
 describe('PoliticianEvaluation - no next politician', () => {
   beforeEach(() => {
-    mockUseNextPoliticianContext.mockReturnValue({
-      ...defaultNextPolitician,
-      nextHref: '/',
-      politicianReady: false,
-    })
     mockFetch.mockImplementation((url, options) => {
       if (options?.method === 'PATCH') {
         return mockApiResponse({ success: true, message: 'OK', errors: [] })
+      }
+      if (options?.method === 'POST') {
+        return mockApiResponse({ wikidata_id: null })
       }
       return mockApiResponse(politician)
     })
@@ -370,7 +434,7 @@ describe('PoliticianEvaluation - no next politician', () => {
     fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
     await waitFor(() => {
-      expect(mockRouterPush).toHaveBeenCalledWith('/')
+      expect(mockRouterPush).toHaveBeenCalledWith('/?empty=1')
     })
   })
 
@@ -390,7 +454,7 @@ describe('PoliticianEvaluation - no next politician', () => {
           }),
         }),
       )
-      expect(mockRouterPush).toHaveBeenCalledWith('/')
+      expect(mockRouterPush).toHaveBeenCalledWith('/?empty=1')
     })
   })
 })

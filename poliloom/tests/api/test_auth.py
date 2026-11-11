@@ -187,7 +187,7 @@ class TestAuthIntegration:
         client_no_db = TestClient(app)
 
         # Test a few representative endpoints
-        assert client_no_db.get("/politicians/next").status_code == 401
+        assert client_no_db.post("/politicians/claim").status_code == 401
         assert (
             client_no_db.patch(
                 "/politicians/Q123456/actions", json={"actions": []}
@@ -202,8 +202,8 @@ class TestAuthIntegration:
         self, client, mock_auth, sample_politician
     ):
         """Test that properly authenticated requests can access protected endpoints."""
-        # Test politicians/next endpoint with auth - returns NextPoliticianResponse
-        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
+        # Test claim endpoint with auth - returns ClaimPoliticianResponse
+        response = client.post("/politicians/claim?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert "wikidata_id" in data

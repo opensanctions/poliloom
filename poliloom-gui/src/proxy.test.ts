@@ -140,7 +140,7 @@ describe('middleware filter param stripping', () => {
 
   it('does not strip filter params on /api/* routes', () => {
     const response = callMiddleware(
-      'http://localhost:3000/api/politicians/next?languages=Q1860&countries=Q30',
+      'http://localhost:3000/api/politicians/claim?languages=Q1860&countries=Q30',
     )
     expect(response.status).not.toBe(307)
   })
@@ -272,7 +272,7 @@ describe('middleware matcher', () => {
   })
 
   it('runs on /api/* routes (excluding /api/auth)', () => {
-    expect(matcher.test('/api/politicians/next')).toBe(true)
+    expect(matcher.test('/api/politicians/claim')).toBe(true)
     expect(matcher.test('/api/entities/search')).toBe(true)
     expect(matcher.test('/api/stats')).toBe(true)
   })

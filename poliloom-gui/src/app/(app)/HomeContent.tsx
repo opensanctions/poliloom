@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Box } from '@/components/ui/Box'
 import { Button } from '@/components/ui/Button'
 import { Footer } from '@/components/ui/Footer'
@@ -8,7 +9,7 @@ import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useFilters } from '@/contexts/FilterContext'
-import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
+import { useClaimPolitician } from '@/hooks/useClaimPolitician'
 import { CountryResponse, LanguageResponse } from '@/types'
 import { best_label } from '@/lib/labels'
 import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
@@ -17,17 +18,25 @@ interface CtaState {
   href?: string
   text: string
   disabled?: boolean
+  onClick?: () => void
 }
 
 interface HomeContentProps {
   languages: LanguageResponse[]
   countries: CountryResponse[]
+  initialEmptyResult?: boolean
 }
 
-export function HomeContent({ languages, countries }: HomeContentProps) {
+export function HomeContent({
+  languages,
+  countries,
+  initialEmptyResult = false,
+}: HomeContentProps) {
+  const router = useRouter()
   const { settings, patch } = useSettings()
   const { languageQids, countryQids, setLanguages, setCountries } = useFilters()
-  const { nextHref, allCaughtUp, loading: loadingNext } = useNextPoliticianContext()
+  const { claimAndNavigate, isClaiming } = useClaimPolitician()
+  const [emptyResult, setEmptyResult] = useState(initialEmptyResult)
   const labelLanguages = useLabelLanguages()
 
   // Default tutorial completion to true when unauthenticated so we don't flash
@@ -39,13 +48,33 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
   const needsTutorial = !hasCompletedBasicTutorial
   const needsAdvancedTutorial = isAdvancedMode && !hasCompletedAdvancedTutorial
 
-  const cta = useMemo<CtaState>(() => {
-    if (needsTutorial) return { href: '/tutorial', text: 'Start Tutorial' }
-    if (needsAdvancedTutorial) return { href: '/tutorial', text: 'Start Advanced Tutorial' }
-    if (loadingNext) return { text: 'Start Your Session', disabled: true }
-    if (!allCaughtUp) return { href: nextHref, text: 'Start Your Session' }
-    return { text: 'Start Your Session', disabled: true }
-  }, [needsTutorial, needsAdvancedTutorial, loadingNext, nextHref, allCaughtUp])
+  const startSession = async () => {
+    const qid = await claimAndNavigate()
+    if (qid === null) setEmptyResult(true)
+  }
+
+  let cta: CtaState = {
+    text: 'Start Your Session',
+    disabled: emptyResult || isClaiming,
+    onClick: startSession,
+  }
+  if (needsTutorial) {
+    cta = { href: '/tutorial', text: 'Start Tutorial' }
+  } else if (needsAdvancedTutorial) {
+    cta = { href: '/tutorial', text: 'Start Advanced Tutorial' }
+  }
+
+  const changeLanguages = (qids: string[]) => {
+    setEmptyResult(false)
+    if (emptyResult) router.replace('/')
+    setLanguages(qids)
+  }
+
+  const changeCountries = (qids: string[]) => {
+    setEmptyResult(false)
+    if (emptyResult) router.replace('/')
+    setCountries(qids)
+  }
 
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
@@ -77,7 +106,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
             icon="🌍"
             options={countryOptions}
             selected={countryQids}
-            onChange={setCountries}
+            onChange={changeCountries}
           />
 
           <MultiSelect
@@ -86,7 +115,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
             icon="🌐"
             options={languageOptions}
             selected={languageQids}
-            onChange={setLanguages}
+            onChange={changeLanguages}
             minimumSelections={1}
           />
         </div>
@@ -96,15 +125,21 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-2">
-                {allCaughtUp ? 'All Caught Up!' : 'Ready to start?'}
+                {emptyResult ? 'No politicians found' : 'Ready to start?'}
               </h3>
               <p className="text-foreground-tertiary">
-                {allCaughtUp
-                  ? 'No more politicians to review for your current filters. Try different filters to continue contributing.'
+                {emptyResult
+                  ? 'No politicians found for your current filters. Try different filters to continue contributing.'
                   : 'Your filters are set. Begin reviewing politicians that match your criteria.'}
               </p>
             </div>
-            <Button href={cta.href} disabled={cta.disabled} size="xlarge" className="shrink-0">
+            <Button
+              href={cta.href}
+              onClick={cta.onClick}
+              disabled={cta.disabled}
+              size="xlarge"
+              className="shrink-0"
+            >
               {cta.text}
             </Button>
           </div>

@@ -1,11 +1,11 @@
-"""Tests for the /politicians endpoints (next/get/search)."""
+"""Tests for the /politicians endpoints (claim/get/search)."""
 
 from datetime import UTC, datetime, timedelta
 from unittest.mock import ANY, Mock, patch
 
 import pytest
 
-from poliloom.api.politicians import get_next_politician
+from poliloom.api.politicians import claim_politician
 from poliloom.models import (
     Action,
     ActionClaim,
@@ -133,14 +133,14 @@ def politician_with_pending_actions(
     return sample_politician
 
 
-class TestGetNextPoliticianEndpoint:
-    """Test the GET /politicians/next endpoint."""
+class TestClaimPoliticianEndpoint:
+    """Test the POST /politicians/claim endpoint."""
 
     def test_returns_next_politician_qid(
         self, client, mock_auth, politician_with_pending_actions
     ):
         """Test that endpoint returns the next politician with pending actions."""
-        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
+        response = client.post("/politicians/claim?languages=Q1860", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
@@ -149,7 +149,7 @@ class TestGetNextPoliticianEndpoint:
 
     def test_returns_null_when_no_politicians(self, client, mock_auth):
         """Test that endpoint returns null when no politicians available."""
-        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
+        response = client.post("/politicians/claim?languages=Q1860", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
@@ -157,12 +157,12 @@ class TestGetNextPoliticianEndpoint:
         assert data == {"wikidata_id": None}
 
     def test_languages_are_required(self, client, mock_auth):
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.post("/politicians/claim", headers=mock_auth)
         assert response.status_code == 422
 
     def test_requires_authentication(self, client):
         """Test that endpoint requires authentication."""
-        response = client.get("/politicians/next")
+        response = client.post("/politicians/claim")
         assert response.status_code in [401, 403]
 
     def test_country_filter_excludes_non_matching(
@@ -173,8 +173,8 @@ class TestGetNextPoliticianEndpoint:
         sample_germany_country,
     ):
         """The sample politician has no citizenship statement, so a Germany filter excludes it."""
-        response = client.get(
-            f"/politicians/next?languages=Q1860&countries={sample_germany_country.wikidata_id}",
+        response = client.post(
+            f"/politicians/claim?languages=Q1860&countries={sample_germany_country.wikidata_id}",
             headers=mock_auth,
         )
         assert response.status_code == 200
@@ -198,21 +198,21 @@ class TestGetNextPoliticianEndpoint:
         )
         create_action(sample_politician, birth_date_create_payload())
 
-        response = client.get(
-            "/politicians/next?languages=Q1860&countries=Q30", headers=mock_auth
+        response = client.post(
+            "/politicians/claim?languages=Q1860&countries=Q30", headers=mock_auth
         )
         assert response.json()["wikidata_id"] == "Q123456"
 
-        response = client.get(
-            "/politicians/next?languages=Q1860&countries=Q183", headers=mock_auth
+        response = client.post(
+            "/politicians/claim?languages=Q1860&countries=Q183", headers=mock_auth
         )
         assert response.json()["wikidata_id"] is None
 
     def test_second_request_does_not_reserve_own_live_claim(
         self, client, mock_auth, politician_with_pending_actions
     ):
-        first = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
-        second = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
+        first = client.post("/politicians/claim?languages=Q1860", headers=mock_auth)
+        second = client.post("/politicians/claim?languages=Q1860", headers=mock_auth)
         assert first.json()["wikidata_id"] == "Q123456"
         assert second.json()["wikidata_id"] is None
 
@@ -224,7 +224,7 @@ class TestGetNextPoliticianEndpoint:
             patch("poliloom.api.politicians.count_serveable", return_value=1),
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
-            response = await get_next_politician(
+            response = await claim_politician(
                 languages=["Q1860"], countries=[], db=Mock(), current_user=user
             )
         assert response.wikidata_id == "Q1"
@@ -241,7 +241,7 @@ class TestGetNextPoliticianEndpoint:
                 "poliloom.api.politicians.asyncio.create_task", return_value=task
             ) as create_task,
         ):
-            response = await get_next_politician(
+            response = await claim_politician(
                 languages=["Q1860"], countries=["Q30"], db=Mock(), current_user=user
             )
             create_task.call_args.args[0].close()
@@ -261,7 +261,7 @@ class TestGetNextPoliticianEndpoint:
             ) as schedule,
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
-            response = await get_next_politician(
+            response = await claim_politician(
                 languages=["Q1860"], countries=["Q30"], db=Mock(), current_user=user
             )
             for call in create_task.call_args_list:
@@ -279,11 +279,24 @@ class TestGetNextPoliticianEndpoint:
             patch("poliloom.api.politicians.schedule_enrichment", return_value=None),
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
-            response = await get_next_politician(
+            response = await claim_politician(
                 languages=["Q1860"], countries=[], db=Mock(), current_user=user
             )
         assert response.wikidata_id is None
         create_task.assert_not_called()
+
+    def test_unrelated_requests_do_not_claim_or_schedule_enrichment(
+        self, client, mock_auth
+    ):
+        with (
+            patch("poliloom.api.politicians.claim_next") as claim,
+            patch("poliloom.api.politicians.schedule_enrichment") as schedule,
+        ):
+            response = client.get("/politicians/search?q=test", headers=mock_auth)
+
+        assert response.status_code == 200
+        claim.assert_not_called()
+        schedule.assert_not_called()
 
 
 class TestGetPoliticianByQidEndpoint:

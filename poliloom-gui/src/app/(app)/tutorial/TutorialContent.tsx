@@ -21,7 +21,7 @@ import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useSettings } from '@/contexts/SettingsContext'
-import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
+import { useClaimPolitician } from '@/hooks/useClaimPolitician'
 import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { best_label } from '@/lib/labels'
 import type { ReviewSubmitPayload } from '@/types'
@@ -93,10 +93,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const hasCompletedBasicTutorial = settings?.basic_tutorial_completed ?? true
   const hasCompletedAdvancedTutorial = settings?.advanced_tutorial_completed ?? true
   const isAdvancedMode = settings?.advanced_mode ?? false
-  const { nextHref, loading: nextLoading } = useNextPoliticianContext()
+  const { claimAndNavigate: startReview, isClaiming } = useClaimPolitician()
   const labelLanguages = useLabelLanguages()
-
-  const startHref = !nextLoading ? nextHref : undefined
 
   const getStartingStep = (): TutorialStep => {
     if (initialStep !== undefined) return initialStep
@@ -132,7 +130,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <p className="mb-8">
           You&apos;re all set! You now have everything you need to start reviewing politician data.
         </p>
-        <Button href={startHref} size="large" fullWidth disabled={!startHref}>
+        <Button onClick={startReview} size="large" fullWidth disabled={isClaiming}>
           Start Reviewing
         </Button>
       </CenteredCard>
@@ -146,7 +144,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           You&apos;re about to help build accurate, open political data by verifying information
           extracted from official sources.
         </p>
-        <TutorialActions skipHref={startHref} buttonText="Let's Go" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's Go" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -164,7 +162,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             in the source document.
           </p>
         </div>
-        <TutorialActions skipHref={startHref} buttonText="Got It" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Got It" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -181,7 +179,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               </p>
               <p>We save copies so you can verify the data even if the original page changes.</p>
             </div>
-            <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
+            <TutorialActions onSkip={startReview} buttonText="Next" onNext={advance} />
           </CenteredCard>
         }
         right={<SourceViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
@@ -221,7 +219,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 piece of data originated.
               </p>
             </div>
-            <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
+            <TutorialActions onSkip={startReview} buttonText="Next" onNext={advance} />
           </CenteredCard>
         }
       />
@@ -306,7 +304,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 document.
               </p>
             </div>
-            <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
+            <TutorialActions onSkip={startReview} buttonText="Next" onNext={advance} />
           </CenteredCard>
         }
       />
@@ -320,7 +318,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Compare each proposal to the source. If it matches, accept it. If it doesn&apos;t, discard
           it.
         </p>
-        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -334,6 +332,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           title={reviewStep.success.title}
           message={reviewStep.success.message}
           onNext={advance}
+          onSkip={startReview}
         />
       )
     }
@@ -344,6 +343,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           message={reviewStep.error.message}
           hint={reviewStep.error.hint}
           onRetry={() => setCheckResult(null)}
+          onSkip={startReview}
         />
       )
     }
@@ -354,7 +354,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         onSubmit={async (payload) => setCheckResult(checkStep(payload, reviewStep))}
         footer={({ decidedCount, submit }) => (
           <TutorialFooter
-            skipHref={startHref}
+            onSkip={startReview}
             isComplete={decidedCount === reviewStep.politician.actions.length}
             onSubmit={submit}
             onBack={() => setStep(reviewStep.backStep)}
@@ -371,7 +371,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Sometimes information comes from different source documents. Next, try switching between
           these to review all proposals.
         </p>
-        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -383,7 +383,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Specific data is better than generic data. If a more specific version already exists,
           discard the generic proposal.
         </p>
-        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -401,7 +401,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             required to decide on every proposal.
           </p>
         </div>
-        <TutorialActions skipHref={startHref} buttonText="Got It!" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Got It!" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -421,7 +421,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             it doesn&apos;t.
           </p>
         </div>
-        <TutorialActions skipHref={startHref} buttonText="Let's Advance" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's Advance" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -433,7 +433,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Sometimes a source pins down a value more precisely than Wikidata does — a full birth date
           instead of just a year. Next, decide whether such a refinement is supported.
         </p>
-        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -448,7 +448,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           </p>
           <p>Check each proposed timeframe against its evidence before deciding.</p>
         </div>
-        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -463,7 +463,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             something else don&apos;t count.
           </p>
         </div>
-        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -481,7 +481,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             else can always pick it up later.
           </p>
         </div>
-        <TutorialActions skipHref={startHref} buttonText="Got It!" onNext={advance} />
+        <TutorialActions onSkip={startReview} buttonText="Got It!" onNext={advance} />
       </CenteredCard>
     )
   }

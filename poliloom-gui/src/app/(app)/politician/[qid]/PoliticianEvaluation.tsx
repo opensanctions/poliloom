@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { PatchActionsResponse, Politician, ReviewSubmitPayload, SourceResponse } from '@/types'
 import { useFilters } from '@/contexts/FilterContext'
-import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
+import { useClaimPolitician } from '@/hooks/useClaimPolitician'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { Button } from '@/components/ui/Button'
 import {
@@ -20,9 +19,8 @@ interface PoliticianEvaluationProps {
 }
 
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
-  const router = useRouter()
   const { languageQids } = useFilters()
-  const { nextHref, loading: nextLoading } = useNextPoliticianContext()
+  const { claimAndNavigate, isClaiming } = useClaimPolitician()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
   const [selection, setSelection] = useState<SourceSelection | null>(() =>
     findInitialSelection(initialPolitician, languageQids),
@@ -82,31 +80,32 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
         throw new Error(`Error submitting decisions: ${result.message}`)
       }
 
-      refetchPolitician()
-      router.push(nextHref)
+      await claimAndNavigate()
     },
-    [politician.wikidata_id, refetchPolitician, router, nextHref],
+    [politician.wikidata_id, claimAndNavigate],
   )
+
+  const waitingForSources =
+    politician.actions.length === 0 &&
+    politician.sources.some((source) => source.status === 'processing')
 
   const footer = ({ decidedCount, isSubmitting, submit: submitDecisions }: FooterContext) => {
     const hasDecisions = decidedCount > 0
+    const disabled = isSubmitting || isClaiming || waitingForSources
     return (
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-4">
+        {waitingForSources && (
+          <p className="text-sm text-foreground-tertiary">
+            Source ingestion is in progress. Review items will appear automatically.
+          </p>
+        )}
         <div className="ml-auto">
           {!hasDecisions ? (
-            <Button
-              onClick={submitDecisions}
-              disabled={nextLoading || isSubmitting}
-              className="px-6 py-3"
-            >
+            <Button onClick={submitDecisions} disabled={disabled} className="px-6 py-3">
               {isSubmitting ? 'Skipping...' : 'Skip Politician'}
             </Button>
           ) : (
-            <Button
-              onClick={submitDecisions}
-              disabled={isSubmitting || nextLoading}
-              className="px-6 py-3"
-            >
+            <Button onClick={submitDecisions} disabled={disabled} className="px-6 py-3">
               {isSubmitting ? 'Submitting...' : 'Submit Decisions & Next'}
             </Button>
           )}

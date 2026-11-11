@@ -59,17 +59,7 @@ class TestProcessNextPolitician:
         assert extracted is None
 
     @pytest.mark.asyncio
-    async def test_notifies_when_no_candidate_found(self, db_session):
-        """Waiting clients must be woken even when nothing was available to enrich."""
-        with patch("poliloom.scheduling.event_bus.notify") as mock_notify:
-            extracted = await process_next_politician(["Q1860"])
-
-        assert extracted is None
-        mock_notify.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_silent_when_no_properties_extracted(self, db_session):
-        """Dry passes stay silent while callers chain the next candidate."""
+    async def test_returns_zero_when_no_properties_extracted(self, db_session):
         scheduled = ScheduledEnrichment(
             politician_id="p1", wikidata_id="Q1", source_ids=["s1", "s2"]
         )
@@ -79,13 +69,11 @@ class TestProcessNextPolitician:
             patch(
                 "poliloom.scheduling.process_source_task", new_callable=AsyncMock
             ) as mock_process,
-            patch("poliloom.scheduling.event_bus.notify") as mock_notify,
         ):
             mock_process.return_value = 0
             extracted = await process_next_politician(["Q1860"])
 
         assert extracted == 0
-        mock_notify.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_returns_extracted_property_count(self, db_session):
@@ -99,33 +87,11 @@ class TestProcessNextPolitician:
             patch(
                 "poliloom.scheduling.process_source_task", new_callable=AsyncMock
             ) as mock_process,
-            patch("poliloom.scheduling.event_bus.notify") as mock_notify,
         ):
             mock_process.side_effect = [3, 4]
             extracted = await process_next_politician(["Q1860"])
 
         assert extracted == 7
-        mock_notify.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_notifies_when_processing_fails(self, db_session):
-        """Waiting clients must be woken even when source processing errors out."""
-        scheduled = ScheduledEnrichment(
-            politician_id="p1", wikidata_id="Q1", source_ids=["s1"]
-        )
-
-        with (
-            patch("poliloom.scheduling.schedule_enrichment", return_value=scheduled),
-            patch(
-                "poliloom.scheduling.process_source_task", new_callable=AsyncMock
-            ) as mock_process,
-            patch("poliloom.scheduling.event_bus.notify") as mock_notify,
-        ):
-            mock_process.side_effect = RuntimeError("archiving failed")
-            with pytest.raises(RuntimeError):
-                await process_next_politician(["Q1860"])
-
-        mock_notify.assert_called_once()
 
 
 class TestEnrichUntilServeable:

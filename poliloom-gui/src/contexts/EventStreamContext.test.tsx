@@ -45,9 +45,10 @@ describe('EventStreamContext', () => {
     renderHook(() => useEventStream('decision_count', handler, []), { wrapper })
 
     const event: SSEEvent = {
-      type: 'enrichment_complete',
-      languages: ['Q1860'],
-      countries: ['Q30'],
+      type: 'source_status',
+      politician_ids: ['politician-1'],
+      source_id: 'source-1',
+      status: 'done',
     }
     act(() => {
       mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
