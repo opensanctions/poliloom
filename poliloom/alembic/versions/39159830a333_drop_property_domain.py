@@ -1,11 +1,13 @@
-"""copy property domain data into statements/actions, then drop it
+"""copy evaluated property decisions into statements/actions, then drop old domain
 
-One-way production data migration. Live statement-backed properties become
-cached REST statement documents (id and timestamps preserved); proposals and
-pushed properties become create Actions; evidence references on
-import-created statements become edit Actions; property_references become
-action_evidence. A count report is logged and invariants asserted before
-the old Property/Evaluation tables, flat label storage, and denormalized
+One-way production data migration. Live pushed properties become cached REST
+statement documents with linked applied create Actions (id and timestamps
+preserved). Pushed properties whose statements later vanished retain unlinked
+applied creates, and rejected proposals become discarded creates.
+Unevaluated properties, incomplete accepts, statement rejections, and pending
+reference edits are omitted; the next dump import rebuilds the rest of the
+statement cache. A count report is logged and invariants asserted before the
+old Property/Evaluation tables, flat label storage, and denormalized
 name/description columns are dropped. Terms live on wikidata_entities and
 review data on actions/statements.
 
@@ -26,8 +28,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 from poliloom.models import PropertyType, Source
-from poliloom.payloads import append_reference_patch, create_body
-from poliloom.planner import reference_present
+from poliloom.payloads import create_body
 from poliloom.wikidata.rest import action_api_statement_to_rest
 
 # revision identifiers, used by Alembic.
@@ -53,18 +54,21 @@ _DATE_TYPES = frozenset(("BIRTH_DATE", "DEATH_DATE"))
 _ENTITY_SAMPLE_TYPES = ("BIRTHPLACE", "CITIZENSHIP")
 _CALENDAR_MODEL = "http://www.wikidata.org/entity/Q1985727"
 _BATCH_SIZE = 10_000
-_PROGRESS_INTERVAL = 500_000
 
 _PROPERTY_QUERY = sa.text("""
     SELECT id, politician_id, type, value, value_precision, entity_id,
            statement_id, qualifiers_json, references_json,
            created_at, updated_at, deleted_at
-    FROM properties
+    FROM properties p
+    WHERE EXISTS (
+        SELECT 1 FROM evaluations e WHERE e.property_id = p.id
+    )
 """)
 
-_STATEMENT_COPY = (
-    "COPY statements (id, politician_id, document, created_at, updated_at) FROM STDIN"
-)
+_STATEMENT_INSERT = sa.text("""
+    INSERT INTO statements (id, politician_id, document, created_at, updated_at)
+    VALUES (:id, :politician_id, CAST(:document AS jsonb), :created_at, :updated_at)
+""")
 
 _ACTION_INSERT = sa.text("""
     INSERT INTO actions (id, politician_id, kind, statement_id, payload,
@@ -169,7 +173,7 @@ def _claim(row) -> dict:
 
 
 def _create_payload(row, references: list[dict]) -> dict:
-    """Build the create Action payload for a proposal or pushed property.
+    """Build the create Action payload for an evaluated property.
 
     Value and qualifiers are converted through the same claim-to-REST
     converter as statement documents; references are rebuilt from the
@@ -202,23 +206,8 @@ def _require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def _copy_statements(bind, rows) -> None:
-    """Load one batch of statement rows via COPY on the migration connection.
-
-    COPY joins the migration transaction like any statement on the same
-    DBAPI connection, so it rolls back with the migration on failure.
-    """
-    with (
-        bind.connection.cursor() as cur,
-        cur.copy(_STATEMENT_COPY) as copy,
-    ):
-        copy.set_types(("uuid", "uuid", "jsonb", "timestamptz", "timestamptz"))
-        for row in rows:
-            copy.write_row(row)
-
-
 def _copy_property_data(conn) -> None:
-    """Copy every old property/evaluation/reference row into the new domain.
+    """Copy evaluated old-domain rows into the new domain.
 
     Classification is per property, anchored on the latest evaluation
     (max created_at). Every class is counted so the report accounts for all
@@ -232,6 +221,9 @@ def _copy_property_data(conn) -> None:
             ("references", "property_references"),
         )
     }
+    totals["evaluated_properties"] = conn.execute(
+        sa.text("SELECT count(DISTINCT property_id) FROM evaluations")
+    ).scalar_one()
 
     sources = {}
     for source in conn.execute(
@@ -252,7 +244,10 @@ def _copy_property_data(conn) -> None:
         sa.text("""
             SELECT property_id, source_id, supporting_quotes, created_at,
                    updated_at
-            FROM property_references
+            FROM property_references pr
+            WHERE EXISTS (
+                SELECT 1 FROM evaluations e WHERE e.property_id = pr.property_id
+            )
             ORDER BY property_id, created_at
         """)
     ).mappings():
@@ -260,13 +255,13 @@ def _copy_property_data(conn) -> None:
             reference
         )
 
-    # Ordered by created_at, so the last element is the latest evaluation.
+    # Ordered by created_at and id, so the last element is the latest evaluation.
     evaluations_by_property = {}
     for evaluation in conn.execute(
         sa.text("""
-            SELECT property_id, user_id, is_accepted, created_at
+            SELECT id, property_id, user_id, is_accepted, created_at
             FROM evaluations
-            ORDER BY property_id, created_at
+            ORDER BY property_id, created_at, id
         """)
     ).mappings():
         evaluations_by_property.setdefault(evaluation["property_id"], []).append(
@@ -275,29 +270,29 @@ def _copy_property_data(conn) -> None:
 
     counts = {
         "statements": 0,
-        "creates_pending_proposals": 0,
-        "creates_discarded": 0,
         "creates_applied_linked": 0,
         "creates_applied_unlinked": 0,
-        "edits_pending": 0,
-        "edits_applied": 0,
+        "creates_discarded": 0,
         "evidence": 0,
-        "dropped_props_no_eval_proposals": 0,
-        "dropped_props_failed_push_proposals": 0,
-        "dropped_props_conflicting": 0,
-        "dropped_props_tombstoned_import": 0,
-        "dropped_refs_tombstoned": 0,
-        "dropped_refs_proposals": 0,
-        "eval_mapped_applied": 0,
-        "eval_mapped_discarded": 0,
-        "eval_rejects_statement_backed": 0,
-        "eval_noop_reaccepts": 0,
-        "eval_on_retained_proposals": 0,
-        "eval_on_dropped_proposals": 0,
-        "eval_on_dropped_conflicting": 0,
-        "eval_superseded_discarded": 0,
+        "dropped_props_unevaluated": totals["properties"]
+        - totals["evaluated_properties"],
+        "dropped_props_incomplete_accepts": 0,
+        "dropped_props_statement_rejections": 0,
+        "dropped_props_pushed_then_rejected": 0,
+        "dropped_refs_unevaluated": conn.execute(
+            sa.text("""
+                SELECT count(*) FROM property_references pr
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM evaluations e WHERE e.property_id = pr.property_id
+                )
+            """)
+        ).scalar_one(),
+        "dropped_refs_evaluated": 0,
+        "eval_mapped": 0,
+        "eval_superseded": 0,
+        "eval_dropped": 0,
     }
-    statement_batch = []
+    statement_rows = []
     actions = []
     evidence = []
     samples = {}
@@ -318,7 +313,8 @@ def _copy_property_data(conn) -> None:
 
     def latest_accepted(evals):
         return max(
-            (e for e in evals if e["is_accepted"]), key=lambda e: e["created_at"]
+            (e for e in evals if e["is_accepted"]),
+            key=lambda e: (e["created_at"], e["id"]),
         )
 
     def queue_create(row, refs, *, is_accepted, decided, statement_id) -> None:
@@ -333,8 +329,8 @@ def _copy_property_data(conn) -> None:
             "statement_id": statement_id,
             "payload": json.dumps(_create_payload(row, references)),
             "is_accepted": is_accepted,
-            "decided_by_user_id": decided["user_id"] if decided else None,
-            "decided_at": decided["created_at"] if decided else None,
+            "decided_by_user_id": decided["user_id"],
+            "decided_at": decided["created_at"],
             "applied_at": decided["created_at"] if is_accepted else None,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
@@ -342,45 +338,10 @@ def _copy_property_data(conn) -> None:
         actions.append(action)
         queue_evidence(action["id"], refs)
 
-    def queue_edit(row, document, ref) -> None:
-        reference = {"parts": Source.create_references_json(sources[ref["source_id"]])}
-        present = reference_present(document, reference)
-        counts["edits_applied" if present else "edits_pending"] += 1
-        action = {
-            "id": uuid.uuid4(),
-            "politician_id": row["politician_id"],
-            "kind": "EDIT_STATEMENT",
-            "statement_id": row["id"],
-            "payload": json.dumps(append_reference_patch(document, reference)),
-            # Applied with no human decision when the reference already
-            # exists on Wikidata: proposing a duplicate would be wrong.
-            "is_accepted": True if present else None,
-            "decided_by_user_id": None,
-            "decided_at": None,
-            "applied_at": ref["created_at"] if present else None,
-            "created_at": ref["created_at"],
-            "updated_at": ref["updated_at"],
-        }
-        actions.append(action)
-        queue_evidence(action["id"], (ref,))
-
-    def account_pushed_evaluations(evals, mapped, *, dropped) -> None:
-        """Account for evaluations of a pushed property (statement-backed
-        with at least one accept): the mapped latest accept decides the
-        applied create, later accepts were no-op re-accepts, rejects
-        deprecated (or failed to deprecate) the statement.
-        """
-        if dropped:
-            counts["eval_on_dropped_conflicting"] += 1
-        else:
-            counts["eval_mapped_applied"] += 1
-        for evaluation in evals:
-            if evaluation is mapped:
-                continue
-            if evaluation["is_accepted"]:
-                counts["eval_noop_reaccepts"] += 1
-            else:
-                counts["eval_rejects_statement_backed"] += 1
+    def drop_evaluated(row, refs, evals, bucket) -> None:
+        counts[bucket] += 1
+        counts["dropped_refs_evaluated"] += len(refs)
+        counts["eval_dropped"] += len(evals)
 
     def capture_sample(row, claim) -> None:
         if "date" not in samples and row["type"] in _DATE_TYPES:
@@ -399,101 +360,68 @@ def _copy_property_data(conn) -> None:
     result = streaming.execute(_PROPERTY_QUERY)
     writing = streaming.execution_options(stream_results=False)
 
-    # Migrated statements are not import-verified, so the access tracker
-    # must not record them; disabling it also removes 2.1M per-row trigger
-    # fires from the bulk load. Transactional DDL, so a failed migration
-    # restores the trigger with everything else.
-    conn.execute(
-        sa.text("ALTER TABLE statements DISABLE TRIGGER track_statement_access")
-    )
-
-    processed = 0
-    next_progress = _PROGRESS_INTERVAL
     for partition in result.mappings().partitions(_BATCH_SIZE):
         for row in partition:
-            processed += 1
-            evals = evaluations_by_property.get(row["id"], ())
+            evals = evaluations_by_property[row["id"]]
             refs = references_by_property.get(row["id"], ())
-            latest_eval = evals[-1] if evals else None
+            latest_eval = evals[-1]
             has_accepted_eval = any(e["is_accepted"] for e in evals)
 
             if row["statement_id"] is not None:
+                if not has_accepted_eval:
+                    # Rejecting an existing statement deprecates it upstream.
+                    # Both completed and failed deprecations are outside the
+                    # retained create-action history.
+                    drop_evaluated(
+                        row, refs, evals, "dropped_props_statement_rejections"
+                    )
+                    continue
+                if not latest_eval["is_accepted"]:
+                    # A pushed statement was subsequently rejected; do not
+                    # resurrect either its create or its statement.
+                    drop_evaluated(
+                        row, refs, evals, "dropped_props_pushed_then_rejected"
+                    )
+                    continue
+
+                statement_id = None
                 if row["deleted_at"] is None:
                     claim = _claim(row)
                     document = action_api_statement_to_rest(claim)
-                    statement_batch.append(
-                        (
-                            row["id"],
-                            row["politician_id"],
-                            document,
-                            row["created_at"],
-                            row["updated_at"],
-                        )
+                    statement_rows.append(
+                        {
+                            "id": row["id"],
+                            "politician_id": row["politician_id"],
+                            "document": json.dumps(document),
+                            "created_at": row["created_at"],
+                            "updated_at": row["updated_at"],
+                        }
                     )
+                    statement_id = row["id"]
                     counts["statements"] += 1
+                    counts["creates_applied_linked"] += 1
                     capture_sample(row, claim)
-                    if has_accepted_eval:
-                        # Pushed by enrichment: applied create linked to the
-                        # migrated statement (same property UUID).
-                        mapped = latest_accepted(evals)
-                        queue_create(
-                            row,
-                            refs,
-                            is_accepted=True,
-                            decided=mapped,
-                            statement_id=row["id"],
-                        )
-                        counts["creates_applied_linked"] += 1
-                        account_pushed_evaluations(evals, mapped, dropped=False)
-                    else:
-                        # Import-created: each evidence reference becomes an
-                        # edit action against the migrated statement.
-                        for ref in refs:
-                            queue_edit(row, document, ref)
-                        counts["eval_rejects_statement_backed"] += len(evals)
-                elif has_accepted_eval:
-                    mapped = latest_accepted(evals)
-                    if latest_eval["is_accepted"]:
-                        # Tombstoned after the push: applied create without a
-                        # statement link; the next dump import restores live
-                        # upstream statements.
-                        queue_create(
-                            row,
-                            refs,
-                            is_accepted=True,
-                            decided=mapped,
-                            statement_id=None,
-                        )
-                        counts["creates_applied_unlinked"] += 1
-                        account_pushed_evaluations(evals, mapped, dropped=False)
-                    else:
-                        # Pushed, then deprecated upstream: dropped entirely.
-                        counts["dropped_props_conflicting"] += 1
-                        counts["dropped_refs_tombstoned"] += len(refs)
-                        account_pushed_evaluations(evals, mapped, dropped=True)
                 else:
-                    # Tombstoned import-created statement.
-                    counts["dropped_props_tombstoned_import"] += 1
-                    counts["dropped_refs_tombstoned"] += len(refs)
-                    counts["eval_rejects_statement_backed"] += len(evals)
-            elif row["deleted_at"] is None:
-                # Live proposal: pending create regardless of evaluations.
+                    # The statement vanished after the push. The create stays
+                    # as applied history, legitimately without a statement.
+                    counts["creates_applied_unlinked"] += 1
+
                 queue_create(
-                    row, refs, is_accepted=None, decided=None, statement_id=None
+                    row,
+                    refs,
+                    is_accepted=True,
+                    decided=latest_accepted(evals),
+                    statement_id=statement_id,
                 )
-                counts["creates_pending_proposals"] += 1
-                counts["eval_on_retained_proposals"] += len(evals)
-            elif has_accepted_eval:
-                # Failed push: an accept never produced a statement, so the
-                # soft-deleted proposal is dropped entirely.
-                counts["dropped_props_failed_push_proposals"] += 1
-                counts["dropped_refs_proposals"] += len(refs)
-                counts["eval_on_dropped_proposals"] += len(evals)
-            elif latest_eval is None:
-                counts["dropped_props_no_eval_proposals"] += 1
-                counts["dropped_refs_proposals"] += len(refs)
+                counts["eval_mapped"] += 1
+                counts["eval_superseded"] += len(evals) - 1
+            elif latest_eval["is_accepted"]:
+                # An accepted proposal without a statement never completed its
+                # Wikidata push. It is intentionally part of the reset.
+                drop_evaluated(row, refs, evals, "dropped_props_incomplete_accepts")
             else:
-                # Only reject evals: discarded create decided by the latest.
+                # Rejected proposals never existed on Wikidata. Preserve the
+                # final decision as a discarded create without a statement.
                 queue_create(
                     row,
                     refs,
@@ -502,20 +430,16 @@ def _copy_property_data(conn) -> None:
                     statement_id=None,
                 )
                 counts["creates_discarded"] += 1
-                counts["eval_mapped_discarded"] += 1
-                counts["eval_superseded_discarded"] += len(evals) - 1
+                counts["eval_mapped"] += 1
+                counts["eval_superseded"] += len(evals) - 1
 
-            if len(statement_batch) >= _BATCH_SIZE:
-                _copy_statements(conn, statement_batch)
-                statement_batch.clear()
-
-        if processed >= next_progress:
-            logger.info("data copy: processed %d properties", processed)
-            next_progress += _PROGRESS_INTERVAL
-
-    if statement_batch:
-        _copy_statements(conn, statement_batch)
-
+    # Migrated statements are not import-verified, so the access tracker must
+    # not record them. Transactional DDL restores the trigger on failure.
+    conn.execute(
+        sa.text("ALTER TABLE statements DISABLE TRIGGER track_statement_access")
+    )
+    for start in range(0, len(statement_rows), _BATCH_SIZE):
+        writing.execute(_STATEMENT_INSERT, statement_rows[start : start + _BATCH_SIZE])
     conn.execute(
         sa.text("ALTER TABLE statements ENABLE TRIGGER track_statement_access")
     )
@@ -532,47 +456,35 @@ def _copy_property_data(conn) -> None:
 def _report_counts(totals: dict, counts: dict) -> None:
     """Log per-class counts so every old row is accounted for."""
     logger.info(
-        "Data copy: %d properties -> %d statements; create actions: "
-        "%d pending (live proposals), %d discarded, %d applied (statement "
-        "linked), %d applied (unlinked); edit actions: %d pending, %d applied; "
-        "%d evidence rows",
+        "Data copy: %d evaluated of %d properties -> %d statements; "
+        "create actions: %d applied (statement linked), %d applied "
+        "(unlinked), %d discarded; %d evidence rows",
+        totals["evaluated_properties"],
         totals["properties"],
         counts["statements"],
-        counts["creates_pending_proposals"],
-        counts["creates_discarded"],
         counts["creates_applied_linked"],
         counts["creates_applied_unlinked"],
-        counts["edits_pending"],
-        counts["edits_applied"],
+        counts["creates_discarded"],
         counts["evidence"],
     )
     logger.info(
-        "Data copy drops: %d no-eval proposals, %d failed-push proposals, "
-        "%d conflicting, %d tombstoned import-created properties; "
-        "%d references on tombstoned statement-backed, %d on dropped "
-        "proposals",
-        counts["dropped_props_no_eval_proposals"],
-        counts["dropped_props_failed_push_proposals"],
-        counts["dropped_props_conflicting"],
-        counts["dropped_props_tombstoned_import"],
-        counts["dropped_refs_tombstoned"],
-        counts["dropped_refs_proposals"],
+        "Data copy drops: %d unevaluated, %d incomplete accepts, %d statement "
+        "rejections, %d pushed-then-rejected properties; %d references on "
+        "unevaluated properties, %d on dropped evaluated properties",
+        counts["dropped_props_unevaluated"],
+        counts["dropped_props_incomplete_accepts"],
+        counts["dropped_props_statement_rejections"],
+        counts["dropped_props_pushed_then_rejected"],
+        counts["dropped_refs_unevaluated"],
+        counts["dropped_refs_evaluated"],
     )
     logger.info(
-        "Data copy evaluations: %d total -> %d mapped to applied creates, "
-        "%d mapped to discarded creates, %d rejects on statement-backed "
-        "dropped, %d no-op re-accepts dropped, %d on retained (live) "
-        "proposals, %d on dropped proposals, %d on dropped conflicting, "
-        "%d superseded on discarded",
+        "Data copy evaluations: %d total -> %d mapped decisions, %d "
+        "superseded, %d on dropped properties",
         totals["evaluations"],
-        counts["eval_mapped_applied"],
-        counts["eval_mapped_discarded"],
-        counts["eval_rejects_statement_backed"],
-        counts["eval_noop_reaccepts"],
-        counts["eval_on_retained_proposals"],
-        counts["eval_on_dropped_proposals"],
-        counts["eval_on_dropped_conflicting"],
-        counts["eval_superseded_discarded"],
+        counts["eval_mapped"],
+        counts["eval_superseded"],
+        counts["eval_dropped"],
     )
 
 
@@ -582,9 +494,9 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
         sa.text("SELECT count(*) FROM statements")
     ).scalar_one()
     _require(
-        statements_count == counts["statements"],
-        f"statements count {statements_count} != {counts['statements']} live "
-        "statement-backed properties",
+        statements_count == counts["statements"] == counts["creates_applied_linked"],
+        f"statements {statements_count}, copied {counts['statements']}, linked "
+        f"creates {counts['creates_applied_linked']} do not match",
     )
     _require(
         conn.execute(
@@ -605,6 +517,33 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
         == 0,
         "duplicate wikidata_statement_id in statements",
     )
+
+    actions_count = conn.execute(sa.text("SELECT count(*) FROM actions")).scalar_one()
+    retained_actions = sum(
+        counts[key]
+        for key in (
+            "creates_applied_linked",
+            "creates_applied_unlinked",
+            "creates_discarded",
+        )
+    )
+    _require(
+        actions_count == retained_actions,
+        f"actions count {actions_count} != retained actions {retained_actions}",
+    )
+    _require(
+        conn.execute(
+            sa.text("""
+                SELECT count(*) FROM actions
+                WHERE kind <> 'CREATE_STATEMENT'
+                   OR is_accepted IS NULL
+                   OR (is_accepted AND applied_at IS NULL)
+                   OR (NOT is_accepted AND applied_at IS NOT NULL)
+            """)
+        ).scalar_one()
+        == 0,
+        "unexpected action kind or decision/application state",
+    )
     _require(
         conn.execute(
             sa.text("""
@@ -620,53 +559,33 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
     evidence_count = conn.execute(
         sa.text("SELECT count(*) FROM action_evidence")
     ).scalar_one()
-    dropped_refs = counts["dropped_refs_tombstoned"] + counts["dropped_refs_proposals"]
+    dropped_refs = counts["dropped_refs_unevaluated"] + counts["dropped_refs_evaluated"]
     _require(
         evidence_count == counts["evidence"] == totals["references"] - dropped_refs,
         f"evidence count {evidence_count} != {counts['evidence']} queued != "
         f"{totals['references'] - dropped_refs} retained property_references",
     )
 
-    creates = sum(
-        counts[key]
-        for key in (
-            "creates_pending_proposals",
-            "creates_discarded",
-            "creates_applied_linked",
-            "creates_applied_unlinked",
-        )
-    )
     dropped_props = sum(
         counts[key]
         for key in (
-            "dropped_props_no_eval_proposals",
-            "dropped_props_failed_push_proposals",
-            "dropped_props_conflicting",
-            "dropped_props_tombstoned_import",
+            "dropped_props_unevaluated",
+            "dropped_props_incomplete_accepts",
+            "dropped_props_statement_rejections",
+            "dropped_props_pushed_then_rejected",
         )
     )
-    # Linked applied creates share their row with a migrated statement, so
-    # they must not be counted twice.
     _require(
         totals["properties"]
         == counts["statements"]
-        + creates
-        - counts["creates_applied_linked"]
+        + counts["creates_applied_unlinked"]
+        + counts["creates_discarded"]
         + dropped_props,
-        f"properties {totals['properties']} != statements {counts['statements']} "
-        f"+ creates {creates} - linked creates {counts['creates_applied_linked']} "
-        f"+ dropped {dropped_props}",
+        "properties not fully accounted",
     )
     _require(
         totals["evaluations"]
-        == counts["eval_mapped_applied"]
-        + counts["eval_mapped_discarded"]
-        + counts["eval_rejects_statement_backed"]
-        + counts["eval_noop_reaccepts"]
-        + counts["eval_on_retained_proposals"]
-        + counts["eval_on_dropped_proposals"]
-        + counts["eval_on_dropped_conflicting"]
-        + counts["eval_superseded_discarded"],
+        == counts["eval_mapped"] + counts["eval_superseded"] + counts["eval_dropped"],
         "evaluations not fully accounted",
     )
     _require(
@@ -700,7 +619,7 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
 
 
 def upgrade() -> None:
-    """Copy old-domain data into statements/actions, then drop the old domain."""
+    """Copy evaluated old-domain data, then drop the old domain."""
     _copy_property_data(op.get_bind())
 
     # Import-tracking trigger on the dropped properties table
@@ -724,7 +643,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """One-way migration: roll back by restoring from a pre-migration backup."""
     raise RuntimeError(
-        "39159830a333 copies production data into the statement/action "
-        "domain and then drops the old tables; restore from a backup "
-        "to roll back"
+        "39159830a333 copies evaluated production data into the "
+        "statement/action domain and then drops the old tables; restore "
+        "from a backup to roll back"
     )
