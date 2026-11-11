@@ -54,10 +54,15 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
       }
       const updated = await refetchPolitician()
       if (!updated) return
-      if (!pendingSourceIdsRef.current.has(event.source_id)) return
-      pendingSourceIdsRef.current.delete(event.source_id)
       const next = findSelectionForSource(updated, event.source_id)
-      if (next) setSelection(next)
+      if (!next) return
+      // A source the user just added takes over the view; otherwise only fill
+      // an empty view so an ingestion result never replaces what is being read.
+      if (pendingSourceIdsRef.current.delete(event.source_id)) {
+        setSelection(next)
+      } else {
+        setSelection((current) => current ?? next)
+      }
     },
     [politician.id, refetchPolitician],
   )

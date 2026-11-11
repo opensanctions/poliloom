@@ -412,6 +412,62 @@ describe('PoliticianEvaluation', () => {
     ).not.toBeInTheDocument()
     expect(mockFetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0)
   })
+
+  it('selects the source that finished ingesting when no source is selected', async () => {
+    const processing: Politician = {
+      ...politician,
+      sources: [{ ...testSource, status: 'processing' }],
+      actions: [],
+    }
+    render(<PoliticianEvaluation politician={processing} />)
+
+    expect(screen.getByText('Select a Source')).toBeInTheDocument()
+
+    const handler = mockUseEventStream.mock.calls.find(
+      ([eventType]) => eventType === 'source_status',
+    )?.[1] as (event: SourceStatusEvent) => Promise<void>
+    await act(async () => {
+      await handler({
+        type: 'source_status',
+        politician_ids: [processing.id],
+        source_id: testSource.id,
+        status: 'done',
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Source')).toHaveAttribute(
+        'src',
+        `/api/sources/${testSource.id}/html`,
+      )
+    })
+  })
+
+  it('keeps the current selection when another source finishes ingesting', async () => {
+    const otherSource: SourceResponse = {
+      ...testSource,
+      id: 'archived-2',
+      url: 'https://example.org/',
+    }
+    mockFetch.mockImplementation(() =>
+      mockApiResponse({ ...politician, sources: [testSource, otherSource] }),
+    )
+    render(<PoliticianEvaluation politician={politician} />)
+
+    const handler = mockUseEventStream.mock.calls.find(
+      ([eventType]) => eventType === 'source_status',
+    )?.[1] as (event: SourceStatusEvent) => Promise<void>
+    await act(async () => {
+      await handler({
+        type: 'source_status',
+        politician_ids: [politician.id],
+        source_id: otherSource.id,
+        status: 'done',
+      })
+    })
+
+    expect(screen.getByTitle('Source')).toHaveAttribute('src', `/api/sources/${testSource.id}/html`)
+  })
 })
 
 describe('PoliticianEvaluation - no next politician', () => {
