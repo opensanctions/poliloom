@@ -3,7 +3,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, select, true
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import Session
 
 from .models.base import RelationType
@@ -33,14 +33,7 @@ def _politicians_with_citizenship(countries):
 
 
 def _eligible_links_query(languages: list[str]):
-    """Select Wikipedia links in requested languages that need a fresh snapshot."""
-    language_of_work = exists(
-        select(1).where(
-            WikidataRelation.child_entity_id == WikipediaLink.wikipedia_project_id,
-            WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
-            WikidataRelation.parent_entity_id.in_(languages),
-        )
-    )
+    """Select fresh Wikipedia link/language pairs in the requested languages."""
     recent_source = exists(
         select(1)
         .select_from(PoliticianSource)
@@ -51,7 +44,21 @@ def _eligible_links_query(languages: list[str]):
             Source.fetch_timestamp >= get_enrichment_cooldown_cutoff(),
         )
     )
-    return select(WikipediaLink).where(language_of_work, ~recent_source)
+    return (
+        select(
+            WikipediaLink,
+            WikidataRelation.parent_entity_id.label("language_id"),
+        )
+        .join(
+            WikidataRelation,
+            and_(
+                WikidataRelation.child_entity_id == WikipediaLink.wikipedia_project_id,
+                WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+                WikidataRelation.parent_entity_id.in_(languages),
+            ),
+        )
+        .where(~recent_source)
+    )
 
 
 def create_enrichment_sources(
@@ -64,7 +71,9 @@ def create_enrichment_sources(
     """
     links = db.scalars(
         _eligible_links_query(languages)
+        .with_only_columns(WikipediaLink)
         .where(WikipediaLink.politician_id == politician.id)
+        .distinct()
         .order_by(WikipediaLink.wikipedia_project_id)
         .limit(MAX_ENRICHMENT_SOURCES)
     ).all()
@@ -85,10 +94,12 @@ def enrichment_candidates_query(
     """
     Build a query for politicians that should be enriched.
 
-    A candidate has at least one Wikipedia link in a requested language with no
-    source snapshot newer than the cooldown window for that politician and project.
-    Re-enrichment creates a new snapshot; old snapshots are never mutated, and
-    failed snapshots become eligible again after the window.
+    A candidate has at least one eligible link in a requested language.
+    Candidates are ordered by distinct requested-language coverage, then by
+    descending Wikidata QID. A source snapshot newer than the cooldown window
+    makes its politician/project pair ineligible. Re-enrichment creates a new
+    snapshot; old snapshots are never mutated, and failed snapshots become
+    eligible again after the window.
 
     Args:
         languages: Language QIDs to enrich
@@ -97,17 +108,26 @@ def enrichment_candidates_query(
     Returns:
         SQLAlchemy select statement for Politician entities
     """
-    eligible_link = (
+    eligible_links = (
         _eligible_links_query(languages)
-        .with_only_columns(WikipediaLink.id)
-        .where(WikipediaLink.politician_id == Politician.id)
-        .limit(1)
-        .lateral()
+        .with_only_columns(
+            WikipediaLink.politician_id,
+            WikidataRelation.parent_entity_id.label("language_id"),
+        )
+        .subquery()
+    )
+    language_coverage = func.count(eligible_links.c.language_id.distinct())
+    coverage = (
+        select(eligible_links.c.politician_id, language_coverage.label("coverage"))
+        .select_from(eligible_links)
+        .group_by(eligible_links.c.politician_id)
+        .subquery()
     )
     query = (
         Politician.query_base()
-        .join(eligible_link, true())
+        .join(coverage, coverage.c.politician_id == Politician.id)
         .where(Politician.wikidata_id.isnot(None))
+        .order_by(coverage.c.coverage.desc(), Politician.wikidata_id_numeric.desc())
     )
     if countries:
         query = query.where(Politician.id.in_(_politicians_with_citizenship(countries)))

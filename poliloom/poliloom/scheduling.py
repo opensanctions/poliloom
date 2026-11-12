@@ -46,7 +46,6 @@ def schedule_enrichment(
             languages=languages,
             countries=countries,
         )
-        .order_by(Politician.wikidata_id_numeric.desc())
         .limit(1)
         .with_for_update(of=Politician, skip_locked=True)
     )

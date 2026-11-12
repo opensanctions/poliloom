@@ -4,13 +4,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from poliloom.models import Source, SourceStatus
+from poliloom.models import Politician, Source, SourceStatus
 from poliloom.scheduling import (
     ScheduledEnrichment,
     enrich_until_serveable,
     process_enrichment,
     schedule_enrichment,
 )
+
+from .conftest import create_with_entity, make_terms
 
 
 class TestScheduleEnrichment:
@@ -43,6 +45,35 @@ class TestScheduleEnrichment:
         # Sources should be created as PROCESSING (server_default)
         pages = db_session.query(Source).filter(Source.id.in_(result.source_ids)).all()
         assert all(p.status == SourceStatus.PROCESSING for p in pages)
+
+    def test_prefers_politician_with_full_language_coverage(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_project,
+        sample_german_wikipedia_project,
+        create_wikipedia_link,
+    ):
+        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        english_only = create_with_entity(
+            Politician, db_session, "Q999999999", make_terms("English Only")
+        )
+        db_session.flush()
+        create_wikipedia_link(english_only, sample_wikipedia_project)
+        db_session.flush()
+
+        result = schedule_enrichment(db_session, ["Q1860", "Q188"])
+
+        assert result is not None
+        assert result.wikidata_id == sample_politician.wikidata_id
+        sources = (
+            db_session.query(Source).filter(Source.id.in_(result.source_ids)).all()
+        )
+        assert {source.wikipedia_project_id for source in sources} == {
+            sample_wikipedia_project.wikidata_id,
+            sample_german_wikipedia_project.wikidata_id,
+        }
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
         assert schedule_enrichment(db_session, ["Q1860"]) is None
