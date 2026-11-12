@@ -376,7 +376,7 @@ describe('EvaluationView', () => {
 
       expect(
         screen.getByText(
-          (_, element) => element?.textContent === 'Value: January 1, 1980 → January 2, 1980',
+          (_, element) => element?.textContent === 'January 1, 1980 → January 2, 1980',
         ),
       ).toBeInTheDocument()
       expect(screen.getByText('"born January 2"')).toBeInTheDocument()

@@ -394,7 +394,7 @@ describe('describePatch', () => {
         { op: 'test', path: '/qualifiers/0', value: oldQualifier },
         { op: 'replace', path: '/qualifiers/0', value: newQualifier },
       ]),
-    ).toEqual({ kind: 'qualifier-refinement', oldQualifier, newQualifier })
+    ).toEqual({ kind: 'qualifier-refinement', qualifierIndex: 0, oldQualifier, newQualifier })
   })
 
   it('classifies a qualifier append', () => {

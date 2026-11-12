@@ -610,7 +610,7 @@ describe('Tutorial Page', () => {
 
         expect(screen.getByText('Birth Date')).toBeInTheDocument()
         expect(screen.getByText('1975')).toBeInTheDocument()
-        expect(line('Value: 1975 → March 15, 1975')).toBeInTheDocument()
+        expect(line('1975 → March 15, 1975')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Check Answers' })).toBeDisabled()
       })
 
@@ -689,11 +689,11 @@ describe('Tutorial Page', () => {
         expect(
           screen.getByRole('link', { name: 'Member of Springfield Parliament (Q1343573)' }),
         ).toBeInTheDocument()
-        expect(line('New qualifier P580: January 1, 2020')).toBeInTheDocument()
+        expect(line('dates not specified → January 1, 2020 – present')).toBeInTheDocument()
         expect(
           screen.getByRole('link', { name: 'Minister of Education (Q4018482)' }),
         ).toBeInTheDocument()
-        expect(line('Qualifier P580: June 2022 → June 2015')).toBeInTheDocument()
+        expect(line('June 2022 – present → June 2015 – present')).toBeInTheDocument()
       })
 
       it('goes back when clicking "Go Back"', () => {
@@ -789,8 +789,9 @@ describe('Tutorial Page', () => {
         expect(
           screen.getByRole('link', { name: 'Springfield Republic (Q999001)' }),
         ).toBeInTheDocument()
-        expect(screen.getAllByText(/New reference: P854/)).toHaveLength(1)
-        expect(screen.getAllByText(/New reference: P4656/)).toHaveLength(1)
+        expect(screen.getAllByText('+ Reference')).toHaveLength(2)
+        expect(screen.getByText('Reference URL')).toBeInTheDocument()
+        expect(screen.getByText('Wikimedia import URL')).toBeInTheDocument()
       })
 
       it('goes back when clicking "Go Back"', () => {

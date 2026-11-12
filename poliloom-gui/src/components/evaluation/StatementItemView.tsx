@@ -1,6 +1,7 @@
-import { Fragment, ReactNode, useState } from 'react'
+import { ReactNode } from 'react'
 import type {
   Action,
+  CreateStatementPayload,
   EditStatementPayload,
   RestSnak,
   RestStatement,
@@ -21,10 +22,10 @@ import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { parseTimeValue, timeValue } from '@/lib/wikidata/dateParser'
 import { formatTimeframe, parseTimeframe } from '@/lib/wikidata/qualifierParser'
 import { Button } from '@/components/ui/Button'
+import { ReferenceView } from './ReferenceView'
 import { StatementSource } from './StatementSource'
-import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
 
-// --- Value and snak display ---
+// --- Value display ---
 
 function valueDisplay(value: RestValue, terms: TermMaps | null, labelLanguages: string[]): string {
   const time = timeValue(value)
@@ -38,66 +39,74 @@ function valueDisplay(value: RestValue, terms: TermMaps | null, labelLanguages: 
   return value.type === 'somevalue' ? 'unknown' : 'no value'
 }
 
-function snakDisplay(snak: RestSnak): string {
-  return valueDisplay(snak.value, null, [])
+function InlineDiff({ before, after }: { before: string; after: string }) {
+  return (
+    <span className="block text-foreground-secondary">
+      <span>{before}</span> <span aria-hidden="true">→</span>{' '}
+      <span className="font-medium text-success-foreground">{after}</span>
+    </span>
+  )
 }
 
-// --- Edit patch descriptions ---
+function changedQualifiers(
+  qualifiers: RestSnak[],
+  description: Extract<PatchDescription, { kind: 'qualifier-refinement' | 'qualifier-append' }>,
+): RestSnak[] {
+  if (description.kind === 'qualifier-append') {
+    return [...qualifiers, description.qualifier]
+  }
+
+  const { qualifierIndex, newQualifier } = description
+  if (qualifiers[qualifierIndex]?.property.id !== newQualifier.property.id) {
+    throw new Error(`Statement has no ${newQualifier.property.id} qualifier at ${qualifierIndex}`)
+  }
+  return qualifiers.map((qualifier, index) => (index === qualifierIndex ? newQualifier : qualifier))
+}
 
 function PatchDescriptionView({
   description,
-  entityTerms,
+  document,
+  statementTerms,
+  actionTerms,
 }: {
   description: PatchDescription
-  entityTerms: TermMaps | null
+  document: Pick<RestStatement, 'qualifiers'>
+  statementTerms: TermMaps | null
+  actionTerms: TermMaps | null
 }) {
   const labelLanguages = useLabelLanguages()
+
   switch (description.kind) {
     case 'value-refinement':
       return (
-        <span className="text-foreground-secondary">
-          Value: {valueDisplay(description.oldValue, null, labelLanguages)}{' '}
-          <span aria-hidden="true">→</span>{' '}
-          {valueDisplay(description.newValue, entityTerms, labelLanguages)}
-        </span>
+        <InlineDiff
+          before={valueDisplay(description.oldValue, statementTerms, labelLanguages)}
+          after={valueDisplay(description.newValue, actionTerms, labelLanguages)}
+        />
       )
     case 'qualifier-refinement':
-      return (
-        <span className="text-foreground-secondary">
-          Qualifier {description.newQualifier.property.id}: {snakDisplay(description.oldQualifier)}{' '}
-          <span aria-hidden="true">→</span> {snakDisplay(description.newQualifier)}
-        </span>
+    case 'qualifier-append': {
+      const before = formatTimeframe(parseTimeframe(document.qualifiers))
+      const after = formatTimeframe(
+        parseTimeframe(changedQualifiers(document.qualifiers, description)),
       )
-    case 'qualifier-append':
-      return (
-        <span className="text-foreground-secondary">
-          New qualifier {description.qualifier.property.id}: {snakDisplay(description.qualifier)}
-        </span>
-      )
+      return <InlineDiff before={before} after={after} />
+    }
     case 'reference-append':
-      return (
-        <span className="text-foreground-secondary">
-          New reference:{' '}
-          {description.reference.parts
-            .map((part) => `${part.property.id}: ${snakDisplay(part)}`)
-            .join(', ')}
-        </span>
-      )
+      return <ReferenceView reference={description.reference} proposed />
   }
 }
 
 // --- Decision controls ---
 
 function DecisionButtons({
-  action,
   decision,
   isSourceVisible,
   onDecision,
 }: {
-  action: Action
   decision: boolean | null
   isSourceVisible: boolean
-  onDecision: (action: Action, isAccepted: boolean) => void
+  onDecision: (isAccepted: boolean) => void
 }) {
   if (!isSourceVisible) {
     if (decision === null) {
@@ -118,7 +127,7 @@ function DecisionButtons({
         size="small"
         variant="success"
         active={decision === true}
-        onClick={() => onDecision(action, true)}
+        onClick={() => onDecision(true)}
         title="Mark this proposal as correct and submit it to Wikidata"
       >
         ✓ Accept
@@ -127,7 +136,7 @@ function DecisionButtons({
         size="small"
         variant="danger"
         active={decision === false}
-        onClick={() => onDecision(action, false)}
+        onClick={() => onDecision(false)}
         title="Mark this proposal as incorrect"
       >
         × Discard
@@ -140,6 +149,9 @@ function DecisionButtons({
 
 interface ActionRowProps {
   action: Action
+  document: Pick<RestStatement, 'qualifiers'>
+  statementTerms: TermMaps | null
+  statementContent?: ReactNode
   decisions: LocalDecisions
   onDecision: (action: Action, isAccepted: boolean) => void
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
@@ -149,6 +161,9 @@ interface ActionRowProps {
 
 function ActionRow({
   action,
+  document,
+  statementTerms,
+  statementContent,
   decisions,
   onDecision,
   onViewSource,
@@ -158,27 +173,47 @@ function ActionRow({
   const decision = effectiveDecision(action, decisions)
   const isSourceVisible =
     action.evidence.length === 0 || action.evidence.some((e) => e.source.id === activeSourceId)
+  const createReferences =
+    action.kind === 'CREATE_STATEMENT'
+      ? (action.payload as CreateStatementPayload).statement.references
+      : []
+  const description =
+    action.kind === 'EDIT_STATEMENT'
+      ? describePatch((action.payload as EditStatementPayload).patch)
+      : null
 
   return (
-    <div className="space-y-2">
-      {action.kind === 'EDIT_STATEMENT' && (
+    <div className="space-y-3">
+      {description?.kind === 'reference-append' && statementContent && (
+        <div className="flex items-start gap-4 font-medium">{statementContent}</div>
+      )}
+      {description && (
         <PatchDescriptionView
-          description={describePatch((action.payload as EditStatementPayload).patch)}
-          entityTerms={action.entity_terms}
+          description={description}
+          document={document}
+          statementTerms={statementTerms}
+          actionTerms={action.entity_terms}
         />
       )}
-      <StatementSource
-        evidence={action.evidence}
-        activeSourceId={activeSourceId}
-        onViewSource={onViewSource}
-        onHover={onHover}
-      />
+      {createReferences.map((reference, index) => (
+        <ReferenceView key={reference.hash ?? index} reference={reference} proposed />
+      ))}
+      {action.evidence.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-foreground-muted">Evidence</h4>
+          <StatementSource
+            evidence={action.evidence}
+            activeSourceId={activeSourceId}
+            onViewSource={onViewSource}
+            onHover={onHover}
+          />
+        </div>
+      )}
       <div className="flex items-center justify-end">
         <DecisionButtons
-          action={action}
           decision={decision}
           isSourceVisible={isSourceVisible}
-          onDecision={onDecision}
+          onDecision={(isAccepted) => onDecision(action, isAccepted)}
         />
       </div>
     </div>
@@ -205,11 +240,6 @@ export function StatementItemView({
   activeSourceId,
 }: StatementItemViewProps) {
   const labelLanguages = useLabelLanguages()
-  const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
-
-  const handleToggle = (section: 'qualifiers' | 'references') => {
-    setOpenSection((prev) => (prev === section ? null : section))
-  }
 
   const document = itemDocument(item)
   const propertyId = document.property.id
@@ -217,7 +247,18 @@ export function StatementItemView({
   const entityTerms = item.statement?.entity_terms ?? item.createAction?.entity_terms ?? null
 
   let content: ReactNode = null
-  if (isDate) {
+  if (!item.statement) {
+    const value = valueDisplay(document.value, entityTerms, labelLanguages)
+    content = (
+      <div className="text-foreground-secondary">
+        <span className="mr-2 font-medium text-success-foreground">+</span>
+        <span className="font-medium text-foreground">{value}</span>
+        {propertyId === 'P39' && (
+          <div className="ml-5 mt-1">{formatTimeframe(parseTimeframe(document.qualifiers))}</div>
+        )}
+      </div>
+    )
+  } else if (isDate) {
     content = (
       <span className="text-foreground-secondary flex-1">
         {valueDisplay(document.value, entityTerms, labelLanguages)}
@@ -225,13 +266,15 @@ export function StatementItemView({
     )
   } else if (propertyId === 'P39') {
     const timeframe = parseTimeframe(document.qualifiers)
-    if (timeframe.start === null && timeframe.end === null) {
-      content = <span className="flex-1 text-foreground-subtle italic">No timeframe specified</span>
-    } else {
-      content = (
-        <span className="flex-1 text-foreground-secondary">{formatTimeframe(timeframe)}</span>
-      )
-    }
+    content = (
+      <span
+        className={`flex-1 ${timeframe.start === null && timeframe.end === null ? 'text-foreground-subtle italic' : 'text-foreground-secondary'}`}
+      >
+        {timeframe.start === null && timeframe.end === null
+          ? 'No timeframe specified'
+          : formatTimeframe(timeframe)}
+      </span>
+    )
   }
 
   const actionRowProps = {
@@ -242,33 +285,40 @@ export function StatementItemView({
     activeSourceId,
   }
 
-  return (
-    <div className="space-y-2" onMouseEnter={() => onHover?.(item)}>
-      {content && <div className="flex items-start gap-4 mb-3 font-medium">{content}</div>}
+  if (!item.statement) {
+    return (
+      <div
+        className="space-y-4 rounded-md border border-border-muted p-4"
+        onMouseEnter={() => onHover?.(item)}
+      >
+        {content}
+        <ActionRow
+          action={item.createAction}
+          document={document}
+          statementTerms={null}
+          {...actionRowProps}
+        />
+      </div>
+    )
+  }
 
-      {item.statement ? (
-        <>
-          <WikidataMetadataButtons
-            qualifiers={document.qualifiers}
-            references={document.references}
-            openSection={openSection}
-            onToggle={handleToggle}
-          />
-          <WikidataMetadataPanel
-            qualifiers={document.qualifiers}
-            references={document.references}
-            openSection={openSection}
-          />
-          {item.editActions.map((action, index) => (
-            <Fragment key={action.id}>
-              {index > 0 && <hr className="border-border-muted my-3" />}
-              <ActionRow action={action} {...actionRowProps} />
-            </Fragment>
-          ))}
-        </>
-      ) : (
-        <ActionRow action={item.createAction} {...actionRowProps} />
+  return (
+    <div className="space-y-3" onMouseEnter={() => onHover?.(item)}>
+      {content && item.editActions.length === 0 && (
+        <div className="flex items-start gap-4 font-medium">{content}</div>
       )}
+
+      {item.editActions.map((action) => (
+        <div key={action.id} className="rounded-md border border-border-muted p-4">
+          <ActionRow
+            action={action}
+            document={item.statement.document}
+            statementTerms={item.statement.entity_terms}
+            statementContent={content}
+            {...actionRowProps}
+          />
+        </div>
+      ))}
     </div>
   )
 }

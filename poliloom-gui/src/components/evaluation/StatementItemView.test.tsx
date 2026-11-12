@@ -72,6 +72,7 @@ function createAction(
   value: RestValue,
   options: {
     qualifiers?: RestSnak[]
+    references?: RestStatement['references']
     entityTerms?: TermMaps | null
     evidence?: ActionEvidence[]
   } = {},
@@ -86,7 +87,7 @@ function createAction(
         property: { id: propertyId },
         value,
         qualifiers: options.qualifiers ?? [],
-        references: [],
+        references: options.references ?? [],
       },
     },
     entity_terms: options.entityTerms ?? null,
@@ -178,7 +179,7 @@ describe('StatementItemView - statements', () => {
     expect(screen.getByText('No timeframe specified')).toBeInTheDocument()
   })
 
-  it('toggles statement qualifiers and references panels', () => {
+  it('does not render raw metadata for an existing statement', () => {
     render(
       <StatementItemView
         {...baseProps}
@@ -198,14 +199,10 @@ describe('StatementItemView - statements', () => {
       />,
     )
 
+    expect(screen.queryByRole('button', { name: 'Qualifiers' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'References (1)' })).not.toBeInTheDocument()
     expect(screen.queryByText(/"P580"/)).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('Qualifiers'))
-    expect(screen.getByText(/"P580"/)).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('References'))
-    expect(screen.getByText(/"P854"/)).toBeInTheDocument()
-    expect(screen.queryByText(/"P580"/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/"P854"/)).not.toBeInTheDocument()
   })
 })
 
@@ -226,6 +223,39 @@ describe('StatementItemView - create actions', () => {
 
     expect(screen.getByText('May 15, 1990')).toBeInTheDocument()
     expect(screen.getByText('"Test proof line"')).toBeInTheDocument()
+  })
+
+  it('renders the reference included in a create action', () => {
+    render(
+      <StatementItemView
+        {...baseProps}
+        item={{
+          statement: null,
+          createAction: createAction('a1', 'P19', entityContent('Q300'), {
+            references: [
+              {
+                parts: [
+                  {
+                    property: { id: 'P854' },
+                    value: { type: 'value', content: 'https://example.com/source' },
+                  },
+                  { property: { id: 'P143' }, value: entityContent('Q328') },
+                ],
+              },
+            ],
+          }),
+          editActions: [],
+        }}
+      />,
+    )
+
+    expect(screen.getByText('+ Reference')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'https://example.com/source' })).toBeInTheDocument()
+    expect(screen.getByText('Imported from')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Q328' })).toHaveAttribute(
+      'href',
+      'https://www.wikidata.org/wiki/Q328',
+    )
   })
 
   it('calls onDecision when Accept and Discard are clicked', () => {
@@ -307,11 +337,11 @@ describe('StatementItemView - create actions', () => {
 describe('StatementItemView - edit actions', () => {
   const target = statement('s1', 'P569', timeContent('+1980-01-01T00:00:00Z'))
 
-  function renderItem(actions: Action[]) {
+  function renderItem(actions: Action[], targetStatement = target) {
     return render(
       <StatementItemView
         {...baseProps}
-        item={{ statement: target, createAction: null, editActions: actions }}
+        item={{ statement: targetStatement, createAction: null, editActions: actions }}
       />,
     )
   }
@@ -326,7 +356,7 @@ describe('StatementItemView - edit actions', () => {
 
     expect(
       screen.getByText(
-        (_, element) => element?.textContent === 'Value: January 1, 1980 → January 2, 1980',
+        (_, element) => element?.textContent === 'January 1, 1980 → January 2, 1980',
       ),
     ).toBeInTheDocument()
   })
@@ -354,48 +384,54 @@ describe('StatementItemView - edit actions', () => {
     )
 
     expect(
-      screen.getByText((_, element) => element?.textContent === 'Value: Q500 → Nya staden'),
+      screen.getByText((_, element) => element?.textContent === 'Q500 → Nya staden'),
     ).toBeInTheDocument()
   })
 
-  it('renders a qualifier refinement as old → new', () => {
-    renderItem([
-      editAction('e1', 's1', [
-        {
-          op: 'test',
-          path: '/qualifiers/0',
-          value: { property: { id: 'P580' }, value: timeContent('+2018-01-01T00:00:00Z') },
-        },
-        {
-          op: 'replace',
-          path: '/qualifiers/0',
-          value: { property: { id: 'P580' }, value: timeContent('+2019-01-01T00:00:00Z') },
-        },
-      ]),
-    ])
+  it('renders a qualifier refinement as a complete timeframe change', () => {
+    const oldQualifier = {
+      property: { id: 'P580' },
+      value: timeContent('+2018-01-01T00:00:00Z'),
+    }
+    const newQualifier = {
+      property: { id: 'P580' },
+      value: timeContent('+2019-01-01T00:00:00Z'),
+    }
+    renderItem(
+      [
+        editAction('e1', 's1', [
+          { op: 'test', path: '/qualifiers/0', value: oldQualifier },
+          { op: 'replace', path: '/qualifiers/0', value: newQualifier },
+        ]),
+      ],
+      statement('s1', 'P39', entityContent('Q400'), { qualifiers: [oldQualifier] }),
+    )
 
     expect(
       screen.getByText(
         (_, element) =>
-          element?.textContent === 'Qualifier P580: January 1, 2018 → January 1, 2019',
+          element?.textContent === 'January 1, 2018 – present → January 1, 2019 – present',
       ),
     ).toBeInTheDocument()
   })
 
-  it('renders a qualifier append with its value', () => {
-    renderItem([
-      editAction('e1', 's1', [
-        {
-          op: 'add',
-          path: '/qualifiers/-',
-          value: { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
-        },
-      ]),
-    ])
+  it('renders a qualifier append as a complete timeframe change', () => {
+    renderItem(
+      [
+        editAction('e1', 's1', [
+          {
+            op: 'add',
+            path: '/qualifiers/-',
+            value: { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
+          },
+        ]),
+      ],
+      statement('s1', 'P39', entityContent('Q400')),
+    )
 
     expect(
       screen.getByText(
-        (_, element) => element?.textContent === 'New qualifier P580: January 1, 2017',
+        (_, element) => element?.textContent === 'dates not specified → January 1, 2017 – present',
       ),
     ).toBeInTheDocument()
   })
@@ -416,33 +452,35 @@ describe('StatementItemView - edit actions', () => {
       ]),
     ])
 
-    expect(
-      screen.getByText(
-        (_, element) => element?.textContent === 'New reference: P854: https://example.com/source',
-      ),
-    ).toBeInTheDocument()
+    expect(screen.getByText('+ Reference')).toBeInTheDocument()
+    expect(screen.getByText('Reference URL')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'https://example.com/source' })).toBeInTheDocument()
+    expect(screen.queryByText(/P854/)).not.toBeInTheDocument()
   })
 
-  it('renders multiple edit actions separated by dividers', () => {
-    renderItem([
-      editAction('e1', 's1', [
-        {
-          op: 'add',
-          path: '/qualifiers/-',
-          value: { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
-        },
-      ]),
-      editAction('e2', 's1', [
-        {
-          op: 'add',
-          path: '/qualifiers/-',
-          value: { property: { id: 'P582' }, value: timeContent('+2018-01-01T00:00:00Z') },
-        },
-      ]),
-    ])
+  it('renders multiple edit actions as separate proposals', () => {
+    renderItem(
+      [
+        editAction('e1', 's1', [
+          {
+            op: 'add',
+            path: '/qualifiers/-',
+            value: { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
+          },
+        ]),
+        editAction('e2', 's1', [
+          {
+            op: 'add',
+            path: '/qualifiers/-',
+            value: { property: { id: 'P582' }, value: timeContent('+2018-01-01T00:00:00Z') },
+          },
+        ]),
+      ],
+      statement('s1', 'P39', entityContent('Q400')),
+    )
 
-    expect(screen.getByText(/New qualifier P580/)).toBeInTheDocument()
-    expect(screen.getByText(/New qualifier P582/)).toBeInTheDocument()
+    expect(screen.getByText(/January 1, 2017 – present/)).toBeInTheDocument()
+    expect(screen.getByText(/until January 1, 2018/)).toBeInTheDocument()
   })
 
   it('marks the served decision state on edit action buttons', () => {

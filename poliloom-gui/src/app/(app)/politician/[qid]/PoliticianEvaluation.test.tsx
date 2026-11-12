@@ -212,7 +212,7 @@ describe('PoliticianEvaluation', () => {
     expect(
       screen.getByText(
         (_, element) =>
-          element?.textContent === 'Qualifier P580: January 1, 2020 → January 1, 2021',
+          element?.textContent === 'January 1, 2020 – present → January 1, 2021 – present',
       ),
     ).toBeInTheDocument()
   })

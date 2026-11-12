@@ -241,7 +241,12 @@ export function groupStatementsIntoSections(
 
 export type PatchDescription =
   | { kind: 'value-refinement'; oldValue: RestValue; newValue: RestValue }
-  | { kind: 'qualifier-refinement'; oldQualifier: RestSnak; newQualifier: RestSnak }
+  | {
+      kind: 'qualifier-refinement'
+      qualifierIndex: number
+      oldQualifier: RestSnak
+      newQualifier: RestSnak
+    }
   | { kind: 'qualifier-append'; qualifier: RestSnak }
   | { kind: 'reference-append'; reference: RestStatement['references'][number] }
 
@@ -271,9 +276,12 @@ export function describePatch(patch: JsonPatchOperation[]): PatchDescription {
       newValue: mutation.value as RestValue,
     }
   }
-  if (mutation.op === 'replace' && /^\/qualifiers\/\d+$/.test(mutation.path)) {
+  const qualifierMatch =
+    mutation.op === 'replace' ? mutation.path.match(/^\/qualifiers\/(\d+)$/) : null
+  if (qualifierMatch) {
     return {
       kind: 'qualifier-refinement',
+      qualifierIndex: Number(qualifierMatch[1]),
       oldQualifier: testValue(patch, mutation.path) as RestSnak,
       newQualifier: mutation.value as RestSnak,
     }
