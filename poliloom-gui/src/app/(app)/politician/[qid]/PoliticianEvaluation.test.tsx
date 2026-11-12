@@ -200,7 +200,6 @@ describe('PoliticianEvaluation', () => {
     expect(screen.getByText('January 1, 1970')).toBeInTheDocument()
     expect(screen.getByText('Political Positions')).toBeInTheDocument()
     expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument()
-    expect(screen.getAllByText('Existing data').length).toBe(2)
   })
 
   it('renders create and edit actions with evidence quotes', () => {

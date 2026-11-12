@@ -325,7 +325,6 @@ describe('EvaluationView', () => {
       expect(screen.getByText('Dates')).toBeInTheDocument()
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
       expect(screen.getByText('January 1, 1980')).toBeInTheDocument()
-      expect(screen.getAllByText('Existing data').length).toBe(3)
     })
 
     it('renders create actions as proposals with accept and discard buttons', () => {
@@ -337,7 +336,6 @@ describe('EvaluationView', () => {
       )
 
       expect(screen.getByText('June 15, 1975')).toBeInTheDocument()
-      expect(screen.getAllByText('New data 🎉').length).toBe(3)
       // The active source is source1, so only action-1's controls are live.
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(1)
       expect(screen.getAllByRole('button', { name: /× Discard/ }).length).toBe(1)

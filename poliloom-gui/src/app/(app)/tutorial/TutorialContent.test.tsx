@@ -172,11 +172,9 @@ describe('Tutorial Page', () => {
         screen.getByRole('link', { name: 'Member of Springfield Parliament (Q1343573)' }),
       ).toBeInTheDocument()
       expect(screen.getByText(/January 1, 2020/)).toBeInTheDocument()
-      expect(screen.getByText('Existing data')).toBeInTheDocument()
       // Proposed birth date with its evidence
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
       expect(screen.getByText('March 15, 1975')).toBeInTheDocument()
-      expect(screen.getByText('New data 🎉')).toBeInTheDocument()
       expect(
         screen.getByText(/Jane Doe was born on March 15, 1975 in Springfield/),
       ).toBeInTheDocument()
@@ -469,8 +467,6 @@ describe('Tutorial Page', () => {
       expect(
         screen.getByRole('link', { name: 'Member of Parliament (Q486839)' }),
       ).toBeInTheDocument()
-      expect(screen.getByText('Existing data')).toBeInTheDocument()
-      expect(screen.getByText('New data 🎉')).toBeInTheDocument()
     })
 
     it('only requires a decision on the proposal', () => {

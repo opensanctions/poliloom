@@ -127,7 +127,7 @@ beforeEach(() => {
 })
 
 describe('StatementItemView - statements', () => {
-  it('renders a birth date statement with formatted value and existing label', () => {
+  it('renders a birth date statement with formatted value', () => {
     render(
       <StatementItemView
         {...baseProps}
@@ -140,7 +140,6 @@ describe('StatementItemView - statements', () => {
     )
 
     expect(screen.getByText('May 15, 1990')).toBeInTheDocument()
-    expect(screen.getByText('Existing data')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument()
   })
 
@@ -211,7 +210,7 @@ describe('StatementItemView - statements', () => {
 })
 
 describe('StatementItemView - create actions', () => {
-  it('renders the proposal with a new label and evidence', () => {
+  it('renders the proposal with evidence', () => {
     render(
       <StatementItemView
         {...baseProps}
@@ -226,7 +225,6 @@ describe('StatementItemView - create actions', () => {
     )
 
     expect(screen.getByText('May 15, 1990')).toBeInTheDocument()
-    expect(screen.getByText('New data 🎉')).toBeInTheDocument()
     expect(screen.getByText('"Test proof line"')).toBeInTheDocument()
   })
 
@@ -476,6 +474,5 @@ describe('StatementItemView - edit actions', () => {
 
     const discard = screen.getByRole('button', { name: /× Discard/ })
     expect(discard).toHaveAttribute('class', expect.stringContaining('bg-danger '))
-    expect(screen.queryByText('New data 🎉')).not.toBeInTheDocument()
   })
 })

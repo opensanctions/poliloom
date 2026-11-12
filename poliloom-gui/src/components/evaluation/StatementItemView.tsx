@@ -21,7 +21,6 @@ import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { parseTimeValue, timeValue } from '@/lib/wikidata/dateParser'
 import { formatTimeframe, parseTimeframe } from '@/lib/wikidata/qualifierParser'
 import { Button } from '@/components/ui/Button'
-import { DataLabel } from '@/components/ui/DataLabel'
 import { StatementSource } from './StatementSource'
 import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
 
@@ -141,7 +140,6 @@ function DecisionButtons({
 
 interface ActionRowProps {
   action: Action
-  showLabel: boolean
   decisions: LocalDecisions
   onDecision: (action: Action, isAccepted: boolean) => void
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
@@ -151,7 +149,6 @@ interface ActionRowProps {
 
 function ActionRow({
   action,
-  showLabel,
   decisions,
   onDecision,
   onViewSource,
@@ -176,16 +173,13 @@ function ActionRow({
         onViewSource={onViewSource}
         onHover={onHover}
       />
-      <div className="flex items-center gap-4">
-        <div className="flex gap-5 items-center ml-auto">
-          {showLabel && <DataLabel variant="new" />}
-          <DecisionButtons
-            action={action}
-            decision={decision}
-            isSourceVisible={isSourceVisible}
-            onDecision={onDecision}
-          />
-        </div>
+      <div className="flex items-center justify-end">
+        <DecisionButtons
+          action={action}
+          decision={decision}
+          isSourceVisible={isSourceVisible}
+          onDecision={onDecision}
+        />
       </div>
     </div>
   )
@@ -254,17 +248,12 @@ export function StatementItemView({
 
       {item.statement ? (
         <>
-          <div className="flex items-center gap-4">
-            <WikidataMetadataButtons
-              qualifiers={document.qualifiers}
-              references={document.references}
-              openSection={openSection}
-              onToggle={handleToggle}
-            />
-            <div className="flex gap-5 items-center ml-auto">
-              <DataLabel variant="existing" />
-            </div>
-          </div>
+          <WikidataMetadataButtons
+            qualifiers={document.qualifiers}
+            references={document.references}
+            openSection={openSection}
+            onToggle={handleToggle}
+          />
           <WikidataMetadataPanel
             qualifiers={document.qualifiers}
             references={document.references}
@@ -273,12 +262,12 @@ export function StatementItemView({
           {item.editActions.map((action, index) => (
             <Fragment key={action.id}>
               {index > 0 && <hr className="border-border-muted my-3" />}
-              <ActionRow action={action} showLabel={false} {...actionRowProps} />
+              <ActionRow action={action} {...actionRowProps} />
             </Fragment>
           ))}
         </>
       ) : (
-        <ActionRow action={item.createAction} showLabel={true} {...actionRowProps} />
+        <ActionRow action={item.createAction} {...actionRowProps} />
       )}
     </div>
   )
