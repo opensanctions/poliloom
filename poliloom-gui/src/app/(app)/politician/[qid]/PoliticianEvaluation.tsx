@@ -90,31 +90,20 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     [politician.wikidata_id, claimAndNavigate],
   )
 
-  const waitingForSources =
-    politician.actions.length === 0 &&
-    politician.sources.some((source) => source.status === 'processing')
-
   const footer = ({ decidedCount, isSubmitting, submit: submitDecisions }: FooterContext) => {
     const hasDecisions = decidedCount > 0
-    const disabled = isSubmitting || isClaiming || waitingForSources
+    const disabled = isSubmitting || isClaiming
     return (
-      <div className="flex justify-between items-center gap-4">
-        {waitingForSources && (
-          <p className="text-sm text-foreground-tertiary">
-            Source ingestion is in progress. Review items will appear automatically.
-          </p>
+      <div className="flex justify-end">
+        {!hasDecisions ? (
+          <Button onClick={submitDecisions} disabled={disabled} className="px-6 py-3">
+            {isSubmitting ? 'Skipping...' : 'Skip Politician'}
+          </Button>
+        ) : (
+          <Button onClick={submitDecisions} disabled={disabled} className="px-6 py-3">
+            {isSubmitting ? 'Submitting...' : 'Submit Decisions & Next'}
+          </Button>
         )}
-        <div className="ml-auto">
-          {!hasDecisions ? (
-            <Button onClick={submitDecisions} disabled={disabled} className="px-6 py-3">
-              {isSubmitting ? 'Skipping...' : 'Skip Politician'}
-            </Button>
-          ) : (
-            <Button onClick={submitDecisions} disabled={disabled} className="px-6 py-3">
-              {isSubmitting ? 'Submitting...' : 'Submit Decisions & Next'}
-            </Button>
-          )}
-        </div>
       </div>
     )
   }

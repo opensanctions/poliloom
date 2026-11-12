@@ -365,7 +365,7 @@ describe('PoliticianEvaluation', () => {
     expect(mockRouterPush).not.toHaveBeenCalled()
   })
 
-  it('disables submission and skipping while sources are processing without actions', () => {
+  it('allows skipping while sources are processing without actions', async () => {
     const processing: Politician = {
       ...politician,
       sources: [{ ...testSource, status: 'processing' }],
@@ -374,12 +374,20 @@ describe('PoliticianEvaluation', () => {
     render(<PoliticianEvaluation politician={processing} />)
 
     expect(
-      screen.getByText('Source ingestion is in progress. Review items will appear automatically.'),
-    ).toBeInTheDocument()
+      screen.queryByText(
+        'Source ingestion is in progress. Review items will appear automatically.',
+      ),
+    ).not.toBeInTheDocument()
     const skip = screen.getByRole('button', { name: 'Skip Politician' })
-    expect(skip).toBeDisabled()
+    expect(skip).not.toBeDisabled()
     fireEvent.click(skip)
-    expect(mockFetch).not.toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/politicians/Q987654',
+        expect.objectContaining({ method: 'PATCH' }),
+      )
+    })
   })
 
   it('shows newly extracted actions after a source-status refresh', async () => {
