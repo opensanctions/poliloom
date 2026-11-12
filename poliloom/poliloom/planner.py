@@ -38,8 +38,10 @@ from .wikidata.document import (
 )
 
 _REFERENCE_URL_ID = "P854"
+_IMPORTED_FROM_ID = "P143"
 _WIKIMEDIA_IMPORT_URL_ID = "P4656"
 _RETRIEVED_AT_ID = "P813"
+_WIKIMEDIA_IMPORT_IDS = frozenset({_IMPORTED_FROM_ID, _WIKIMEDIA_IMPORT_URL_ID})
 
 _DATE_PROPERTY_IDS = frozenset({"P569", "P570"})
 _ENTITY_PROPERTY_IDS = frozenset({"P19", "P27"})
@@ -82,6 +84,19 @@ def reference_identity(reference: dict) -> str:
         part for part in parts if part["property"]["id"] != _RETRIEVED_AT_ID
     ]
     return json.dumps(identifying_parts, sort_keys=True, separators=(",", ":"))
+
+
+def reference_is_wikimedia_import(reference: dict) -> bool:
+    """Whether the reference records an import from a Wikimedia project.
+
+    Wikimedia import references (P143/P4656) mark where a statement was
+    copied from. They do not source it, so they only belong on newly
+    imported statements, never appended to an existing one.
+    """
+    return any(
+        part["property"]["id"] in _WIKIMEDIA_IMPORT_IDS
+        for part in reference.get("parts", [])
+    )
 
 
 def reference_present(document: dict, reference: dict) -> bool:
@@ -354,6 +369,8 @@ def _reference_append_decision(
     document: dict, index: int, reference: dict
 ) -> Decision | None:
     """Append the reference to a statement, or None when already present."""
+    if reference_is_wikimedia_import(reference):
+        return None
     if reference_present(document, reference):
         return None
     return Decision("edit", append_reference_patch(document, reference), index)

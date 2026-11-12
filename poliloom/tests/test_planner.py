@@ -46,6 +46,18 @@ def import_reference(hash: str | None = None) -> dict:
     return reference
 
 
+def imported_from_reference() -> dict:
+    """A proposed P143-only Wikimedia reference (no permanent URL)."""
+    return {
+        "parts": [
+            {
+                "property": {"id": "P143", "data_type": "wikibase-item"},
+                "value": {"type": "value", "content": "Q328"},
+            }
+        ]
+    }
+
+
 def retrieved_part() -> dict:
     return {
         "property": {"id": "P813", "data_type": "time"},
@@ -223,6 +235,42 @@ class TestReferencePresent:
         )
 
         assert reference_present(document, import_reference())
+
+
+class TestWikimediaImportReferences:
+    """Wikimedia imports do not source existing statements."""
+
+    def test_equivalent_statement_is_left_alone(self):
+        candidate = date_statement("P570", "1990-06-15")
+        document = as_document(date_statement("P570", "1990-06-15"))
+
+        assert plan(candidate, [document], import_reference()) is None
+
+    def test_p143_only_reference_is_left_alone(self):
+        candidate = entity_statement("P27", "Q30")
+        document = as_document(entity_statement("P27", "Q30"))
+
+        assert plan(candidate, [document], imported_from_reference()) is None
+
+    def test_value_refinement_still_edits_existing_statement(self):
+        candidate = date_statement("P569", "1950-05-15")
+        document = as_document(date_statement("P569", "1950"))
+
+        decision = plan(candidate, [document], import_reference())
+
+        assert decision == Decision(
+            "edit", refine_value_patch(document, candidate["value"]), 0
+        )
+
+    def test_new_statement_is_created_with_import_reference(self):
+        candidate = date_statement("P569", "1950-05-15")
+        statement = dict(candidate)
+        statement["references"] = [import_reference()]
+        statement.setdefault("rank", "normal")
+
+        decision = plan(candidate, [], import_reference())
+
+        assert decision == Decision("create", create_body(statement))
 
 
 class TestPlanDates:

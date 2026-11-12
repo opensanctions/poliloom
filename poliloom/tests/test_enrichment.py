@@ -1,5 +1,6 @@
 """Tests for enrichment module functionality."""
 
+from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -27,6 +28,7 @@ from poliloom.models import (
     ActionKind,
     Location,
     Position,
+    Source,
     Statement,
 )
 from poliloom.wikidata.date import WikidataDate
@@ -409,6 +411,38 @@ class TestStoreExtractedData:
 
         assert len(action.evidence) == 1
         assert action.evidence[0].source_id == sample_source.id
+
+    def test_wikipedia_source_does_not_reference_existing_statement(
+        self, db_session, sample_politician, sample_wikipedia_project
+    ):
+        """A Wikipedia import never sources an existing statement."""
+        add_statement(
+            db_session,
+            sample_politician,
+            rest_statement("Q123456$birth-1", "P569", time_content("1950-05-15")),
+        )
+        source = Source(
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            permanent_url="https://en.wikipedia.org/w/index.php?oldid=12345",
+            fetch_timestamp=datetime.now(UTC),
+            wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+        )
+        db_session.add(source)
+        db_session.flush()
+
+        properties = [
+            ExtractedProperty(
+                type=PropertyType.BIRTH_DATE,
+                value="1950-05-15",
+                supporting_quotes=["born May 15, 1950"],
+            )
+        ]
+
+        assert store_extracted_data(
+            db_session, sample_politician, source, properties, None, None, None
+        )
+
+        assert db_session.query(Action).count() == 0
 
     def test_duplicate_extractions_merge_into_one_action(
         self, db_session, sample_politician, sample_source, sample_country

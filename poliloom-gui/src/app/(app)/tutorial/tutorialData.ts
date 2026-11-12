@@ -476,7 +476,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
     politician: {
       id: 'tutorial-politician-adding-references',
       ...politicianBase,
-      sources: [page1, page2],
+      sources: [page1, page3],
       statements: [
         statement('Q955672$birthplace', 'P19', entityValue('Q6490542'), {
           entityTerms: springfieldCity,
@@ -541,23 +541,25 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
               value: {
                 parts: [
                   {
-                    property: { id: 'P4656' },
-                    value: entityValue(
-                      'https://en.wikipedia.org/w/index.php?title=Jane_Doe_(politician)&oldid=1195236721',
-                    ),
+                    property: { id: 'P854' },
+                    value: entityValue('https://parliament.springfield.gov/members'),
                   },
                   { property: { id: 'P813' }, value: timeValue('+2024-01-15T00:00:00Z', 11) },
                 ],
               },
             },
           ],
-          [evidence('ref-tutorial-11', page2, ['Doe resides in Springfield with her family.'])],
+          [
+            evidence('ref-tutorial-11', page3, [
+              'Doe has represented the Springfield district in parliament since 2020.',
+            ]),
+          ],
         ),
       ],
     },
     expectedDecisions: {
       'tutorial-edit-birthplace-reference': true, // Accept - the source states she was born in Springfield
-      'tutorial-edit-citizenship-reference': false, // Discard - residing somewhere is not citizenship evidence
+      'tutorial-edit-citizenship-reference': false, // Discard - holding a seat is not citizenship evidence
     },
     backStep: TutorialStep.AddingReferences,
     success: {
@@ -569,7 +571,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
       title: "Let's Reconsider",
       message:
         'Only accept a reference when its evidence truly supports the statement. Read each quote and ask: does this prove the claim?',
-      hint: 'Hint: "Doe resides in Springfield with her family" says nothing about citizenship.',
+      hint: 'Hint: "Doe has represented the Springfield district in parliament" says nothing about citizenship.',
     },
   },
 }
