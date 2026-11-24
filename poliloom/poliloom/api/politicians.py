@@ -42,7 +42,7 @@ from ..scheduling import (
     schedule_enrichment,
 )
 from ..sse import DecisionCountEvent, event_bus
-from ..wikidata.execution import apply_action
+from ..wikidata.execution import apply_action_group, group_actions
 from .auth import User, get_current_user
 from .schemas import (
     ActionEvidenceResponse,
@@ -454,23 +454,26 @@ async def patch_actions(
 
     db.commit()
 
-    # Apply accepted actions to Wikidata (don't rollback decisions on failure)
+    # Apply equivalent accepted actions together (don't rollback decisions on failure)
     apply_errors = []
-    for action in accepted_actions:
+    for action_group in group_actions(accepted_actions):
         try:
-            success = await apply_action(db, action, current_user.jwt_token)
+            success = await apply_action_group(db, action_group, current_user.jwt_token)
         except (
             SQLAlchemyError,
             httpx2.HTTPError,
             ValueError,
             KeyError,
         ) as e:
-            apply_errors.append(f"Error applying action {action.id}: {e!s}")
+            apply_errors.extend(
+                f"Error applying action {action.id}: {e!s}" for action in action_group
+            )
             continue
         if not success:
-            apply_errors.append(
+            apply_errors.extend(
                 f"Failed to apply action {action.id}"
                 + (f": {action.error}" if action.error else "")
+                for action in action_group
             )
     errors.extend(apply_errors)
 

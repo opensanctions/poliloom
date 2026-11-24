@@ -9,12 +9,23 @@ interface GroupTitleProps {
   /** Entity QID for entity sections, property id for date sections. */
   groupKey: string
   terms: TermMaps | null
+  proposed: boolean
 }
 
-export function GroupTitle({ sectionType, groupKey, terms }: GroupTitleProps) {
+export function GroupTitle({ sectionType, groupKey, terms, proposed }: GroupTitleProps) {
   const labelLanguages = useLabelLanguages()
   if (sectionType === 'date') {
     return groupKey === 'P569' ? <>Birth Date</> : <>Death Date</>
   }
-  return <EntityLink entityId={groupKey} entityName={best_label(terms, labelLanguages, groupKey)} />
+
+  const title = (
+    <EntityLink entityId={groupKey} entityName={best_label(terms, labelLanguages, groupKey)} />
+  )
+  if (!proposed) return title
+
+  return (
+    <span className="text-success-foreground">
+      <span aria-hidden="true">+</span> {title}
+    </span>
+  )
 }

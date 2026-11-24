@@ -8,6 +8,7 @@ import {
   type SourceResponse,
 } from '@/types'
 import {
+  actionGroupKey,
   buildSubmission,
   effectiveDecision,
   groupStatementsIntoSections,
@@ -136,11 +137,10 @@ export function EvaluationView({
     }
   }, [quotes, isIframeLoaded, highlightText])
 
-  // Clicking the currently active choice returns the action to undecided (null).
   const handleDecision = useCallback((action: Action, isAccepted: boolean) => {
     setDecisions((prev) => ({
       ...prev,
-      [action.id]: effectiveDecision(action, prev) === isAccepted ? null : isAccepted,
+      [actionGroupKey(action)]: effectiveDecision(action, prev) === isAccepted ? null : isAccepted,
     }))
   }, [])
 
@@ -169,7 +169,7 @@ export function EvaluationView({
 
   const handleItemHover = (item: StatementItem) => {
     if (!selection) return
-    const actions = item.createAction ? [item.createAction] : item.editActions
+    const actions = item.statement ? item.editActions : item.createActions
     const matching = actions
       .flatMap((action) => action.evidence)
       .find((evidence) => evidence.source.id === selection.source.id)
@@ -208,7 +208,10 @@ export function EvaluationView({
                 {section.groups.map((group) => {
                   const first = group.items[0]
                   const terms =
-                    first.statement?.entity_terms ?? first.createAction?.entity_terms ?? null
+                    first.statement?.entity_terms ?? first.createActions[0]?.entity_terms ?? null
+                  const isNewGroup =
+                    section.sectionType !== 'date' &&
+                    group.items.every((item) => item.statement === null)
                   return (
                     <HeaderedBox
                       key={group.key}
@@ -217,16 +220,24 @@ export function EvaluationView({
                           sectionType={section.sectionType}
                           groupKey={group.key}
                           terms={terms}
+                          proposed={isNewGroup}
                         />
                       }
                       onHover={() => handleItemHover(first)}
                     >
                       <div className="space-y-3">
                         {group.items.map((item, index) => (
-                          <Fragment key={item.statement ? item.statement.id : item.createAction.id}>
+                          <Fragment
+                            key={
+                              item.statement
+                                ? item.statement.id
+                                : actionGroupKey(item.createActions[0])
+                            }
+                          >
                             {index > 0 && <hr className="border-border-muted my-3" />}
                             <StatementItemView
                               item={item}
+                              isNewGroup={isNewGroup}
                               decisions={decisions}
                               onDecision={handleDecision}
                               onViewSource={handleViewSource}

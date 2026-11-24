@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  actionGroupKey,
   buildSubmission,
   describePatch,
   effectiveDecision,
@@ -121,12 +122,15 @@ describe('effectiveDecision', () => {
   })
 
   it('uses the local override when present, including null', () => {
-    expect(effectiveDecision(pendingAction('a1', null), { a1: true })).toBe(true)
-    expect(effectiveDecision(pendingAction('a1', true), { a1: null })).toBeNull()
+    const action = pendingAction('a1', true)
+    const key = actionGroupKey(action)
+    expect(effectiveDecision(action, { [key]: true })).toBe(true)
+    expect(effectiveDecision(action, { [key]: null })).toBeNull()
   })
 
   it('ignores overrides for other actions', () => {
-    expect(effectiveDecision(pendingAction('a1', null), { a2: true })).toBeNull()
+    const other = createAction('a2', 'P19', entityContent('Q300'))
+    expect(effectiveDecision(pendingAction('a1'), { [actionGroupKey(other)]: true })).toBeNull()
   })
 })
 
@@ -134,10 +138,13 @@ describe('buildSubmission', () => {
   it('emits decided actions as complete action objects', () => {
     const created = pendingAction('a1')
     const edited = editAction('a2', 's1', [
-      { op: 'add', path: '/references/-', value: { parts: [] } },
+      { op: 'test', path: '/value', value: entityContent('Q300') },
     ])
 
-    const payload = buildSubmission([created, edited], { a1: true, a2: false })
+    const payload = buildSubmission([created, edited], {
+      [actionGroupKey(created)]: true,
+      [actionGroupKey(edited)]: false,
+    })
 
     expect(payload).toEqual({
       actions: [
@@ -188,30 +195,26 @@ describe('buildSubmission', () => {
   it('never emits null decisions: actions reset to undecided are skipped', () => {
     const actions = [pendingAction('a1', true)]
 
-    const payload = buildSubmission(actions, { a1: null })
+    const payload = buildSubmission(actions, { [actionGroupKey(actions[0])]: null })
 
     expect(payload.actions).toEqual([])
     expect(payload.skips).toEqual(['a1'])
   })
 
-  it('skips still-undecided actions', () => {
-    const actions = [pendingAction('a1', null), pendingAction('a2', null)]
+  it('skips only still-undecided actions', () => {
+    const actions = [pendingAction('a1'), createAction('a2', 'P19', entityContent('Q300'))]
 
-    const payload = buildSubmission(actions, { a1: true })
+    const payload = buildSubmission(actions, { [actionGroupKey(actions[0])]: true })
 
+    expect(payload.actions.map((action) => action.id)).toEqual(['a1'])
     expect(payload.skips).toEqual(['a2'])
   })
 
-  it('does not skip decided actions', () => {
-    const actions = [pendingAction('a1', true), pendingAction('a2', null)]
-
-    const payload = buildSubmission(actions, { a2: false })
-
-    expect(payload.skips).toEqual([])
-  })
-
-  it('returns an empty payload for no actions', () => {
-    expect(buildSubmission([], { a1: true })).toEqual({ actions: [], skips: [] })
+  it('ignores a decision for a row no longer present', () => {
+    expect(buildSubmission([], { [actionGroupKey(pendingAction('a1'))]: true })).toEqual({
+      actions: [],
+      skips: [],
+    })
   })
 })
 
@@ -305,7 +308,7 @@ describe('groupStatementsIntoSections', () => {
     expect(governor.items).toHaveLength(1)
     expect(governor.items[0]).toEqual({
       statement: governor2018,
-      createAction: null,
+      createActions: [],
       editActions: [valueRefinement],
     })
   })
@@ -318,7 +321,24 @@ describe('groupStatementsIntoSections', () => {
 
     expect(sections[0].groups.map((g) => g.key)).toEqual(['Q200', 'Q500'])
     const standalone = sections[0].groups.find((g) => g.key === 'Q500')!
-    expect(standalone.items).toEqual([{ statement: null, createAction: created, editActions: [] }])
+    expect(standalone.items).toEqual([
+      { statement: null, createActions: [created], editActions: [] },
+    ])
+  })
+
+  it('groups equivalent creates without merging their actions', () => {
+    const first = createAction('a1', 'P39', entityContent('Q500'))
+    const second = createAction('a2', 'P39', { content: 'Q500', type: 'value' })
+    const differentTerm = createAction('a3', 'P39', entityContent('Q500'), [
+      startTimeQualifier('+2024-01-01T00:00:00Z'),
+    ])
+
+    const sections = groupStatementsIntoSections([], [first, second, differentTerm])
+
+    expect(sections[0].groups[0].items).toEqual([
+      { statement: null, createActions: [differentTerm], editActions: [] },
+      { statement: null, createActions: [first, second], editActions: [] },
+    ])
   })
 
   it('sorts create actions together with statements by timeframe', () => {
@@ -327,15 +347,14 @@ describe('groupStatementsIntoSections', () => {
     ])
     const sections = groupStatementsIntoSections([governor2018], [created])
 
-    expect(sections[0].groups[0].items.map((i) => i.statement?.id ?? i.createAction!.id)).toEqual([
-      'a1',
-      's3',
-    ])
+    expect(
+      sections[0].groups[0].items.map((i) => i.statement?.id ?? i.createActions[0].id),
+    ).toEqual(['a1', 's3'])
   })
 
   it('throws when an edit action targets an unknown statement', () => {
     const orphan = editAction('a1', 'missing', [
-      { op: 'add', path: '/references/-', value: { parts: [] } },
+      { op: 'test', path: '/value', value: entityContent('Q300') },
     ])
 
     expect(() => groupStatementsIntoSections([], [orphan])).toThrow(/unknown statement/)
@@ -408,17 +427,14 @@ describe('describePatch', () => {
     ).toEqual({ kind: 'qualifier-append', qualifier })
   })
 
-  it('classifies a reference append', () => {
-    const reference = {
-      parts: [{ property: { id: 'P248' }, value: entityContent('Q123') }],
-    }
-
+  it('shows no data change for an edit that just adds a reference', () => {
     expect(
       describePatch([
-        { op: 'test', path: '/references', value: [] },
-        { op: 'add', path: '/references/-', value: reference },
+        { op: 'test', path: '/value', value: entityContent('Q123') },
+        { op: 'test', path: '/qualifiers', value: [] },
+        { op: 'add', path: '/references/-', value: { parts: [] } },
       ]),
-    ).toEqual({ kind: 'reference-append', reference })
+    ).toBeNull()
   })
 
   it('throws for unsupported mutation paths', () => {
@@ -431,12 +447,6 @@ describe('describePatch', () => {
         { op: 'add', path: '/qualifiers/0', value: {} },
       ]),
     ).toThrow(/Unsupported patch/)
-  })
-
-  it('throws for a patch without a mutation operation', () => {
-    expect(() => describePatch([{ op: 'test', path: '/value', value: null }])).toThrow(
-      /no mutation/,
-    )
   })
 
   it('throws when a refinement has no matching test operation', () => {

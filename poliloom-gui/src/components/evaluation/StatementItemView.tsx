@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import type {
   Action,
-  CreateStatementPayload,
+  ActionEvidence,
   EditStatementPayload,
   RestSnak,
   RestStatement,
@@ -10,8 +10,10 @@ import type {
   TermMaps,
 } from '@/types'
 import {
+  actionGroupKey,
   describePatch,
   effectiveDecision,
+  groupActions,
   itemDocument,
   type LocalDecisions,
   type PatchDescription,
@@ -22,7 +24,6 @@ import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { parseTimeValue, timeValue } from '@/lib/wikidata/dateParser'
 import { formatTimeframe, parseTimeframe } from '@/lib/wikidata/qualifierParser'
 import { Button } from '@/components/ui/Button'
-import { ReferenceView } from './ReferenceView'
 import { StatementSource } from './StatementSource'
 
 // --- Value display ---
@@ -92,8 +93,6 @@ function PatchDescriptionView({
       )
       return <InlineDiff before={before} after={after} />
     }
-    case 'reference-append':
-      return <ReferenceView reference={description.reference} proposed />
   }
 }
 
@@ -148,10 +147,9 @@ function DecisionButtons({
 // --- Action rows ---
 
 interface ActionRowProps {
-  action: Action
+  actions: Action[]
   document: Pick<RestStatement, 'qualifiers'>
   statementTerms: TermMaps | null
-  statementContent?: ReactNode
   decisions: LocalDecisions
   onDecision: (action: Action, isAccepted: boolean) => void
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
@@ -160,33 +158,39 @@ interface ActionRowProps {
 }
 
 function ActionRow({
-  action,
+  actions,
   document,
   statementTerms,
-  statementContent,
   decisions,
   onDecision,
   onViewSource,
   onHover,
   activeSourceId,
 }: ActionRowProps) {
+  const action = actions[0]
   const decision = effectiveDecision(action, decisions)
+  const evidenceBySource = new Map<string, ActionEvidence>()
+  for (const evidence of actions.flatMap((groupedAction) => groupedAction.evidence)) {
+    const existing = evidenceBySource.get(evidence.source.id)
+    if (existing) {
+      existing.supporting_quotes = Array.from(
+        new Set([...(existing.supporting_quotes ?? []), ...(evidence.supporting_quotes ?? [])]),
+      )
+    } else {
+      evidenceBySource.set(evidence.source.id, { ...evidence })
+    }
+  }
+  const evidence = Array.from(evidenceBySource.values())
   const isSourceVisible =
-    action.evidence.length === 0 || action.evidence.some((e) => e.source.id === activeSourceId)
-  const createReferences =
-    action.kind === 'CREATE_STATEMENT'
-      ? (action.payload as CreateStatementPayload).statement.references
-      : []
+    evidence.length === 0 || evidence.some((e) => e.source.id === activeSourceId)
   const description =
     action.kind === 'EDIT_STATEMENT'
       ? describePatch((action.payload as EditStatementPayload).patch)
       : null
+  const referenceOnly = action.kind === 'EDIT_STATEMENT' && description === null
 
   return (
     <div className="space-y-3">
-      {description?.kind === 'reference-append' && statementContent && (
-        <div className="flex items-start gap-4 font-medium">{statementContent}</div>
-      )}
       {description && (
         <PatchDescriptionView
           description={description}
@@ -195,14 +199,15 @@ function ActionRow({
           actionTerms={action.entity_terms}
         />
       )}
-      {createReferences.map((reference, index) => (
-        <ReferenceView key={reference.hash ?? index} reference={reference} proposed />
-      ))}
-      {action.evidence.length > 0 && (
+      {evidence.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-foreground-muted">Evidence</h4>
+          {referenceOnly && (
+            <h4 className="text-sm font-medium text-success-foreground">
+              + {evidence.length === 1 ? 'Reference' : 'References'}
+            </h4>
+          )}
           <StatementSource
-            evidence={action.evidence}
+            evidence={evidence}
             activeSourceId={activeSourceId}
             onViewSource={onViewSource}
             onHover={onHover}
@@ -224,6 +229,8 @@ function ActionRow({
 
 export interface StatementItemViewProps {
   item: StatementItemType
+  /** Whether the group title itself already marks this value as proposed. */
+  isNewGroup: boolean
   decisions: LocalDecisions
   onDecision: (action: Action, isAccepted: boolean) => void
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
@@ -233,6 +240,7 @@ export interface StatementItemViewProps {
 
 export function StatementItemView({
   item,
+  isNewGroup,
   decisions,
   onDecision,
   onViewSource,
@@ -244,18 +252,23 @@ export function StatementItemView({
   const document = itemDocument(item)
   const propertyId = document.property.id
   const isDate = propertyId === 'P569' || propertyId === 'P570'
-  const entityTerms = item.statement?.entity_terms ?? item.createAction?.entity_terms ?? null
+  const entityTerms = item.statement?.entity_terms ?? item.createActions[0]?.entity_terms ?? null
 
   let content: ReactNode = null
   if (!item.statement) {
-    const value = valueDisplay(document.value, entityTerms, labelLanguages)
-    content = (
-      <div className="text-foreground-secondary">
-        <span className="mr-2 font-medium text-success-foreground">+</span>
-        <span className="font-medium text-foreground">{value}</span>
-        {propertyId === 'P39' && (
-          <div className="ml-5 mt-1">{formatTimeframe(parseTimeframe(document.qualifiers))}</div>
-        )}
+    let proposedData: string | null = isNewGroup ? null : 'New statement'
+    if (isDate) {
+      proposedData = valueDisplay(document.value, entityTerms, labelLanguages)
+    } else if (propertyId === 'P39') {
+      proposedData = formatTimeframe(parseTimeframe(document.qualifiers))
+    }
+    const showProposedMarker = !isNewGroup || isDate
+    content = proposedData && (
+      <div
+        className={`font-medium ${showProposedMarker ? 'text-success-foreground' : 'text-foreground-secondary'}`}
+      >
+        {showProposedMarker && <span aria-hidden="true">+ </span>}
+        <span>{proposedData}</span>
       </div>
     )
   } else if (isDate) {
@@ -287,13 +300,10 @@ export function StatementItemView({
 
   if (!item.statement) {
     return (
-      <div
-        className="space-y-4 rounded-md border border-border-muted p-4"
-        onMouseEnter={() => onHover?.(item)}
-      >
+      <div className="space-y-4" onMouseEnter={() => onHover?.(item)}>
         {content}
         <ActionRow
-          action={item.createAction}
+          actions={item.createActions}
           document={document}
           statementTerms={null}
           {...actionRowProps}
@@ -302,19 +312,23 @@ export function StatementItemView({
     )
   }
 
+  const hasNoDataChange = item.editActions.every(
+    (action) => describePatch((action.payload as EditStatementPayload).patch) === null,
+  )
+  const editActionGroups = groupActions(item.editActions)
+
   return (
     <div className="space-y-3" onMouseEnter={() => onHover?.(item)}>
-      {content && item.editActions.length === 0 && (
+      {content && hasNoDataChange && (
         <div className="flex items-start gap-4 font-medium">{content}</div>
       )}
 
-      {item.editActions.map((action) => (
-        <div key={action.id} className="rounded-md border border-border-muted p-4">
+      {editActionGroups.map((actions) => (
+        <div key={actionGroupKey(actions[0])} className="rounded-md border border-border-muted p-4">
           <ActionRow
-            action={action}
+            actions={actions}
             document={item.statement.document}
             statementTerms={item.statement.entity_terms}
-            statementContent={content}
             {...actionRowProps}
           />
         </div>

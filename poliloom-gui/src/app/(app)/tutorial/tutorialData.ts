@@ -500,19 +500,12 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
           'tutorial-edit-birthplace-reference',
           'Q955672$birthplace',
           [
-            { op: 'test', path: '/references', value: [] },
+            { op: 'test', path: '/value', value: entityValue('Q6490542') },
+            { op: 'test', path: '/qualifiers', value: [] },
             {
               op: 'add',
               path: '/references/-',
-              value: {
-                parts: [
-                  {
-                    property: { id: 'P854' },
-                    value: entityValue('https://example.parliament.gov/members/jane-doe'),
-                  },
-                  { property: { id: 'P813' }, value: timeValue('+2024-01-15T00:00:00Z', 11) },
-                ],
-              },
+              value: { parts: [{ property: { id: 'P854' }, value: entityValue(page1.url) }] },
             },
           ],
           [evidence('ref-tutorial-10', page1, birthDateQuotes)],
@@ -521,32 +514,12 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
           'tutorial-edit-citizenship-reference',
           'Q955672$citizenship',
           [
-            {
-              op: 'test',
-              path: '/references',
-              value: [
-                {
-                  parts: [
-                    {
-                      property: { id: 'P143' },
-                      value: entityValue('Q328'),
-                    },
-                  ],
-                },
-              ],
-            },
+            { op: 'test', path: '/value', value: entityValue('Q999001') },
+            { op: 'test', path: '/qualifiers', value: [] },
             {
               op: 'add',
               path: '/references/-',
-              value: {
-                parts: [
-                  {
-                    property: { id: 'P854' },
-                    value: entityValue('https://parliament.springfield.gov/members'),
-                  },
-                  { property: { id: 'P813' }, value: timeValue('+2024-01-15T00:00:00Z', 11) },
-                ],
-              },
+              value: { parts: [{ property: { id: 'P854' }, value: entityValue(page3.url) }] },
             },
           ],
           [

@@ -18,13 +18,24 @@ def create_body(statement: dict) -> dict:
     return {"statement": statement}
 
 
+def statement_fact_guards(existing: dict) -> list[dict]:
+    return [
+        _test_value(existing),
+        {"op": "test", "path": "/qualifiers", "value": existing["qualifiers"]},
+    ]
+
+
+def _test_value(existing: dict) -> dict:
+    return {"op": "test", "path": "/value", "value": existing["value"]}
+
+
 def refine_value_patch(existing: dict, new_value: dict) -> dict:
     """Precision refinement of the main value: test the current value, then
     replace it.
     """
     return {
         "patch": [
-            {"op": "test", "path": "/value", "value": existing["value"]},
+            _test_value(existing),
             {"op": "replace", "path": "/value", "value": new_value},
         ]
     }
@@ -33,11 +44,10 @@ def refine_value_patch(existing: dict, new_value: dict) -> dict:
 def refine_qualifier_patch(
     existing: dict, qualifier_index: int, new_qualifier: dict
 ) -> dict:
-    """Replace one qualifier: test the exact existing array element at
-    ``qualifier_index``, then replace it.
-    """
+    """Replace the qualifier only if the office and the target element still match."""
     return {
         "patch": [
+            _test_value(existing),
             {
                 "op": "test",
                 "path": f"/qualifiers/{qualifier_index}",
@@ -53,32 +63,10 @@ def refine_qualifier_patch(
 
 
 def append_qualifier_patch(existing: dict, qualifier: dict) -> dict:
-    """Append a qualifier: test that ``/qualifiers`` still equals the current
-    array, then add the qualifier at the end.
-    """
+    """Append a qualifier only if the office and qualifiers still match."""
     return {
         "patch": [
-            {
-                "op": "test",
-                "path": "/qualifiers",
-                "value": existing["qualifiers"],
-            },
+            *statement_fact_guards(existing),
             {"op": "add", "path": "/qualifiers/-", "value": qualifier},
-        ]
-    }
-
-
-def append_reference_patch(existing: dict, reference: dict) -> dict:
-    """Append a reference: test that ``/references`` still equals the current
-    array, then add the reference at the end.
-    """
-    return {
-        "patch": [
-            {
-                "op": "test",
-                "path": "/references",
-                "value": existing["references"],
-            },
-            {"op": "add", "path": "/references/-", "value": reference},
         ]
     }

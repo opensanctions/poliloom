@@ -135,7 +135,7 @@ def submit(client, actions, skips=None, qid="Q123456", headers=None):
 
 
 class TestAcceptSubmissions:
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_accept_executes_synchronously(
         self, mock_apply, client, mock_auth, db_session, claimed_action
     ):
@@ -153,8 +153,8 @@ class TestAcceptSubmissions:
         assert "Successfully processed 1 items" in result["message"]
 
         mock_apply.assert_awaited_once()
-        applied_action, jwt_token = mock_apply.call_args.args[1:]
-        assert applied_action.id == claimed_action.id
+        applied_actions, jwt_token = mock_apply.call_args.args[1:]
+        assert [action.id for action in applied_actions] == [claimed_action.id]
         assert jwt_token == "mock_jwt_token_for_testing"
 
         db_session.refresh(claimed_action)
@@ -162,7 +162,53 @@ class TestAcceptSubmissions:
         assert claimed_action.decided_by_user_id == "12345"
         assert claimed_action.decided_at is not None
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
+    def test_different_references_execute_as_one_group(
+        self, mock_apply, client, mock_auth, db_session, claimed_action, create_action
+    ):
+        mock_apply.return_value = True
+
+        def with_reference(url):
+            payload = birth_date_create_payload()
+            payload["statement"]["references"] = [
+                {
+                    "parts": [
+                        {
+                            "property": {"id": "P854"},
+                            "value": {"type": "value", "content": url},
+                        },
+                    ]
+                }
+            ]
+            return payload
+
+        claimed_action.payload = with_reference("https://example.com/first")
+        second = create_action(payload=with_reference("https://example.com/second"))
+        claim_action(db_session, second)
+        different_payload = with_reference("https://example.com/first")
+        different_payload["statement"]["value"]["content"]["time"] = (
+            "+1971-01-15T00:00:00Z"
+        )
+        different = create_action(payload=different_payload)
+        claim_action(db_session, different)
+
+        response = submit(
+            client,
+            [
+                action_body(id=claimed_action.id, payload=claimed_action.payload),
+                action_body(id=second.id, payload=second.payload),
+                action_body(id=different.id, payload=different.payload),
+            ],
+            headers=mock_auth,
+        )
+
+        assert response.json()["errors"] == []
+        assert [
+            {action.id for action in call.args[1]}
+            for call in mock_apply.await_args_list
+        ] == [{claimed_action.id, second.id}, {different.id}]
+
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_apply_failure_appends_error_but_keeps_submission(
         self, mock_apply, client, mock_auth, db_session, claimed_action
     ):
@@ -183,7 +229,7 @@ class TestAcceptSubmissions:
         db_session.refresh(claimed_action)
         assert claimed_action.is_accepted is True
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_apply_exception_appends_error_but_keeps_submission(
         self, mock_apply, client, mock_auth, db_session, claimed_action
     ):
@@ -204,7 +250,7 @@ class TestAcceptSubmissions:
 
 
 class TestDiscardSubmissions:
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_discard_persists_false_without_execution(
         self, mock_apply, client, mock_auth, db_session, claimed_action
     ):
@@ -269,7 +315,7 @@ class TestSubmissionValidation:
         db_session.refresh(action)
         assert action.is_accepted is None
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_expired_own_claim_is_refreshed(
         self, mock_apply, client, mock_auth, db_session, create_action
     ):
@@ -288,7 +334,7 @@ class TestSubmissionValidation:
         db_session.refresh(action)
         assert action.is_accepted is True
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_non_pending_action_rejected(
         self, mock_apply, client, mock_auth, db_session, create_action
     ):
@@ -303,7 +349,7 @@ class TestSubmissionValidation:
         db_session.refresh(action)
         assert action.is_accepted is True  # unchanged
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_action_of_other_politician_rejected(
         self, mock_apply, client, mock_auth, db_session, sample_politician
     ):
@@ -340,7 +386,7 @@ class TestSubmissionValidation:
         assert result["success"] is True
         assert result["errors"] == [f"Action {fake_uuid} not found"]
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_mixed_valid_and_invalid_submissions(
         self, mock_apply, client, mock_auth, db_session, claimed_action, create_action
     ):
@@ -369,7 +415,7 @@ class TestSubmissionValidation:
 class TestSubmittedObjectIsTruth:
     """For existing actions the submitted kind, statement_id and payload win."""
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_modified_payload_overwrites_stored_payload(
         self, mock_apply, client, mock_auth, db_session, claimed_action
     ):
@@ -388,10 +434,10 @@ class TestSubmittedObjectIsTruth:
         db_session.refresh(claimed_action)
         assert claimed_action.payload == modified
         assert claimed_action.is_accepted is True
-        applied_action = mock_apply.call_args.args[1]
-        assert applied_action.payload == modified
+        applied_actions = mock_apply.call_args.args[1]
+        assert applied_actions[0].payload == modified
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_kind_change_with_valid_envelope(
         self,
         mock_apply,
@@ -446,7 +492,7 @@ class TestSubmittedObjectIsTruth:
 class TestNewActions:
     """Submissions without an id insert user-authored actions."""
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_accepted_new_action_inserted_and_applied(
         self, mock_apply, client, mock_auth, db_session, sample_politician
     ):
@@ -476,11 +522,11 @@ class TestNewActions:
         )
 
         mock_apply.assert_awaited_once()
-        applied_action, jwt_token = mock_apply.call_args.args[1:]
-        assert applied_action.id == action.id
+        applied_actions, jwt_token = mock_apply.call_args.args[1:]
+        assert applied_actions[0].id == action.id
         assert jwt_token == "mock_jwt_token_for_testing"
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_discarded_new_action_just_marked(
         self, mock_apply, client, mock_auth, db_session, sample_politician
     ):
@@ -500,7 +546,7 @@ class TestNewActions:
         assert action.decided_at is not None
         assert action.applied_at is None
 
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_new_edit_action_persists_statement_id(
         self,
         mock_apply,
@@ -634,7 +680,7 @@ class TestEnvelopeValidation:
 
 
 class TestSkips:
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_skip_leaves_action_pending_and_records_once(
         self, mock_apply, client, mock_auth, db_session, create_action
     ):
@@ -705,7 +751,7 @@ class TestSkips:
 
 class TestEvaluationCountBroadcast:
     @patch("poliloom.sse.EventBus.notify")
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_broadcasts_decided_action_count(
         self, mock_apply, mock_notify, client, mock_auth, db_session, create_action
     ):
@@ -735,7 +781,7 @@ class TestEvaluationCountBroadcast:
         assert event.total == decided_count == 3
 
     @patch("poliloom.sse.EventBus.notify")
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_new_action_broadcasts_decided_action_count(
         self, mock_apply, mock_notify, client, mock_auth, db_session, sample_politician
     ):
@@ -753,7 +799,7 @@ class TestEvaluationCountBroadcast:
         assert event.total == decided_count == 1
 
     @patch("poliloom.sse.EventBus.notify")
-    @patch("poliloom.api.politicians.apply_action", new_callable=AsyncMock)
+    @patch("poliloom.api.politicians.apply_action_group", new_callable=AsyncMock)
     def test_skip_only_does_not_broadcast(
         self, mock_apply, mock_notify, client, mock_auth, db_session, create_action
     ):

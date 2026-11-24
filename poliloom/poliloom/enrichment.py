@@ -676,8 +676,6 @@ def store_extracted_data(
             .order_by(Statement.wikidata_statement_id)
             .all()
         )
-        reference = {"parts": source.create_references_json()}
-
         for candidate, quotes, label in items:
             property_id = statement_property_id(candidate)
             same_property_statements = [
@@ -688,7 +686,6 @@ def store_extracted_data(
             decision = plan(
                 candidate,
                 [statement.document for statement in same_property_statements],
-                reference,
             )
             action = persist_decision(
                 db,

@@ -1,5 +1,6 @@
 """Tests for enrichment module functionality."""
 
+from copy import deepcopy
 from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
@@ -273,17 +274,14 @@ def rest_statement(
     references: list[dict] | None = None,
 ) -> dict:
     """Build a cached REST statement document."""
-    document = {
+    return {
         "id": statement_id,
         "rank": "normal",
         "property": {"id": property_id, "data_type": data_type},
         "value": {"type": "value", "content": content},
+        "qualifiers": qualifiers or [],
+        "references": references or [],
     }
-    if qualifiers is not None:
-        document["qualifiers"] = qualifiers
-    if references is not None:
-        document["references"] = references
-    return document
 
 
 def add_statement(db_session, politician, document) -> Statement:
@@ -297,10 +295,9 @@ def add_statement(db_session, politician, document) -> Statement:
 class TestStoreExtractedData:
     """store_extracted_data persists decisions as Actions."""
 
-    def test_create_persisted_with_references(
+    def test_create_persists_reference_and_supporting_evidence(
         self, db_session, sample_politician, sample_source
     ):
-        """A new date extraction becomes a CREATE_STATEMENT action referencing the source."""
         properties = [
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
@@ -372,21 +369,39 @@ class TestStoreExtractedData:
             },
         ]
 
-    def test_edit_persisted_against_target(
-        self, db_session, sample_politician, sample_source
+    @pytest.mark.parametrize("already_cited", [False, True])
+    @pytest.mark.parametrize("candidate_date", ["1950", "1950-05-15"])
+    def test_edits_queue_only_if_the_data_or_references_can_change(
+        self,
+        db_session,
+        sample_politician,
+        sample_source,
+        candidate_date,
+        already_cited,
     ):
-        """A more precise date becomes an EDIT_STATEMENT action on the cached statement."""
+        reference = {"parts": sample_source.create_references_json()}
+        existing_reference = {
+            "hash": "1" * 40,
+            "parts": [
+                part for part in reference["parts"] if part["property"]["id"] != "P813"
+            ],
+        }
         statement = add_statement(
             db_session,
             sample_politician,
-            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
+            rest_statement(
+                "Q123456$birth-1",
+                "P569",
+                time_content("1950"),
+                references=[existing_reference] if already_cited else [],
+            ),
         )
 
         properties = [
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
-                value="1950-05-15",
-                supporting_quotes=["born May 15, 1950"],
+                value=candidate_date,
+                supporting_quotes=[],
             )
         ]
 
@@ -397,29 +412,38 @@ class TestStoreExtractedData:
         assert success is True
 
         actions = db_session.query(Action).all()
+        if candidate_date == "1950" and already_cited:
+            assert actions == []
+            return
+
         assert len(actions) == 1
         action = actions[0]
         assert action.kind == ActionKind.EDIT_STATEMENT
         assert action.statement_id == statement.id
 
         old_value = {"type": "value", "content": time_content("1950")}
-        new_value = {"type": "value", "content": time_content("1950-05-15")}
+        if candidate_date == "1950":
+            data_operation = {"op": "test", "path": "/qualifiers", "value": []}
+        else:
+            new_value = {"type": "value", "content": time_content(candidate_date)}
+            data_operation = {"op": "replace", "path": "/value", "value": new_value}
         assert action.payload["patch"] == [
             {"op": "test", "path": "/value", "value": old_value},
-            {"op": "replace", "path": "/value", "value": new_value},
+            data_operation,
+            {"op": "add", "path": "/references/-", "value": reference},
         ]
 
         assert len(action.evidence) == 1
         assert action.evidence[0].source_id == sample_source.id
 
-    def test_wikipedia_source_does_not_reference_existing_statement(
-        self, db_session, sample_politician, sample_wikipedia_project
+    @pytest.mark.parametrize("candidate_date", ["1950", "1950-05-15", "1951"])
+    def test_wikipedia_source_only_adds_import_marker_on_create(
+        self, db_session, sample_politician, sample_wikipedia_project, candidate_date
     ):
-        """A Wikipedia import never sources an existing statement."""
         add_statement(
             db_session,
             sample_politician,
-            rest_statement("Q123456$birth-1", "P569", time_content("1950-05-15")),
+            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
         )
         source = Source(
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -433,8 +457,8 @@ class TestStoreExtractedData:
         properties = [
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
-                value="1950-05-15",
-                supporting_quotes=["born May 15, 1950"],
+                value=candidate_date,
+                supporting_quotes=[],
             )
         ]
 
@@ -442,12 +466,25 @@ class TestStoreExtractedData:
             db_session, sample_politician, source, properties, None, None, None
         )
 
-        assert db_session.query(Action).count() == 0
+        actions = db_session.query(Action).all()
+        if candidate_date == "1950":
+            assert actions == []
+        elif candidate_date == "1950-05-15":
+            (action,) = actions
+            assert action.kind == ActionKind.EDIT_STATEMENT
+            assert all(op["path"] == "/value" for op in action.payload["patch"])
+            assert action.evidence[0].source_id == source.id
+        else:
+            (action,) = actions
+            assert action.kind == ActionKind.CREATE_STATEMENT
+            assert action.payload["statement"]["references"] == [
+                {"parts": source.create_references_json()}
+            ]
 
-    def test_duplicate_extractions_merge_into_one_action(
+    def test_duplicate_extractions_create_immutable_actions(
         self, db_session, sample_politician, sample_source, sample_country
     ):
-        """Duplicate extractions in one run dedup onto one action with merged quotes."""
+        """Duplicate extractions retain their own action and evidence."""
         citizenships = [
             ExtractedCitizenship(
                 wikidata_id=sample_country.wikidata_id,
@@ -472,25 +509,103 @@ class TestStoreExtractedData:
         assert success is True
 
         actions = db_session.query(Action).all()
-        assert len(actions) == 1
-
-        evidence = actions[0].evidence
-        assert len(evidence) == 1
-        assert evidence[0].source_id == sample_source.id
-        assert set(evidence[0].supporting_quotes) == {
+        assert len(actions) == 2
+        assert all(len(action.evidence) == 1 for action in actions)
+        assert {action.evidence[0].source_id for action in actions} == {
+            sample_source.id
+        }
+        assert {
+            quote
+            for action in actions
+            for quote in action.evidence[0].supporting_quotes
+        } == {
             "is an American politician",
             "a United States senator",
         }
 
-    def test_pending_action_dedup_across_sources(
+    def test_pending_create_across_sources_stays_immutable(
+        self,
+        db_session,
+        sample_politician,
+        sample_source,
+        sample_position,
+        create_source,
+    ):
+        """Equivalent new statements keep separate evidence."""
+        positions = [
+            ExtractedPosition(
+                wikidata_id="Q30185",
+                start_date="2020",
+                supporting_quotes=["served as Mayor"],
+            )
+        ]
+        second_source = create_source(url="https://example.com/other-article")
+
+        assert store_extracted_data(
+            db_session, sample_politician, sample_source, None, positions, None, None
+        )
+        first_action = db_session.query(Action).one()
+        original_payload = deepcopy(first_action.payload)
+
+        assert store_extracted_data(
+            db_session, sample_politician, second_source, None, positions, None, None
+        )
+
+        actions = db_session.query(Action).all()
+        assert len(actions) == 2
+        assert all(action.kind == ActionKind.CREATE_STATEMENT for action in actions)
+        for action in actions:
+            assert action.payload["statement"]["references"] == [
+                {"parts": action.evidence[0].source.create_references_json()}
+            ]
+        assert all(len(action.evidence) == 1 for action in actions)
+        assert {action.evidence[0].source_id for action in actions} == {
+            sample_source.id,
+            second_source.id,
+        }
+        db_session.refresh(first_action)
+        assert first_action.payload == original_payload
+
+    def test_pending_creates_with_different_qualifiers_stay_separate(
+        self,
+        db_session,
+        sample_politician,
+        sample_source,
+        sample_position,
+        create_source,
+    ):
+        """Different statement data remains in separate actions."""
+        second_source = create_source(url="https://example.com/other-article")
+        first = [
+            ExtractedPosition(
+                wikidata_id="Q30185", start_date="2020", supporting_quotes=[]
+            )
+        ]
+        second = [
+            ExtractedPosition(
+                wikidata_id="Q30185", start_date="2021", supporting_quotes=[]
+            )
+        ]
+
+        assert store_extracted_data(
+            db_session, sample_politician, sample_source, None, first, None, None
+        )
+        assert store_extracted_data(
+            db_session, sample_politician, second_source, None, second, None, None
+        )
+
+        assert db_session.query(Action).count() == 2
+
+    def test_pending_edit_across_sources_stays_immutable(
         self, db_session, sample_politician, sample_source, create_source
     ):
-        """The same source-independent decision from a second source dedups onto
-        the pending action and attaches the new source as evidence."""
+        """Equivalent edits keep separate evidence."""
         add_statement(
             db_session,
             sample_politician,
-            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
+            rest_statement(
+                "Q123456$birth-1", "P569", time_content("1950"), references=[]
+            ),
         )
         second_source = create_source(url="https://example.com/other-article")
         properties = [
@@ -504,6 +619,9 @@ class TestStoreExtractedData:
         assert store_extracted_data(
             db_session, sample_politician, sample_source, properties, None, None, None
         )
+        first_action = db_session.query(Action).one()
+        original_payload = deepcopy(first_action.payload)
+
         assert store_extracted_data(
             db_session,
             sample_politician,
@@ -515,23 +633,36 @@ class TestStoreExtractedData:
         )
 
         actions = db_session.query(Action).all()
-        assert len(actions) == 1
-
-        evidence = actions[0].evidence
-        assert {row.source_id for row in evidence} == {
+        assert len(actions) == 2
+        for action in actions:
+            assert action.payload["patch"] == [
+                *original_payload["patch"][:-1],
+                {
+                    "op": "add",
+                    "path": "/references/-",
+                    "value": {
+                        "parts": action.evidence[0].source.create_references_json()
+                    },
+                },
+            ]
+        assert all(len(action.evidence) == 1 for action in actions)
+        assert {action.evidence[0].source_id for action in actions} == {
             sample_source.id,
             second_source.id,
         }
+        db_session.refresh(first_action)
+        assert first_action.payload == original_payload
 
-    def test_decided_action_is_not_dedup_target(
+    def test_identical_extraction_after_decision_creates_new_action(
         self, db_session, sample_politician, sample_source, create_source
     ):
-        """Decided actions are immutable: an identical new decision creates a
-        new pending action."""
+        """A new extraction never changes an existing decided action."""
         add_statement(
             db_session,
             sample_politician,
-            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
+            rest_statement(
+                "Q123456$birth-1", "P569", time_content("1950"), references=[]
+            ),
         )
         properties = [
             ExtractedProperty(

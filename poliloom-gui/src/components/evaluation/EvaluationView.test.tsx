@@ -86,7 +86,11 @@ function createAction(
   propertyId: string,
   value: RestValue,
   actionEvidence: ActionEvidence[],
-  options: { qualifiers?: RestSnak[]; entityTerms?: TermMaps | null } = {},
+  options: {
+    qualifiers?: RestSnak[]
+    entityTerms?: TermMaps | null
+    references?: RestStatement['references']
+  } = {},
 ): Action {
   return {
     id,
@@ -98,7 +102,7 @@ function createAction(
         property: { id: propertyId },
         value,
         qualifiers: options.qualifiers ?? [],
-        references: [],
+        references: options.references ?? [],
       },
     },
     entity_terms: options.entityTerms ?? null,
@@ -342,6 +346,36 @@ describe('EvaluationView', () => {
       expect(screen.getAllByText('View source to decide').length).toBe(2)
     })
 
+    it('marks an entity group title as new when all its statements are proposals', () => {
+      render(
+        <ControlledEvaluationView
+          politician={politicianWithDifferentSources}
+          footer={() => <div>Footer</div>}
+        />,
+      )
+
+      const title = screen.getByRole('link', { name: 'Governor (Q200)' }).closest('h3')
+      expect(title).toHaveTextContent('+ Governor (Q200)')
+      expect(title?.querySelector('.text-success-foreground')).not.toBeNull()
+      expect(screen.queryByText('New statement')).not.toBeInTheDocument()
+    })
+
+    it('keeps an existing entity group title neutral when adding another statement', () => {
+      const politician: Politician = {
+        ...politicianWithStatements,
+        actions: [
+          createAction('action-1', 'P19', entityContent('Q500'), [], {
+            entityTerms: terms({ en: 'Test City' }),
+          }),
+        ],
+      }
+      render(<ControlledEvaluationView politician={politician} footer={() => <div>Footer</div>} />)
+
+      const title = screen.getByRole('link', { name: 'Test City (Q500)' }).closest('h3')
+      expect(title).not.toHaveTextContent('+')
+      expect(screen.getByText('New statement')).toBeInTheDocument()
+    })
+
     it('renders entity group titles with the best label in the browser language', () => {
       mockUseLabelLanguages.mockReturnValue(['sv'])
       render(
@@ -452,6 +486,67 @@ describe('EvaluationView', () => {
       expect(screen.getAllByText('View source to decide').length).toBe(2)
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(1)
     })
+
+    it.each(['create', 'citation-only edit'])(
+      'includes a refreshed source in the accepted %s row',
+      async (kind) => {
+        const onSubmit = vi.fn().mockResolvedValue(undefined)
+        const date = timeContent('+1975-06-15T00:00:00Z')
+        const target = makeStatement('birth', 'P569', date)
+        const proposal = (id: string, source: SourceResponse) => {
+          const reference = {
+            parts: [{ property: { id: 'P854' }, value: entityContent(source.url) }],
+          }
+          const sources = [evidence(`ev-${id}`, source, ['born June 15'])]
+          return kind === 'create'
+            ? createAction(id, 'P569', date, sources, { references: [reference] })
+            : editAction(
+                id,
+                target.id,
+                [
+                  { op: 'test', path: '/value', value: date },
+                  { op: 'test', path: '/qualifiers', value: [] },
+                  { op: 'add', path: '/references/-', value: reference },
+                ],
+                sources,
+              )
+        }
+        const first = proposal('action-1', source1)
+        const second = proposal('action-2', source2)
+        const unrelated = createAction('action-3', 'P19', entityContent('Q300'), [
+          evidence('ev-3', source3, ['born in Capital City']),
+        ])
+        const view = (actions: Action[]) => (
+          <ControlledEvaluationView
+            politician={{
+              ...politicianWithDifferentSources,
+              statements: kind === 'create' ? [] : [target],
+              actions,
+            }}
+            onSubmit={onSubmit}
+            footer={({ submit }) => <button onClick={submit}>Submit Decisions &amp; Next</button>}
+          />
+        )
+        const { rerender } = render(view([first, unrelated]))
+        fireEvent.click(screen.getByRole('button', { name: /✓ Accept/ }))
+
+        rerender(view([second, first, unrelated]))
+        expect(screen.getByRole('button', { name: /✓ Accept/ })).toHaveClass('bg-success')
+        fireEvent.click(screen.getByRole('button', { name: /Submit Decisions & Next/ }))
+
+        await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+        expect(onSubmit).toHaveBeenCalledWith({
+          actions: [second, first].map(({ id, kind, statement_id, payload }) => ({
+            id,
+            kind,
+            statement_id,
+            payload,
+            is_accepted: true,
+          })),
+          skips: [unrelated.id],
+        })
+      },
+    )
 
     it('submits decisions for decided actions and skips the undecided ones', async () => {
       const onSubmit = vi.fn().mockResolvedValue(undefined)

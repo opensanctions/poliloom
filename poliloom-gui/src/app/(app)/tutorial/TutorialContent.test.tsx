@@ -790,7 +790,7 @@ describe('Tutorial Page', () => {
           screen.getByRole('link', { name: 'Springfield Republic (Q999001)' }),
         ).toBeInTheDocument()
         expect(screen.getAllByText('+ Reference')).toHaveLength(2)
-        expect(screen.getAllByText('Reference URL')).toHaveLength(2)
+        expect(screen.queryByText('Reference URL')).not.toBeInTheDocument()
       })
 
       it('goes back when clicking "Go Back"', () => {

@@ -27,6 +27,12 @@ const timeContent = (time: string, precision = 11): RestValue => ({
 
 const entityContent = (qid: string): RestValue => ({ type: 'value', content: qid })
 
+const cite = (url: string): JsonPatchOperation => ({
+  op: 'add',
+  path: '/references/-',
+  value: { parts: [{ property: { id: 'P854' }, value: { type: 'value', content: url } }] },
+})
+
 const mockSource: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
@@ -72,7 +78,6 @@ function createAction(
   value: RestValue,
   options: {
     qualifiers?: RestSnak[]
-    references?: RestStatement['references']
     entityTerms?: TermMaps | null
     evidence?: ActionEvidence[]
   } = {},
@@ -87,7 +92,7 @@ function createAction(
         property: { id: propertyId },
         value,
         qualifiers: options.qualifiers ?? [],
-        references: options.references ?? [],
+        references: [],
       },
     },
     entity_terms: options.entityTerms ?? null,
@@ -118,6 +123,7 @@ function editAction(
 }
 
 const baseProps = {
+  isNewGroup: false,
   decisions: {},
   onDecision: vi.fn(),
   activeSourceId: null as string | null,
@@ -134,7 +140,7 @@ describe('StatementItemView - statements', () => {
         {...baseProps}
         item={{
           statement: statement('s1', 'P569', timeContent('+1990-05-15T00:00:00Z')),
-          createAction: null,
+          createActions: [],
           editActions: [],
         }}
       />,
@@ -155,7 +161,7 @@ describe('StatementItemView - statements', () => {
               { property: { id: 'P582' }, value: timeContent('+2024-12-31T00:00:00Z') },
             ],
           }),
-          createAction: null,
+          createActions: [],
           editActions: [],
         }}
       />,
@@ -170,7 +176,7 @@ describe('StatementItemView - statements', () => {
         {...baseProps}
         item={{
           statement: statement('s1', 'P39', entityContent('Q400')),
-          createAction: null,
+          createActions: [],
           editActions: [],
         }}
       />,
@@ -193,7 +199,7 @@ describe('StatementItemView - statements', () => {
               },
             ],
           }),
-          createAction: null,
+          createActions: [],
           editActions: [],
         }}
       />,
@@ -213,9 +219,11 @@ describe('StatementItemView - create actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          createAction: createAction('a1', 'P569', timeContent('+1990-05-15T00:00:00Z'), {
-            evidence: [mockEvidence],
-          }),
+          createActions: [
+            createAction('a1', 'P569', timeContent('+1990-05-15T00:00:00Z'), {
+              evidence: [mockEvidence],
+            }),
+          ],
           editActions: [],
         }}
       />,
@@ -225,37 +233,107 @@ describe('StatementItemView - create actions', () => {
     expect(screen.getByText('"Test proof line"')).toBeInTheDocument()
   })
 
-  it('renders the reference included in a create action', () => {
+  it('shows the source without a separate reference heading for a create', () => {
     render(
       <StatementItemView
         {...baseProps}
         item={{
           statement: null,
-          createAction: createAction('a1', 'P19', entityContent('Q300'), {
-            references: [
-              {
-                parts: [
-                  {
-                    property: { id: 'P854' },
-                    value: { type: 'value', content: 'https://example.com/source' },
-                  },
-                  { property: { id: 'P143' }, value: entityContent('Q328') },
-                ],
-              },
-            ],
-          }),
+          createActions: [
+            createAction('a1', 'P19', entityContent('Q300'), {
+              entityTerms: terms({ sv: 'Teststad' }),
+              evidence: [mockEvidence],
+            }),
+          ],
           editActions: [],
         }}
       />,
     )
 
-    expect(screen.getByText('+ Reference')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'https://example.com/source' })).toBeInTheDocument()
-    expect(screen.getByText('Imported from')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Q328' })).toHaveAttribute(
-      'href',
-      'https://www.wikidata.org/wiki/Q328',
+    expect(screen.getByText('New statement')).toBeInTheDocument()
+    expect(screen.queryByText('Teststad')).not.toBeInTheDocument()
+    expect(screen.queryByText('References')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
+    expect(screen.getByText('"Test proof line"')).toBeInTheDocument()
+  })
+
+  it('omits a redundant new-statement row when the group title is proposed', () => {
+    render(
+      <StatementItemView
+        {...baseProps}
+        isNewGroup
+        item={{
+          statement: null,
+          createActions: [createAction('a1', 'P19', entityContent('Q300'))],
+          editActions: [],
+        }}
+      />,
     )
+
+    expect(screen.queryByText('New statement')).not.toBeInTheDocument()
+  })
+
+  it('shows only the proposed timeframe for a new position', () => {
+    render(
+      <StatementItemView
+        {...baseProps}
+        item={{
+          statement: null,
+          createActions: [
+            createAction('a1', 'P39', entityContent('Q400'), {
+              entityTerms: terms({ sv: 'Statsminister' }),
+              qualifiers: [
+                { property: { id: 'P580' }, value: timeContent('+2026-03-15T00:00:00Z') },
+              ],
+            }),
+          ],
+          editActions: [],
+        }}
+      />,
+    )
+
+    expect(screen.getByText('March 15, 2026 – present')).toBeInTheDocument()
+    expect(screen.queryByText('Statsminister')).not.toBeInTheDocument()
+  })
+
+  it('groups equivalent creates and omits redundant new markers in a new group', () => {
+    const secondSource = {
+      ...mockSource,
+      id: 'archived-2',
+      url: 'https://de.wikipedia.org/wiki/Test_Politician',
+    }
+    const qualifiers = [{ property: { id: 'P580' }, value: timeContent('+2026-03-15T00:00:00Z') }]
+    render(
+      <StatementItemView
+        {...baseProps}
+        isNewGroup
+        activeSourceId={mockSource.id}
+        item={{
+          statement: null,
+          createActions: [
+            createAction('a1', 'P39', entityContent('Q400'), {
+              qualifiers,
+              evidence: [mockEvidence],
+            }),
+            createAction('a2', 'P39', entityContent('Q400'), {
+              qualifiers,
+              evidence: [{ id: 'ev-2', source: secondSource, supporting_quotes: ['Second proof'] }],
+            }),
+          ],
+          editActions: [],
+        }}
+      />,
+    )
+
+    const timeframe = screen.getByText('March 15, 2026 – present')
+    expect(timeframe.parentElement).toHaveTextContent('March 15, 2026 – present')
+    expect(timeframe.parentElement).not.toHaveTextContent('+')
+    expect(timeframe.parentElement).toHaveClass('text-foreground-secondary')
+    expect(screen.queryByText('References')).not.toBeInTheDocument()
+    expect(screen.queryByText('+ References')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: secondSource.url })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /✓ Accept/ })).toHaveLength(1)
   })
 
   it('calls onDecision when Accept and Discard are clicked', () => {
@@ -270,7 +348,7 @@ describe('StatementItemView - create actions', () => {
         {...baseProps}
         onDecision={onDecision}
         activeSourceId={mockSource.id}
-        item={{ statement: null, createAction: action, editActions: [] }}
+        item={{ statement: null, createActions: [action], editActions: [] }}
       />,
     )
 
@@ -285,12 +363,16 @@ describe('StatementItemView - create actions', () => {
     render(
       <StatementItemView
         {...baseProps}
-        decisions={{ a1: true }}
         item={{
           statement: null,
-          createAction: createAction('a1', 'P19', entityContent('Q300'), {
-            evidence: [mockEvidence],
-          }),
+          createActions: [
+            {
+              ...createAction('a1', 'P19', entityContent('Q300'), {
+                evidence: [mockEvidence],
+              }),
+              is_accepted: true,
+            },
+          ],
           editActions: [],
         }}
       />,
@@ -306,9 +388,11 @@ describe('StatementItemView - create actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          createAction: createAction('a1', 'P19', entityContent('Q300'), {
-            evidence: [mockEvidence],
-          }),
+          createActions: [
+            createAction('a1', 'P19', entityContent('Q300'), {
+              evidence: [mockEvidence],
+            }),
+          ],
           editActions: [],
         }}
       />,
@@ -323,7 +407,7 @@ describe('StatementItemView - create actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          createAction: createAction('a1', 'P19', entityContent('Q300')),
+          createActions: [createAction('a1', 'P19', entityContent('Q300'))],
           editActions: [],
         }}
       />,
@@ -341,7 +425,7 @@ describe('StatementItemView - edit actions', () => {
     return render(
       <StatementItemView
         {...baseProps}
-        item={{ statement: targetStatement, createAction: null, editActions: actions }}
+        item={{ statement: targetStatement, createActions: [], editActions: actions }}
       />,
     )
   }
@@ -361,13 +445,36 @@ describe('StatementItemView - edit actions', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders a refinement with its source evidence', () => {
+    renderItem([
+      editAction(
+        'e1',
+        's1',
+        [
+          { op: 'test', path: '/value', value: timeContent('+1980-01-01T00:00:00Z') },
+          { op: 'replace', path: '/value', value: timeContent('+1980-01-02T00:00:00Z') },
+          cite(mockSource.url),
+        ],
+        { evidence: [mockEvidence] },
+      ),
+    ])
+
+    expect(
+      screen.getByText(
+        (_, element) => element?.textContent === 'January 1, 1980 → January 2, 1980',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
+    expect(screen.queryByText('+ Reference')).not.toBeInTheDocument()
+  })
+
   it('renders an entity value refinement using the action entity terms for the new value', () => {
     render(
       <StatementItemView
         {...baseProps}
         item={{
           statement: statement('s1', 'P19', entityContent('Q500')),
-          createAction: null,
+          createActions: [],
           editActions: [
             editAction(
               'e1',
@@ -436,26 +543,36 @@ describe('StatementItemView - edit actions', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders a reference append with its URL', () => {
-    renderItem([
-      editAction('e1', 's1', [
-        {
-          op: 'add',
-          path: '/references/-',
-          value: {
-            hash: 'ref-hash',
-            parts: [
-              { property: { id: 'P854' }, value: entityContent('https://example.com/source') },
-            ],
-          },
-        },
-      ]),
-    ])
+  it('groups references to unchanged data under one decision control', () => {
+    const secondSource = { ...mockSource, id: 'archived-2', url: 'https://example.com/second' }
+    const supportPatch: JsonPatchOperation[] = [
+      { op: 'test', path: '/value', value: target.document.value },
+      { op: 'test', path: '/qualifiers', value: [] },
+    ]
+    render(
+      <StatementItemView
+        {...baseProps}
+        activeSourceId={mockSource.id}
+        item={{
+          statement: target,
+          createActions: [],
+          editActions: [
+            editAction('e1', 's1', [...supportPatch, cite(mockSource.url)], {
+              evidence: [mockEvidence],
+            }),
+            editAction('e2', 's1', [...supportPatch, cite(secondSource.url)], {
+              evidence: [{ ...mockEvidence, id: 'ev-2', source: secondSource }],
+            }),
+          ],
+        }}
+      />,
+    )
 
-    expect(screen.getByText('+ Reference')).toBeInTheDocument()
-    expect(screen.getByText('Reference URL')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'https://example.com/source' })).toBeInTheDocument()
-    expect(screen.queryByText(/P854/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('January 1, 1980')).toHaveLength(1)
+    expect(screen.getByText('+ References')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: secondSource.url })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /✓ Accept/ })).toHaveLength(1)
   })
 
   it('renders multiple edit actions as separate proposals', () => {
@@ -488,23 +605,28 @@ describe('StatementItemView - edit actions', () => {
       <StatementItemView
         {...baseProps}
         activeSourceId={mockSource.id}
-        decisions={{ e1: false }}
         item={{
           statement: target,
-          createAction: null,
+          createActions: [],
           editActions: [
-            editAction(
-              'e1',
-              's1',
-              [
-                {
-                  op: 'add',
-                  path: '/qualifiers/-',
-                  value: { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
-                },
-              ],
-              { evidence: [mockEvidence] },
-            ),
+            {
+              ...editAction(
+                'e1',
+                's1',
+                [
+                  {
+                    op: 'add',
+                    path: '/qualifiers/-',
+                    value: {
+                      property: { id: 'P580' },
+                      value: timeContent('+2017-01-01T00:00:00Z'),
+                    },
+                  },
+                ],
+                { evidence: [mockEvidence] },
+              ),
+              is_accepted: false,
+            },
           ],
         }}
       />,

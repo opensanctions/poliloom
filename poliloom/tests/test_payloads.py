@@ -4,7 +4,6 @@ from copy import deepcopy
 
 from poliloom.payloads import (
     append_qualifier_patch,
-    append_reference_patch,
     create_body,
     refine_qualifier_patch,
     refine_value_patch,
@@ -95,6 +94,7 @@ def test_refine_qualifier_patch_tests_exact_element_before_replacing():
 
     assert result == {
         "patch": [
+            {"op": "test", "path": "/value", "value": statement["value"]},
             {
                 "op": "test",
                 "path": "/qualifiers/0",
@@ -116,6 +116,7 @@ def test_append_qualifier_patch_tests_existing_array_before_adding():
 
     assert result == {
         "patch": [
+            {"op": "test", "path": "/value", "value": statement["value"]},
             {
                 "op": "test",
                 "path": "/qualifiers",
@@ -133,38 +134,9 @@ def test_append_qualifier_patch_tests_empty_array():
 
     assert result == {
         "patch": [
+            {"op": "test", "path": "/value", "value": statement["value"]},
             {"op": "test", "path": "/qualifiers", "value": []},
             {"op": "add", "path": "/qualifiers/-", "value": _START_TIME_QUALIFIER},
-        ]
-    }
-
-
-def test_append_reference_patch_tests_existing_array_before_adding():
-    statement = _full_statement()
-
-    result = append_reference_patch(statement, _URL_REFERENCE)
-
-    assert result == {
-        "patch": [
-            {
-                "op": "test",
-                "path": "/references",
-                "value": [_URL_REFERENCE],
-            },
-            {"op": "add", "path": "/references/-", "value": _URL_REFERENCE},
-        ]
-    }
-
-
-def test_append_reference_patch_tests_empty_array():
-    statement = _statement()
-
-    result = append_reference_patch(statement, _URL_REFERENCE)
-
-    assert result == {
-        "patch": [
-            {"op": "test", "path": "/references", "value": []},
-            {"op": "add", "path": "/references/-", "value": _URL_REFERENCE},
         ]
     }
 
@@ -178,6 +150,5 @@ def test_builders_do_not_mutate_the_document():
     refine_value_patch(statement, new_value)
     refine_qualifier_patch(statement, 1, _START_TIME_QUALIFIER)
     append_qualifier_patch(statement, _START_TIME_QUALIFIER)
-    append_reference_patch(statement, _URL_REFERENCE)
 
     assert statement == snapshot

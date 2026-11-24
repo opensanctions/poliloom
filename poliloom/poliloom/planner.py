@@ -5,17 +5,15 @@ This module compares one candidate against a politician's cached statement
 documents and decides the single logical change to persist, if any:
 
 - ``create``: a new statement (POST body via payloads.create_body)
-- ``edit``: an RFC 6902 patch against one existing statement
-  (payloads.append_qualifier_patch / refine_qualifier_patch /
-  refine_value_patch / append_reference_patch)
+- ``edit``: a guarded patch against one existing statement, with or without
+  a change to its value or qualifiers
 
-``persist_decision`` turns a planned Decision into a persisted Action with
-source evidence, deduplicating against pending Actions.
+``persist_decision`` records the proposed write, including any source
+reference, and links it to the supporting evidence.
 
 Every rule below operates only on documents of the candidate's property.
 """
 
-import json
 from dataclasses import dataclass
 from typing import Literal
 
@@ -25,10 +23,10 @@ from .comparison import StatementComparison, compare_statement, is_timeframe_sub
 from .models import Action, ActionEvidence, ActionKind, Politician, Source, Statement
 from .payloads import (
     append_qualifier_patch,
-    append_reference_patch,
     create_body,
     refine_qualifier_patch,
     refine_value_patch,
+    statement_fact_guards,
 )
 from .wikidata.date import WikidataDate
 from .wikidata.document import (
@@ -36,12 +34,7 @@ from .wikidata.document import (
     qualifier_time_value,
     statement_property_id,
 )
-
-_REFERENCE_URL_ID = "P854"
-_IMPORTED_FROM_ID = "P143"
-_WIKIMEDIA_IMPORT_URL_ID = "P4656"
-_RETRIEVED_AT_ID = "P813"
-_WIKIMEDIA_IMPORT_IDS = frozenset({_IMPORTED_FROM_ID, _WIKIMEDIA_IMPORT_URL_ID})
+from .wikidata.references import missing_references
 
 _DATE_PROPERTY_IDS = frozenset({"P569", "P570"})
 _ENTITY_PROPERTY_IDS = frozenset({"P19", "P27"})
@@ -66,62 +59,8 @@ class Decision:
     target_index: int | None = None
 
 
-def reference_identity(reference: dict) -> str:
-    """Canonical identity string for a reference.
-
-    The reference URL part (P854) identifies the reference when present,
-    else the Wikimedia import URL part (P4656), else the canonical JSON of
-    the remaining parts. Retrieval dates (P813) and the read-only ``hash``
-    never affect identity.
-    """
-    parts = reference.get("parts", [])
-    for property_id in (_REFERENCE_URL_ID, _WIKIMEDIA_IMPORT_URL_ID):
-        for part in parts:
-            if part["property"]["id"] == property_id:
-                return part["value"]["content"]
-
-    identifying_parts = [
-        part for part in parts if part["property"]["id"] != _RETRIEVED_AT_ID
-    ]
-    return json.dumps(identifying_parts, sort_keys=True, separators=(",", ":"))
-
-
-def reference_is_wikimedia_import(reference: dict) -> bool:
-    """Whether the reference records an import from a Wikimedia project.
-
-    Wikimedia import references (P143/P4656) mark where a statement was
-    copied from. They do not source it, so they only belong on newly
-    imported statements, never appended to an existing one.
-    """
-    return any(
-        part["property"]["id"] in _WIKIMEDIA_IMPORT_IDS
-        for part in reference.get("parts", [])
-    )
-
-
-def reference_present(document: dict, reference: dict) -> bool:
-    """Check whether a statement document already carries a reference."""
-    identity = reference_identity(reference)
-    return any(
-        reference_identity(existing) == identity for existing in document["references"]
-    )
-
-
-def plan(
-    candidate: dict, existing_documents: list[dict], reference: dict
-) -> Decision | None:
-    """Decide what change (if any) to persist for a candidate statement.
-
-    Args:
-        candidate: REST statement body (``property``/``value``/
-            ``qualifiers``) extracted from a source.
-        existing_documents: the politician's cached statement documents, all
-            properties; filtered to the candidate's property internally.
-        reference: proposed REST reference object (``{"parts": [...]}``)
-            from the evidence source.
-
-    Returns None when the existing data already covers the candidate.
-    """
+def plan(candidate: dict, existing_documents: list[dict]) -> Decision | None:
+    """Plan how a candidate creates, changes, or supports a statement."""
     property_id = statement_property_id(candidate)
     same_property_documents = [
         document
@@ -130,12 +69,11 @@ def plan(
     ]
 
     if property_id in _DATE_PROPERTY_IDS:
-        return _plan_date(candidate, same_property_documents, reference)
+        return _plan_date(candidate, same_property_documents)
     if property_id == _POSITION_PROPERTY_ID:
-        return _plan_position(candidate, same_property_documents, reference)
+        return _plan_position(candidate, same_property_documents)
     if property_id in _ENTITY_PROPERTY_IDS:
-        return _plan_entity(candidate, same_property_documents, reference)
-
+        return _plan_entity(candidate, same_property_documents)
     raise ValueError(f"Unsupported property in planning: {property_id}")
 
 
@@ -153,53 +91,43 @@ def persist_decision(
     order-preserved list of Statement objects whose documents were passed
     to ``plan()``; a decision's ``target_index`` indexes into it.
 
-    A pending Action (``is_accepted IS NULL``) on the same politician with
-    the same kind, statement_id, and equal canonicalized payload is not
-    duplicated: the source is attached as further evidence on it instead
-    (quotes merged by union when the source is already attached). Decided
-    actions are immutable and never deduplication targets.
-
-    Returns the Action the evidence was attached to, or None when the
-    decision is None (nothing to persist).
+    Each proposal has its own Action and evidence. A Wikimedia import marker
+    by itself does not warrant editing an existing statement.
     """
     if decision is None:
         return None
 
-    kind = (
-        ActionKind.CREATE_STATEMENT
-        if decision.kind == "create"
-        else ActionKind.EDIT_STATEMENT
-    )
-    statement_id = None
-    if decision.kind == "edit":
-        statement_id = existing_statements[decision.target_index].id
-
-    payload_json = json.dumps(decision.payload, sort_keys=True)
-    statement_filter = (
-        Action.statement_id.is_(None)
-        if statement_id is None
-        else Action.statement_id == statement_id
-    )
-    pending_actions = (
-        db.query(Action)
-        .filter(
-            Action.politician_id == politician.id,
-            Action.kind == kind,
-            Action.is_accepted.is_(None),
-            statement_filter,
+    if decision.kind == "create":
+        kind = ActionKind.CREATE_STATEMENT
+        statement_id = None
+        payload = create_body(
+            {
+                **decision.payload["statement"],
+                "references": [{"parts": source.create_references_json()}],
+            }
         )
-        .all()
-    )
-    for action in pending_actions:
-        if json.dumps(action.payload, sort_keys=True) != payload_json:
-            continue
-        _attach_evidence(db, action, source, supporting_quotes)
-        return action
+    else:
+        kind = ActionKind.EDIT_STATEMENT
+        target = existing_statements[decision.target_index]
+        statement_id = target.id
+        patch = decision.payload["patch"]
+        reference_only = all(operation["op"] == "test" for operation in patch)
+        if source.wikipedia_project_id:
+            if reference_only:
+                return None
+        else:
+            reference = {"parts": source.create_references_json()}
+            if reference_only and not missing_references(
+                [reference], target.document["references"]
+            ):
+                return None
+            patch = [*patch, {"op": "add", "path": "/references/-", "value": reference}]
+        payload = {"patch": patch}
 
     action = Action(
         politician_id=politician.id,
         kind=kind,
-        payload=decision.payload,
+        payload=payload,
         statement_id=statement_id,
     )
     db.add(action)
@@ -212,49 +140,24 @@ def persist_decision(
     return action
 
 
-def _attach_evidence(
-    db: Session, action: Action, source: Source, supporting_quotes: list[str]
-) -> None:
-    """Attach the source as evidence, merging quotes when already attached."""
-    evidence = (
-        db.query(ActionEvidence)
-        .filter_by(action_id=action.id, source_id=source.id)
-        .first()
-    )
-    if evidence:
-        evidence.supporting_quotes = list(
-            set((evidence.supporting_quotes or []) + supporting_quotes)
-        )
-    else:
-        db.add(
-            ActionEvidence(
-                action=action, source=source, supporting_quotes=supporting_quotes
-            )
-        )
-
-
-def _plan_date(
-    candidate: dict, same_property_documents: list[dict], reference: dict
-) -> Decision | None:
+def _plan_date(candidate: dict, same_property_documents: list[dict]) -> Decision:
     """P569/P570: refine the sole compatible statement, else create."""
     compatible = _compatible_targets(candidate, same_property_documents)
 
     if len(compatible) != 1:
         # Zero compatible targets: no statement states this date. More than
         # one: ambiguous, never guess which statement to act on.
-        return _create_decision(candidate, reference)
+        return _create_decision(candidate)
 
     index, document, comparison = compatible[0]
     if comparison is StatementComparison.CANDIDATE_REFINES_EXISTING:
         return Decision("edit", refine_value_patch(document, candidate["value"]), index)
 
-    # EQUIVALENT or EXISTING_SUBSUMES_CANDIDATE: the fact is known; only a
-    # missing reference can change anything.
-    return _reference_append_decision(document, index, reference)
+    return _support_decision(document, index)
 
 
 def _plan_position(
-    candidate: dict, same_property_documents: list[dict], reference: dict
+    candidate: dict, same_property_documents: list[dict]
 ) -> Decision | None:
     """P39: qualifier refinement on the sole compatible statement, else create."""
     same_position = [
@@ -276,7 +179,7 @@ def _plan_position(
         ]
         if len(equivalent) == 1:
             index, document = equivalent[0]
-            return _reference_append_decision(document, index, reference)
+            return _support_decision(document, index)
         return None
 
     compatible = [
@@ -287,19 +190,17 @@ def _plan_position(
     ]
 
     if len(compatible) != 1:
-        return _create_decision(candidate, reference)
+        return _create_decision(candidate)
 
     index, document, comparison = compatible[0]
     if comparison is not StatementComparison.CANDIDATE_REFINES_EXISTING:
-        # EQUIVALENT or EXISTING_SUBSUMES_CANDIDATE: only a missing
-        # reference can change anything.
-        return _reference_append_decision(document, index, reference)
-    return _position_refinement_decision(candidate, document, index, reference)
+        return _support_decision(document, index)
+    return _position_refinement_decision(candidate, document, index)
 
 
 def _position_refinement_decision(
-    candidate: dict, document: dict, index: int, reference: dict
-) -> Decision | None:
+    candidate: dict, document: dict, index: int
+) -> Decision:
     """Pick the one qualifier change for a refining position candidate.
 
     When several timeframe qualifiers need changes, appends win over
@@ -337,16 +238,11 @@ def _position_refinement_decision(
             index,
         )
 
-    # The candidate carries no timeframe qualifiers here (the comparison's
-    # has-dates special case cannot produce CANDIDATE_REFINES_EXISTING for
-    # it), so only a missing reference can change anything.
-    return _reference_append_decision(document, index, reference)
+    return _support_decision(document, index)
 
 
-def _plan_entity(
-    candidate: dict, same_property_documents: list[dict], reference: dict
-) -> Decision | None:
-    """P19/P27: reference the sole equivalent statement, else create.
+def _plan_entity(candidate: dict, same_property_documents: list[dict]) -> Decision:
+    """P19/P27: support the sole equivalent statement, else create.
 
     An entity value is never replaced: a differing candidate is a new fact.
     """
@@ -359,27 +255,21 @@ def _plan_entity(
     ]
 
     if len(equivalent) != 1:
-        return _create_decision(candidate, reference)
+        return _create_decision(candidate)
 
     index, document = equivalent[0]
-    return _reference_append_decision(document, index, reference)
+    return _support_decision(document, index)
 
 
-def _reference_append_decision(
-    document: dict, index: int, reference: dict
-) -> Decision | None:
-    """Append the reference to a statement, or None when already present."""
-    if reference_is_wikimedia_import(reference):
-        return None
-    if reference_present(document, reference):
-        return None
-    return Decision("edit", append_reference_patch(document, reference), index)
+def _support_decision(document: dict, index: int) -> Decision:
+    # The source supports this value and qualifiers, not whatever may replace them.
+    return Decision("edit", {"patch": statement_fact_guards(document)}, index)
 
 
-def _create_decision(candidate: dict, reference: dict) -> Decision:
-    """Build a create Action for the candidate, referenced by the source."""
+def _create_decision(candidate: dict) -> Decision:
+    """Build a create Action for the candidate."""
     statement = dict(candidate)
-    statement["references"] = [reference]
+    statement["references"] = []
     statement.setdefault("rank", "normal")
     return Decision("create", create_body(statement))
 
