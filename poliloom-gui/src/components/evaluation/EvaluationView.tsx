@@ -220,11 +220,11 @@ export function EvaluationView({
                 {section.groups.map((group) => {
                   const first = group.items[0]
                   const terms =
-                    first.statement?.entity_terms ?? first.actions[0]?.entity_terms ?? null
+                    first.statement?.entity_terms ?? first.proposals[0]?.[0]?.entity_terms ?? null
                   const isNewGroup =
                     section.sectionType !== 'date' &&
                     group.items.every(
-                      (item) => item.statement === null && item.actions[0].change === 'add',
+                      (item) => item.statement === null && item.proposals[0][0].change === 'add',
                     )
                   return (
                     <HeaderedBox
@@ -237,7 +237,7 @@ export function EvaluationView({
                           proposed={isNewGroup}
                         />
                       }
-                      onHover={() => handleEvidenceHover(proposalEvidence(first.actions))}
+                      onHover={() => handleEvidenceHover(proposalEvidence(first.proposals.flat()))}
                     >
                       <div className="space-y-3">
                         {group.items.map((item, index) => (

@@ -7,12 +7,7 @@ import type {
   StatementFact,
   TermMaps,
 } from '@/types'
-import {
-  groupProposals,
-  proposalEvidence,
-  type ProposalDecisions,
-  type StatementItem,
-} from '@/lib/actions'
+import { proposalEvidence, type ProposalDecisions, type StatementItem } from '@/lib/actions'
 import { best_label } from '@/lib/labels'
 import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { parseTimeValue, timeValue } from '@/lib/wikidata/dateParser'
@@ -236,7 +231,7 @@ export interface StatementItemViewProps extends ReviewControls {
 
 export function StatementItemView({ item, isNewGroup, ...controls }: StatementItemViewProps) {
   const labelLanguages = useLabelLanguages()
-  const { statement, actions } = item
+  const { statement, proposals } = item
   const fact = statement?.document
   const currentTerms = statement?.entity_terms ?? null
   const currentValue =
@@ -245,7 +240,7 @@ export function StatementItemView({ item, isNewGroup, ...controls }: StatementIt
       : null
   const timeframe = fact?.property.id === 'P39' ? parseTimeframe(fact.qualifiers) : null
   const missingTimeframe = timeframe && timeframe.start === null && timeframe.end === null
-  const hasRefine = actions.some((action) => action.change === 'refine')
+  const hasRefine = proposals.some((proposal) => proposal[0].change === 'refine')
 
   return (
     <div className="space-y-3">
@@ -257,7 +252,7 @@ export function StatementItemView({ item, isNewGroup, ...controls }: StatementIt
             (missingTimeframe ? 'No timeframe specified' : currentValue)}
         </div>
       )}
-      {groupProposals(actions).map((proposal) => (
+      {proposals.map((proposal) => (
         <ProposalView
           key={proposal[0].group_key}
           proposal={proposal}

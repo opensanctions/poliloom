@@ -68,7 +68,6 @@ function action(
     after?: StatementFact
     groupKey?: string
     referencesToAdd?: RestReference[]
-    isAccepted?: boolean | null
   } = {},
 ): Action {
   return {
@@ -77,14 +76,10 @@ function action(
     before: options.before ?? null,
     after: options.after ?? fact('P569', timeContent('+2000-01-01T00:00:00Z', 11)),
     references_to_add: options.referencesToAdd ?? [],
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: options.change ?? 'add',
     entity_terms: null,
     evidence: [{ id: `ev-${id}`, source: mockSource, supporting_quotes: null }],
-    is_accepted: options.isAccepted ?? null,
-    applied_at: null,
-    error: null,
   }
 }
 
@@ -137,11 +132,8 @@ describe('buildSubmission', () => {
     })
   })
 
-  it('skips served decisions that have no explicit review decision', () => {
-    const accepted = action('a1', { isAccepted: true })
-    const discarded = action('a2', { isAccepted: false })
-
-    expect(buildSubmission([accepted, discarded], {})).toEqual({
+  it('skips actions that have no explicit review decision', () => {
+    expect(buildSubmission([action('a1'), action('a2')], {})).toEqual({
       actions: [],
       skips: ['a1', 'a2'],
     })
@@ -272,7 +264,7 @@ describe('groupStatementsIntoSections', () => {
 
     const dates = sections[0].groups[0].items[0]
     expect(dates.statement).toBe(birthDate)
-    expect(dates.actions).toEqual([valueRefinement])
+    expect(dates.proposals).toEqual([[valueRefinement]])
   })
 
   it('places add actions as standalone items in their section', () => {
@@ -283,7 +275,7 @@ describe('groupStatementsIntoSections', () => {
 
     expect(sections[0].groups.map((g) => g.key)).toEqual(['Q200', 'Q500'])
     const standalone = sections[0].groups.find((g) => g.key === 'Q500')!
-    expect(standalone.items).toEqual([{ statement: null, actions: [created] }])
+    expect(standalone.items).toEqual([{ statement: null, proposals: [[created]] }])
   })
 
   it('places equivalent additions in the same standalone item', () => {
@@ -294,8 +286,8 @@ describe('groupStatementsIntoSections', () => {
     const sections = groupStatementsIntoSections([], [first, second, differentGroup])
 
     expect(sections[0].groups[0].items).toEqual([
-      { statement: null, actions: [first, second] },
-      { statement: null, actions: [differentGroup] },
+      { statement: null, proposals: [[first, second]] },
+      { statement: null, proposals: [[differentGroup]] },
     ])
   })
 
@@ -305,10 +297,9 @@ describe('groupStatementsIntoSections', () => {
     ])
     const sections = groupStatementsIntoSections([governor2018], [created])
 
-    expect(sections[0].groups[0].items.map((i) => i.statement?.id ?? i.actions[0].id)).toEqual([
-      'a1',
-      'row-3',
-    ])
+    expect(sections[0].groups[0].items.map((i) => i.statement?.id ?? i.proposals[0][0].id)).toEqual(
+      ['a1', 'row-3'],
+    )
   })
 
   it('keeps a stable target when its cached statement is missing', () => {
@@ -321,7 +312,7 @@ describe('groupStatementsIntoSections', () => {
     const sections = groupStatementsIntoSections([], [orphan])
 
     expect(orphan.target_wikidata_statement_id).toBe('Q1$gone')
-    expect(sections[0].groups[0].items).toEqual([{ statement: null, actions: [orphan] }])
+    expect(sections[0].groups[0].items).toEqual([{ statement: null, proposals: [[orphan]] }])
     expect(itemFact(sections[0].groups[0].items[0])).toEqual(orphan.after)
   })
 
@@ -331,22 +322,10 @@ describe('groupStatementsIntoSections', () => {
     expect(() => groupStatementsIntoSections([occupation], [])).toThrow(/P106/)
   })
 
-  it('omits empty sections by default', () => {
+  it('omits empty sections', () => {
     const sections = groupStatementsIntoSections([birthDate], [])
 
     expect(sections.map((s) => s.title)).toEqual(['Dates'])
-  })
-
-  it('includes empty sections when showEmptySections is true', () => {
-    const sections = groupStatementsIntoSections([birthDate], [], { showEmptySections: true })
-
-    expect(sections.map((s) => s.title)).toEqual([
-      'Dates',
-      'Political Positions',
-      'Birthplaces',
-      'Citizenships',
-    ])
-    expect(sections[1].groups).toHaveLength(0)
   })
 
   it('returns an empty array for no statements and no actions', () => {

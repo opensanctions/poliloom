@@ -405,25 +405,17 @@ class TestGetPoliticianActions:
             "before",
             "after",
             "references_to_add",
-            "applied_wikidata_statement_id",
             "group_key",
             "change",
             "entity_terms",
             "evidence",
-            "is_accepted",
-            "applied_at",
-            "error",
         }
         assert birth["target_wikidata_statement_id"] is None
         assert birth["before"] is None
         assert birth["after"] == birth_date_fact()
         assert birth["references_to_add"] == []
-        assert birth["applied_wikidata_statement_id"] is None
         assert birth["group_key"]
         assert birth["change"] == "add"
-        assert birth["is_accepted"] is None
-        assert birth["applied_at"] is None
-        assert birth["error"] is None
         # Date-valued create actions have no value entity
         assert birth["entity_terms"] is None
         assert len(birth["evidence"]) == 1
@@ -493,7 +485,6 @@ class TestGetPoliticianActions:
         assert response["before"] == statement_fact(document)
         assert response["after"] == after
         assert response["change"] == "refine"
-        assert response["applied_wikidata_statement_id"] is None
         assert response["entity_terms"] is None
 
     def test_decided_actions_excluded(

@@ -109,7 +109,6 @@ def build_politician_response(
             before=action.before,
             after=action.after,
             references_to_add=action.references_to_add,
-            applied_wikidata_statement_id=action.applied_wikidata_statement_id,
             group_key=action_group_key(action),
             change=(
                 "add"
@@ -127,9 +126,6 @@ def build_politician_response(
                 )
                 for evidence in action.evidence
             ],
-            is_accepted=action.is_accepted,
-            applied_at=action.applied_at,
-            error=action.error,
         )
         for action in politician.actions
     ]

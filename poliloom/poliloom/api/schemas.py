@@ -107,14 +107,10 @@ class ActionResponse(UUIDBaseModel):
     before: dict | None
     after: dict
     references_to_add: list[dict]
-    applied_wikidata_statement_id: str | None
     group_key: str
     change: Literal["add", "refine", "reference"]
     entity_terms: TermMaps | None = None  # Terms of the action's value entity
     evidence: list[ActionEvidenceResponse] = []
-    is_accepted: bool | None = None
-    applied_at: datetime | None = None
-    error: str | None = None
 
 
 class PoliticianResponse(UUIDBaseModel):

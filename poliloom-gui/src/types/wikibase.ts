@@ -66,14 +66,10 @@ export interface Action {
   before: StatementFact | null
   after: StatementFact
   references_to_add: RestReference[]
-  applied_wikidata_statement_id: string | null
   group_key: string
   change: ActionChange
   entity_terms: TermMaps | null
   evidence: ActionEvidence[]
-  is_accepted: boolean | null
-  applied_at: string | null
-  error: string | null
 }
 
 export interface Statement {

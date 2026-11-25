@@ -94,14 +94,10 @@ function addAction(
     before: null,
     after: fact(propertyId, value, options.qualifiers ?? []),
     references_to_add: options.references ?? [],
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: 'add',
     entity_terms: options.entityTerms ?? null,
     evidence: options.evidence ?? [],
-    is_accepted: null,
-    applied_at: null,
-    error: null,
   }
 }
 
@@ -118,14 +114,10 @@ function refineAction(
     before,
     after,
     references_to_add: [],
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: 'refine',
     entity_terms: options.entityTerms ?? null,
     evidence: options.evidence ?? [],
-    is_accepted: null,
-    applied_at: null,
-    error: null,
   }
 }
 
@@ -142,14 +134,10 @@ function referenceAction(
     before,
     after: before,
     references_to_add: references,
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: 'reference',
     entity_terms: options.entityTerms ?? null,
     evidence: options.evidence ?? [],
-    is_accepted: null,
-    applied_at: null,
-    error: null,
   }
 }
 
@@ -171,7 +159,7 @@ describe('StatementItemView - statements', () => {
         {...baseProps}
         item={{
           statement: statement('s1', 'P569', timeContent('+1990-05-15T00:00:00Z')),
-          actions: [],
+          proposals: [],
         }}
       />,
     )
@@ -191,7 +179,7 @@ describe('StatementItemView - statements', () => {
               { property: { id: 'P582' }, value: timeContent('+2024-12-31T00:00:00Z') },
             ],
           }),
-          actions: [],
+          proposals: [],
         }}
       />,
     )
@@ -205,7 +193,7 @@ describe('StatementItemView - statements', () => {
         {...baseProps}
         item={{
           statement: statement('s1', 'P39', entityContent('Q400')),
-          actions: [],
+          proposals: [],
         }}
       />,
     )
@@ -222,7 +210,7 @@ describe('StatementItemView - statements', () => {
             qualifiers: [{ property: { id: 'P580' }, value: timeContent('+2020-01-01T00:00:00Z') }],
             references: [cite('https://example.com')],
           }),
-          actions: [],
+          proposals: [],
         }}
       />,
     )
@@ -240,10 +228,12 @@ describe('StatementItemView - add actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          actions: [
-            addAction('a1', 'P569', timeContent('+1990-05-15T00:00:00Z'), {
-              evidence: [mockEvidence],
-            }),
+          proposals: [
+            [
+              addAction('a1', 'P569', timeContent('+1990-05-15T00:00:00Z'), {
+                evidence: [mockEvidence],
+              }),
+            ],
           ],
         }}
       />,
@@ -259,11 +249,13 @@ describe('StatementItemView - add actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          actions: [
-            addAction('a1', 'P19', entityContent('Q300'), {
-              entityTerms: terms({ sv: 'Teststad' }),
-              evidence: [mockEvidence],
-            }),
+          proposals: [
+            [
+              addAction('a1', 'P19', entityContent('Q300'), {
+                entityTerms: terms({ sv: 'Teststad' }),
+                evidence: [mockEvidence],
+              }),
+            ],
           ],
         }}
       />,
@@ -283,7 +275,7 @@ describe('StatementItemView - add actions', () => {
         isNewGroup
         item={{
           statement: null,
-          actions: [addAction('a1', 'P19', entityContent('Q300'))],
+          proposals: [[addAction('a1', 'P19', entityContent('Q300'))]],
         }}
       />,
     )
@@ -297,13 +289,15 @@ describe('StatementItemView - add actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          actions: [
-            addAction('a1', 'P39', entityContent('Q400'), {
-              entityTerms: terms({ sv: 'Statsminister' }),
-              qualifiers: [
-                { property: { id: 'P580' }, value: timeContent('+2026-03-15T00:00:00Z') },
-              ],
-            }),
+          proposals: [
+            [
+              addAction('a1', 'P39', entityContent('Q400'), {
+                entityTerms: terms({ sv: 'Statsminister' }),
+                qualifiers: [
+                  { property: { id: 'P580' }, value: timeContent('+2026-03-15T00:00:00Z') },
+                ],
+              }),
+            ],
           ],
         }}
       />,
@@ -327,17 +321,21 @@ describe('StatementItemView - add actions', () => {
         activeSourceId={mockSource.id}
         item={{
           statement: null,
-          actions: [
-            addAction('a1', 'P39', entityContent('Q400'), {
-              qualifiers,
-              evidence: [mockEvidence],
-              groupKey: 'same-proposal',
-            }),
-            addAction('a2', 'P39', entityContent('Q400'), {
-              qualifiers,
-              evidence: [{ id: 'ev-2', source: secondSource, supporting_quotes: ['Second proof'] }],
-              groupKey: 'same-proposal',
-            }),
+          proposals: [
+            [
+              addAction('a1', 'P39', entityContent('Q400'), {
+                qualifiers,
+                evidence: [mockEvidence],
+                groupKey: 'same-proposal',
+              }),
+              addAction('a2', 'P39', entityContent('Q400'), {
+                qualifiers,
+                evidence: [
+                  { id: 'ev-2', source: secondSource, supporting_quotes: ['Second proof'] },
+                ],
+                groupKey: 'same-proposal',
+              }),
+            ],
           ],
         }}
       />,
@@ -373,7 +371,7 @@ describe('StatementItemView - add actions', () => {
       <StatementItemView
         {...baseProps}
         onViewSource={onViewSource}
-        item={{ statement: null, actions: [first, second] }}
+        item={{ statement: null, proposals: [[first, second]] }}
       />,
     )
 
@@ -392,10 +390,12 @@ describe('StatementItemView - add actions', () => {
         decisions={{ a1: true }}
         item={{
           statement: null,
-          actions: [
-            addAction('a1', 'P19', entityContent('Q300'), {
-              evidence: [mockEvidence],
-            }),
+          proposals: [
+            [
+              addAction('a1', 'P19', entityContent('Q300'), {
+                evidence: [mockEvidence],
+              }),
+            ],
           ],
         }}
       />,
@@ -411,10 +411,12 @@ describe('StatementItemView - add actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          actions: [
-            addAction('a1', 'P19', entityContent('Q300'), {
-              evidence: [mockEvidence],
-            }),
+          proposals: [
+            [
+              addAction('a1', 'P19', entityContent('Q300'), {
+                evidence: [mockEvidence],
+              }),
+            ],
           ],
         }}
       />,
@@ -429,7 +431,7 @@ describe('StatementItemView - add actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          actions: [addAction('a1', 'P19', entityContent('Q300'))],
+          proposals: [[addAction('a1', 'P19', entityContent('Q300'))]],
         }}
       />,
     )
@@ -442,20 +444,22 @@ describe('StatementItemView - add actions', () => {
 describe('StatementItemView - refine and reference actions', () => {
   const target = statement('s1', 'P569', timeContent('+1980-01-01T00:00:00Z'))
 
-  function renderItem(actions: Action[], targetStatement = target) {
+  function renderItem(proposals: Action[][], targetStatement = target) {
     return render(
-      <StatementItemView {...baseProps} item={{ statement: targetStatement, actions }} />,
+      <StatementItemView {...baseProps} item={{ statement: targetStatement, proposals }} />,
     )
   }
 
   it('renders a value refinement as old → new', () => {
     renderItem([
-      refineAction(
-        'e1',
-        's1',
-        fact('P569', timeContent('+1980-01-01T00:00:00Z')),
-        fact('P569', timeContent('+1980-01-02T00:00:00Z')),
-      ),
+      [
+        refineAction(
+          'e1',
+          's1',
+          fact('P569', timeContent('+1980-01-01T00:00:00Z')),
+          fact('P569', timeContent('+1980-01-02T00:00:00Z')),
+        ),
+      ],
     ])
 
     expect(
@@ -471,14 +475,16 @@ describe('StatementItemView - refine and reference actions', () => {
         {...baseProps}
         item={{
           statement: statement('s1', 'P19', entityContent('Q500')),
-          actions: [
-            refineAction(
-              'e1',
-              's1',
-              fact('P19', entityContent('Q500')),
-              fact('P19', entityContent('Q900')),
-              { entityTerms: terms({ sv: 'Nya staden' }) },
-            ),
+          proposals: [
+            [
+              refineAction(
+                'e1',
+                's1',
+                fact('P19', entityContent('Q500')),
+                fact('P19', entityContent('Q900')),
+                { entityTerms: terms({ sv: 'Nya staden' }) },
+              ),
+            ],
           ],
         }}
       />,
@@ -500,12 +506,14 @@ describe('StatementItemView - refine and reference actions', () => {
     }
     renderItem(
       [
-        refineAction(
-          'e1',
-          's1',
-          fact('P39', entityContent('Q400'), [oldQualifier]),
-          fact('P39', entityContent('Q400'), [newQualifier]),
-        ),
+        [
+          refineAction(
+            'e1',
+            's1',
+            fact('P39', entityContent('Q400'), [oldQualifier]),
+            fact('P39', entityContent('Q400'), [newQualifier]),
+          ),
+        ],
       ],
       statement('s1', 'P39', entityContent('Q400'), { qualifiers: [oldQualifier] }),
     )
@@ -521,14 +529,16 @@ describe('StatementItemView - refine and reference actions', () => {
   it('renders a qualifier append as a complete timeframe change', () => {
     renderItem(
       [
-        refineAction(
-          'e1',
-          's1',
-          fact('P39', entityContent('Q400')),
-          fact('P39', entityContent('Q400'), [
-            { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
-          ]),
-        ),
+        [
+          refineAction(
+            'e1',
+            's1',
+            fact('P39', entityContent('Q400')),
+            fact('P39', entityContent('Q400'), [
+              { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
+            ]),
+          ),
+        ],
       ],
       statement('s1', 'P39', entityContent('Q400')),
     )
@@ -542,9 +552,11 @@ describe('StatementItemView - refine and reference actions', () => {
 
   it('marks a reference proposal as an addition', () => {
     renderItem([
-      referenceAction('e1', 's1', fact('P569', target.document.value), [cite(mockSource.url)], {
-        evidence: [mockEvidence],
-      }),
+      [
+        referenceAction('e1', 's1', fact('P569', target.document.value), [cite(mockSource.url)], {
+          evidence: [mockEvidence],
+        }),
+      ],
     ])
 
     expect(screen.getAllByText('January 1, 1980')).toHaveLength(1)
@@ -563,15 +575,17 @@ describe('StatementItemView - refine and reference actions', () => {
         activeSourceId={mockSource.id}
         item={{
           statement: target,
-          actions: [
-            referenceAction('e1', 's1', before, [cite(mockSource.url)], {
-              evidence: [mockEvidence],
-              groupKey: 'same-reference',
-            }),
-            referenceAction('e2', 's1', before, [cite(secondSource.url)], {
-              evidence: [{ ...mockEvidence, id: 'ev-2', source: secondSource }],
-              groupKey: 'same-reference',
-            }),
+          proposals: [
+            [
+              referenceAction('e1', 's1', before, [cite(mockSource.url)], {
+                evidence: [mockEvidence],
+                groupKey: 'same-reference',
+              }),
+              referenceAction('e2', 's1', before, [cite(secondSource.url)], {
+                evidence: [{ ...mockEvidence, id: 'ev-2', source: secondSource }],
+                groupKey: 'same-reference',
+              }),
+            ],
           ],
         }}
       />,
@@ -589,22 +603,26 @@ describe('StatementItemView - refine and reference actions', () => {
   it('renders multiple edit actions as separate proposals', () => {
     renderItem(
       [
-        refineAction(
-          'e1',
-          's1',
-          fact('P39', entityContent('Q400')),
-          fact('P39', entityContent('Q400'), [
-            { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
-          ]),
-        ),
-        refineAction(
-          'e2',
-          's1',
-          fact('P39', entityContent('Q400')),
-          fact('P39', entityContent('Q400'), [
-            { property: { id: 'P582' }, value: timeContent('+2018-01-01T00:00:00Z') },
-          ]),
-        ),
+        [
+          refineAction(
+            'e1',
+            's1',
+            fact('P39', entityContent('Q400')),
+            fact('P39', entityContent('Q400'), [
+              { property: { id: 'P580' }, value: timeContent('+2017-01-01T00:00:00Z') },
+            ]),
+          ),
+        ],
+        [
+          refineAction(
+            'e2',
+            's1',
+            fact('P39', entityContent('Q400')),
+            fact('P39', entityContent('Q400'), [
+              { property: { id: 'P582' }, value: timeContent('+2018-01-01T00:00:00Z') },
+            ]),
+          ),
+        ],
       ],
       statement('s1', 'P39', entityContent('Q400')),
     )
@@ -619,13 +637,15 @@ describe('StatementItemView - refine and reference actions', () => {
         {...baseProps}
         item={{
           statement: null,
-          actions: [
-            refineAction(
-              'e1',
-              'Q1$gone',
-              fact('P569', timeContent('+1980-01-01T00:00:00Z')),
-              fact('P569', timeContent('+1980-01-02T00:00:00Z')),
-            ),
+          proposals: [
+            [
+              refineAction(
+                'e1',
+                'Q1$gone',
+                fact('P569', timeContent('+1980-01-01T00:00:00Z')),
+                fact('P569', timeContent('+1980-01-02T00:00:00Z')),
+              ),
+            ],
           ],
         }}
       />,
@@ -647,14 +667,16 @@ describe('StatementItemView - refine and reference actions', () => {
         activeSourceId={mockSource.id}
         item={{
           statement: target,
-          actions: [
-            refineAction(
-              'e1',
-              's1',
-              fact('P569', target.document.value),
-              fact('P569', timeContent('+1980-01-02T00:00:00Z')),
-              { evidence: [mockEvidence] },
-            ),
+          proposals: [
+            [
+              refineAction(
+                'e1',
+                's1',
+                fact('P569', target.document.value),
+                fact('P569', timeContent('+1980-01-02T00:00:00Z')),
+                { evidence: [mockEvidence] },
+              ),
+            ],
           ],
         }}
       />,

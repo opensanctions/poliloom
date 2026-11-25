@@ -127,14 +127,10 @@ function addAction(
     before: null,
     after: fact(propertyId, value, options.qualifiers ?? []),
     references_to_add: options.references ?? [],
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: 'add',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
-    is_accepted: null,
-    applied_at: null,
-    error: null,
   }
 }
 
@@ -156,14 +152,10 @@ function refineAction(
     before,
     after,
     references_to_add: options.referencesToAdd ?? [],
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: 'refine',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
-    is_accepted: null,
-    applied_at: null,
-    error: null,
   }
 }
 
@@ -181,14 +173,10 @@ function referenceAction(
     before: statementFact,
     after: statementFact,
     references_to_add: referencesToAdd,
-    applied_wikidata_statement_id: null,
     group_key: options.groupKey ?? id,
     change: 'reference',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
-    is_accepted: null,
-    applied_at: null,
-    error: null,
   }
 }
 

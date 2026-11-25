@@ -38,14 +38,15 @@ export function buildSubmission(
 
 export type SectionType = 'date' | 'P39' | 'P19' | 'P27'
 
-/** A cached statement with its actions, or a standalone proposal. */
+/** A cached statement with its proposals, or a standalone proposal. */
 export interface StatementItem {
   statement: Statement | null
-  actions: Action[]
+  /** Proposals for this item, grouped by the server-supplied group key. */
+  proposals: Action[][]
 }
 
 export function statementItemKey(item: StatementItem): string {
-  return item.statement ? item.statement.document.id : item.actions[0].group_key
+  return item.statement ? item.statement.document.id : item.proposals[0][0].group_key
 }
 
 export interface StatementGroup {
@@ -66,9 +67,9 @@ export function itemFact(item: StatementItem): StatementFact {
     const { property, value, qualifiers } = item.statement.document
     return { property, value, qualifiers }
   }
-  const action = item.actions[0]
+  const action = item.proposals[0]?.[0]
   if (!action) {
-    throw new Error('Statement item has neither a statement nor actions')
+    throw new Error('Statement item has neither a statement nor proposals')
   }
   return action.after
 }
@@ -131,8 +132,11 @@ function buildItems(statements: Statement[], actions: Action[]): StatementItem[]
   }
 
   return [
-    ...byDocumentId.values(),
-    ...groupProposals(standalone).map((group) => ({ statement: null, actions: group })),
+    ...Array.from(byDocumentId.values(), (item) => ({
+      statement: item.statement,
+      proposals: groupProposals(item.actions),
+    })),
+    ...groupProposals(standalone).map((proposal) => ({ statement: null, proposals: [proposal] })),
   ]
 }
 
@@ -193,9 +197,7 @@ function getSectionTitle(propertyId: 'P39' | 'P19' | 'P27'): string {
 export function groupStatementsIntoSections(
   statements: Statement[],
   actions: Action[],
-  options?: { showEmptySections?: boolean },
 ): StatementSection[] {
-  const showEmptySections = options?.showEmptySections ?? false
   const result: StatementSection[] = []
 
   // Partition into date items (per property) and entity-based items (per property)
@@ -218,7 +220,7 @@ export function groupStatementsIntoSections(
   }
 
   // Date section: group by property (P569/P570), sort by precision then value
-  if (dateItems.size > 0 || showEmptySections) {
+  if (dateItems.size > 0) {
     for (const bucket of dateItems.values()) {
       bucket.sort(compareByDate)
     }
@@ -236,9 +238,6 @@ export function groupStatementsIntoSections(
   for (const propertyId of orderedPropertyIds) {
     const sectionItems = entityItems.get(propertyId)
     if (!sectionItems) {
-      if (showEmptySections) {
-        result.push({ title: getSectionTitle(propertyId), sectionType: propertyId, groups: [] })
-      }
       continue
     }
 
