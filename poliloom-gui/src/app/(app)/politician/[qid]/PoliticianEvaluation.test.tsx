@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor, render, within, act } from '@testing-library/react'
 import '@/test/mocks'
-import { mockRouterPush, mockFetch, mockUseFilters } from '@/test/mocks'
+import { mockRouterPush, mockRouterRefresh, mockFetch, mockUseFilters } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type {
   Action,
@@ -229,6 +229,16 @@ describe('PoliticianEvaluation', () => {
     expect(discardButton).toHaveAttribute('class', expect.stringContaining('bg-danger '))
   })
 
+  it('preserves local decisions when refreshed politician props arrive', () => {
+    const { rerender } = render(<PoliticianEvaluation politician={politician} />)
+
+    const acceptButton = screen.getAllByText('✓ Accept')[0]
+    fireEvent.click(acceptButton)
+    rerender(<PoliticianEvaluation politician={{ ...politician }} />)
+
+    expect(acceptButton).toHaveAttribute('class', expect.stringContaining('bg-success '))
+  })
+
   it('shows "Skip Politician" when no decisions and "Submit Decisions & Next" when decisions exist', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
@@ -397,7 +407,7 @@ describe('PoliticianEvaluation', () => {
       sources: [{ ...testSource, status: 'processing' }],
       actions: [],
     }
-    render(<PoliticianEvaluation politician={processing} />)
+    const { rerender } = render(<PoliticianEvaluation politician={processing} />)
 
     const handler = mockUseEventStream.mock.calls.find(
       ([eventType]) => eventType === 'source_status',
@@ -410,8 +420,10 @@ describe('PoliticianEvaluation', () => {
         status: 'done',
       })
     })
+    rerender(<PoliticianEvaluation politician={politician} />)
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/politicians/Q987654')
+    expect(mockRouterRefresh).toHaveBeenCalledOnce()
+    expect(mockFetch).not.toHaveBeenCalledWith('/api/politicians/Q987654')
     expect(screen.getByText('Birthplaces')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Skip Politician' })).not.toBeDisabled()
     expect(
@@ -428,7 +440,7 @@ describe('PoliticianEvaluation', () => {
       sources: [{ ...testSource, status: 'processing' }],
       actions: [],
     }
-    render(<PoliticianEvaluation politician={processing} />)
+    const { rerender } = render(<PoliticianEvaluation politician={processing} />)
 
     expect(screen.getByText('Select a Source')).toBeInTheDocument()
 
@@ -443,6 +455,7 @@ describe('PoliticianEvaluation', () => {
         status: 'done',
       })
     })
+    rerender(<PoliticianEvaluation politician={politician} />)
 
     await waitFor(() => {
       expect(screen.getByTitle('Source')).toHaveAttribute(
@@ -458,10 +471,7 @@ describe('PoliticianEvaluation', () => {
       id: 'archived-2',
       url: 'https://example.org/',
     }
-    mockFetch.mockImplementation(() =>
-      mockApiResponse({ ...politician, sources: [testSource, otherSource] }),
-    )
-    render(<PoliticianEvaluation politician={politician} />)
+    const { rerender } = render(<PoliticianEvaluation politician={politician} />)
 
     const handler = mockUseEventStream.mock.calls.find(
       ([eventType]) => eventType === 'source_status',
@@ -474,6 +484,9 @@ describe('PoliticianEvaluation', () => {
         status: 'done',
       })
     })
+    rerender(
+      <PoliticianEvaluation politician={{ ...politician, sources: [testSource, otherSource] }} />,
+    )
 
     expect(screen.getByTitle('Source')).toHaveAttribute('src', `/api/sources/${testSource.id}/html`)
   })

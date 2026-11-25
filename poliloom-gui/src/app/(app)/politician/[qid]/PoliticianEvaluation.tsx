@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { PatchActionsResponse, Politician, ReviewSubmitPayload, SourceResponse } from '@/types'
 import { useFilters } from '@/contexts/FilterContext'
 import { useClaimPolitician } from '@/hooks/useClaimPolitician'
@@ -18,53 +19,39 @@ interface PoliticianEvaluationProps {
   politician: Politician
 }
 
-export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
+export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
+  const router = useRouter()
   const { languageQids } = useFilters()
   const { claimAndNavigate, isClaiming } = useClaimPolitician()
-  const [politician, setPolitician] = useState<Politician>(initialPolitician)
   const [selection, setSelection] = useState<SourceSelection | null>(() =>
-    findInitialSelection(initialPolitician, languageQids),
+    findInitialSelection(politician, languageQids),
   )
   const pendingSourceIdsRef = useRef<Set<string>>(new Set())
+  const completedSourceIdsRef = useRef<Set<string>>(new Set())
 
-  const refetchPolitician = useCallback(async (): Promise<Politician | null> => {
-    try {
-      const searchParams = new URLSearchParams()
-      for (const languageQid of languageQids) {
-        searchParams.append('languages', languageQid)
-      }
-      const qs = searchParams.toString()
-      const res = await fetch(`/api/politicians/${politician.wikidata_id}${qs ? `?${qs}` : ''}`)
-      if (!res.ok) return null
-      const data: Politician = await res.json()
-      setPolitician(data)
-      return data
-    } catch {
-      return null
-    }
-  }, [politician.wikidata_id, languageQids])
-
-  useEventStream(
-    'source_status',
-    async (event) => {
-      if (!event.politician_ids.includes(politician.id)) return
-      if (event.status !== 'done') {
-        refetchPolitician()
-        return
-      }
-      const updated = await refetchPolitician()
-      if (!updated) return
-      const next = findSelectionForSource(updated, event.source_id)
-      if (!next) return
+  useEffect(() => {
+    for (const sourceId of completedSourceIdsRef.current) {
+      const next = findSelectionForSource(politician, sourceId)
+      completedSourceIdsRef.current.delete(sourceId)
+      if (!next) continue
       // A source the user just added takes over the view; otherwise only fill
       // an empty view so an ingestion result never replaces what is being read.
-      if (pendingSourceIdsRef.current.delete(event.source_id)) {
+      if (pendingSourceIdsRef.current.delete(sourceId)) {
         setSelection(next)
       } else {
         setSelection((current) => current ?? next)
       }
+    }
+  }, [politician])
+
+  useEventStream(
+    'source_status',
+    (event) => {
+      if (!event.politician_ids.includes(politician.id)) return
+      if (event.status === 'done') completedSourceIdsRef.current.add(event.source_id)
+      router.refresh()
     },
-    [politician.id, refetchPolitician],
+    [politician.id, router],
   )
 
   const submit = useCallback(
@@ -81,19 +68,19 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
 
       const result: PatchActionsResponse = await response.json()
       if (!result.success || result.errors.length > 0) {
-        await refetchPolitician()
+        router.refresh()
         return result
       }
 
       try {
         await claimAndNavigate()
       } catch (error) {
-        await refetchPolitician()
+        router.refresh()
         throw error
       }
       return result
     },
-    [politician.wikidata_id, claimAndNavigate, refetchPolitician],
+    [politician.wikidata_id, claimAndNavigate, router],
   )
 
   const footer = ({
@@ -147,7 +134,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
         }
         const created: SourceResponse = await response.json()
         pendingSourceIdsRef.current.add(created.id)
-        refetchPolitician()
+        router.refresh()
       }}
     />
   )
