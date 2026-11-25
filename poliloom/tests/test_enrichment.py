@@ -293,7 +293,7 @@ def add_statement(db_session, politician, document) -> Statement:
 
 
 class TestStoreExtractedData:
-    """store_extracted_data persists decisions as Actions."""
+    """store_extracted_data adds extracted statements as review Actions."""
 
     def test_create_persists_reference_and_supporting_evidence(
         self, db_session, sample_politician, sample_source
@@ -306,11 +306,9 @@ class TestStoreExtractedData:
             )
         ]
 
-        success = store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, properties, None, None, None
         )
-
-        assert success is True
 
         actions = db_session.query(Action).all()
         assert len(actions) == 1
@@ -347,11 +345,9 @@ class TestStoreExtractedData:
             )
         ]
 
-        success = store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, None, positions, None, None
         )
-
-        assert success is True
 
         actions = db_session.query(Action).all()
         assert len(actions) == 1
@@ -410,11 +406,9 @@ class TestStoreExtractedData:
             )
         ]
 
-        success = store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, properties, None, None, None
         )
-
-        assert success is True
 
         actions = db_session.query(Action).all()
         if candidate_date == "1950" and already_cited:
@@ -460,7 +454,7 @@ class TestStoreExtractedData:
             )
         ]
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, source, properties, None, None, None
         )
 
@@ -502,7 +496,7 @@ class TestStoreExtractedData:
             ),
         ]
 
-        success = store_extracted_data(
+        store_extracted_data(
             db_session,
             sample_politician,
             sample_source,
@@ -511,8 +505,6 @@ class TestStoreExtractedData:
             None,
             citizenships,
         )
-
-        assert success is True
 
         actions = db_session.query(Action).all()
         assert len(actions) == 2
@@ -547,7 +539,7 @@ class TestStoreExtractedData:
         ]
         second_source = create_source(url="https://example.com/other-article")
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, None, positions, None, None
         )
         first_action = db_session.query(Action).one()
@@ -556,7 +548,7 @@ class TestStoreExtractedData:
             deepcopy(first_action.references_to_add),
         )
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, second_source, None, positions, None, None
         )
 
@@ -596,10 +588,10 @@ class TestStoreExtractedData:
             )
         ]
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, None, first, None, None
         )
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, second_source, None, second, None, None
         )
 
@@ -625,7 +617,7 @@ class TestStoreExtractedData:
             )
         ]
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, properties, None, None, None
         )
         first_action = db_session.query(Action).one()
@@ -634,7 +626,7 @@ class TestStoreExtractedData:
             deepcopy(first_action.references_to_add),
         )
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session,
             sample_politician,
             second_source,
@@ -685,7 +677,7 @@ class TestStoreExtractedData:
             )
         ]
 
-        assert store_extracted_data(
+        store_extracted_data(
             db_session, sample_politician, sample_source, properties, None, None, None
         )
         decided = db_session.query(Action).one()
@@ -693,7 +685,7 @@ class TestStoreExtractedData:
         db_session.flush()
 
         second_source = create_source(url="https://example.com/other-article")
-        assert store_extracted_data(
+        store_extracted_data(
             db_session,
             sample_politician,
             second_source,
@@ -715,7 +707,7 @@ class TestStoreExtractedData:
         sample_source,
         sample_politician,
     ):
-        """Database errors during persistence surface as a False return."""
+        """Database errors during persistence propagate to the caller."""
 
         properties = [
             ExtractedProperty(
@@ -725,11 +717,13 @@ class TestStoreExtractedData:
             )
         ]
 
-        # Mock the session to raise an exception during add
-        with patch.object(
-            db_session, "add", side_effect=SQLAlchemyError("Database error")
+        with (
+            patch.object(
+                db_session, "add", side_effect=SQLAlchemyError("Database error")
+            ),
+            pytest.raises(SQLAlchemyError, match="Database error"),
         ):
-            success = store_extracted_data(
+            store_extracted_data(
                 db_session,
                 sample_politician,
                 sample_source,
@@ -738,5 +732,3 @@ class TestStoreExtractedData:
                 None,
                 None,
             )
-
-        assert success is False

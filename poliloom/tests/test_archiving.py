@@ -3,6 +3,8 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from poliloom.archiving import (
     FetchedPage,
@@ -13,6 +15,8 @@ from poliloom.archiving import (
     process_source,
 )
 from poliloom.models import (
+    Action,
+    Politician,
     Source,
     SourceError,
     SourceStatus,
@@ -617,6 +621,68 @@ class TestProcessSource:
 
         assert source.status == SourceStatus.DONE
         assert source.error == SourceError.PIPELINE_ERROR
+
+    @pytest.mark.asyncio
+    async def test_action_batch_commit_error_rolls_back_and_records_source_error(
+        self, db_session, sample_politician, source
+    ):
+        with Session(
+            bind=db_session.connection(), join_transaction_mode="create_savepoint"
+        ) as session:
+            politician = session.get(Politician, sample_politician.id)
+            source = session.get(Source, source.id)
+
+            async def store_action(db, _content, politician, _source):
+                db.add(
+                    Action(
+                        politician_id=politician.id,
+                        after={
+                            "property": {"id": "P569"},
+                            "value": {
+                                "type": "value",
+                                "content": {
+                                    "time": "+1970-01-15T00:00:00Z",
+                                    "precision": 11,
+                                    "calendarmodel": (
+                                        "http://www.wikidata.org/entity/Q1985727"
+                                    ),
+                                },
+                            },
+                            "qualifiers": [],
+                        },
+                        references_to_add=[],
+                    )
+                )
+                return 1
+
+            real_flush = session.flush
+
+            def fail_action_batch_flush():
+                if any(isinstance(item, Action) for item in session.new):
+                    raise SQLAlchemyError("Action batch flush failed")
+                real_flush()
+
+            with (
+                patch(
+                    "poliloom.archiving.fetch_page",
+                    AsyncMock(return_value=FETCHED_PAGE),
+                ),
+                patch("poliloom.archiving.save_archived_content"),
+                patch(
+                    "poliloom.archiving.read_archived_content",
+                    return_value=VALID_HTML,
+                ),
+                patch(
+                    "poliloom.archiving.extract_and_store",
+                    side_effect=store_action,
+                ),
+                patch.object(session, "flush", side_effect=fail_action_batch_flush),
+            ):
+                await process_source(session, source, politician)
+
+            assert session.query(Action).all() == []
+            assert source.status == SourceStatus.DONE
+            assert source.error == SourceError.PIPELINE_ERROR
 
     @pytest.mark.asyncio
     @patch(

@@ -347,6 +347,7 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
         return count
 
     except PageFetchError as e:
+        db.rollback()
         logger.error(f"Fetch error for source {source.id}: {e}")
         source.status = SourceStatus.DONE
         source.error = SourceError(e.error_type)
@@ -363,6 +364,7 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
         RuntimeError,
         GoogleAPICallError,
     ) as e:
+        db.rollback()
         logger.error(f"Pipeline error for source {source.id}: {e}")
         source.status = SourceStatus.DONE
         source.error = SourceError.PIPELINE_ERROR

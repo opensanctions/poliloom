@@ -1,8 +1,6 @@
-"""Plan statement proposals from extractions and cached Wikidata facts."""
+"""Create review actions from extracted and cached Wikidata statements."""
 
 from dataclasses import dataclass
-
-from sqlalchemy.orm import Session
 
 from .comparison import StatementComparison, compare_statement, is_timeframe_subsumed
 from .models import Action, ActionEvidence, Politician, Source, Statement
@@ -25,66 +23,39 @@ _TIMEFRAME_QUALIFIER_IDS = (_START_QUALIFIER_ID, _END_QUALIFIER_ID)
 
 
 @dataclass
-class Decision:
-    """One logical change to persist for a candidate statement.
-
-    ``target_index`` is the index into the property-filtered existing
-    documents (the subset of ``existing_documents`` sharing the candidate's
-    property), not into the full list. New statements have no target or before fact.
-    """
-
+class _StatementChange:
     after: dict
     before: dict | None = None
-    target_index: int | None = None
+    target: Statement | None = None
 
 
-def plan(candidate: dict, existing_documents: list[dict]) -> Decision | None:
-    """Plan how a candidate creates, changes, or supports a statement."""
-    property_id = statement_property_id(candidate)
-    same_property_documents = [
-        document
-        for document in existing_documents
-        if statement_property_id(document) == property_id
-    ]
-
-    if property_id in _DATE_PROPERTY_IDS:
-        return _plan_date(candidate, same_property_documents)
-    if property_id == _POSITION_PROPERTY_ID:
-        return _plan_position(candidate, same_property_documents)
-    if property_id in _ENTITY_PROPERTY_IDS:
-        return _plan_entity(candidate, same_property_documents)
-    raise ValueError(f"Unsupported property in planning: {property_id}")
-
-
-def persist_decision(
-    db: Session,
+def create_action(
     politician: Politician,
-    decision: Decision | None,
+    candidate: dict,
     existing_statements: list[Statement],
     source: Source,
     supporting_quotes: list[str],
 ) -> Action | None:
-    """Persist a planned Decision as a pending Action with evidence.
-
-    ``existing_statements`` must be the same property-filtered,
-    order-preserved list of Statement objects whose documents were passed
-    to ``plan()``; a decision's ``target_index`` indexes into it.
-
-    Each proposal has its own Action and evidence. A Wikimedia import marker
-    by itself does not warrant editing an existing statement.
-    """
-    if decision is None:
+    """Create a pending Action with evidence, or None when no action is useful."""
+    property_id = statement_property_id(candidate)
+    same_property_statements = [
+        statement
+        for statement in existing_statements
+        if statement_property_id(statement.document) == property_id
+    ]
+    change = _statement_change(candidate, same_property_statements)
+    if change is None:
         return None
 
-    target_id = None
-    if decision.target_index is None:
+    if change.target is None:
+        target_id = None
         references = [{"parts": source.create_references_json()}]
     else:
-        target = existing_statements[decision.target_index]
+        target = change.target
         if target.politician_id != politician.id:
             raise ValueError("Target statement belongs to another politician")
         target_id = target.wikidata_statement_id
-        reference_only = fact_key(decision.before) == fact_key(decision.after)
+        reference_only = fact_key(change.before) == fact_key(change.after)
         references = (
             []
             if source.wikipedia_project_id
@@ -98,90 +69,98 @@ def persist_decision(
     action = Action(
         politician_id=politician.id,
         target_wikidata_statement_id=target_id,
-        before=decision.before,
-        after=decision.after,
+        before=change.before,
+        after=change.after,
         references_to_add=references,
     )
+    ActionEvidence(action=action, source=source, supporting_quotes=supporting_quotes)
     validate_proposal(action, politician.wikidata_id)
-    db.add(action)
-    db.add(
-        ActionEvidence(
-            action=action, source=source, supporting_quotes=supporting_quotes
-        )
-    )
-    db.flush()
     return action
 
 
-def _plan_date(candidate: dict, same_property_documents: list[dict]) -> Decision:
+def _statement_change(
+    candidate: dict, same_property_statements: list[Statement]
+) -> _StatementChange | None:
+    property_id = statement_property_id(candidate)
+    if property_id in _DATE_PROPERTY_IDS:
+        return _date_change(candidate, same_property_statements)
+    if property_id == _POSITION_PROPERTY_ID:
+        return _position_change(candidate, same_property_statements)
+    if property_id in _ENTITY_PROPERTY_IDS:
+        return _entity_change(candidate, same_property_statements)
+    raise ValueError(f"Unsupported property in action creation: {property_id}")
+
+
+def _date_change(
+    candidate: dict, same_property_statements: list[Statement]
+) -> _StatementChange:
     """P569/P570: refine the sole compatible statement, else create."""
-    compatible = _compatible_targets(candidate, same_property_documents)
+    compatible = _compatible_targets(candidate, same_property_statements)
 
     if len(compatible) != 1:
         # Zero compatible targets: no statement states this date. More than
         # one: ambiguous, never guess which statement to act on.
-        return _create_decision(candidate)
+        return _create(candidate)
 
-    index, document, comparison = compatible[0]
+    target, comparison = compatible[0]
+    document = target.document
     if comparison is StatementComparison.CANDIDATE_REFINES_EXISTING:
         before = statement_fact(document)
         after = {**before, "value": statement_fact(candidate)["value"]}
-        return Decision(after=after, before=before, target_index=index)
+        return _StatementChange(after=after, before=before, target=target)
 
-    return _support_decision(document, index)
+    return _support(target)
 
 
-def _plan_position(
-    candidate: dict, same_property_documents: list[dict]
-) -> Decision | None:
+def _position_change(
+    candidate: dict, same_property_statements: list[Statement]
+) -> _StatementChange | None:
     """P39: qualifier refinement on the sole compatible statement, else create."""
     same_position = [
-        (index, document, comparison)
-        for index, document, comparison in _comparisons(
-            candidate, same_property_documents
-        )
+        (statement, comparison)
+        for statement, comparison in _comparisons(candidate, same_property_statements)
         if comparison is not StatementComparison.NO_MATCH
     ]
 
-    if is_timeframe_subsumed([document for _, document, _ in same_position], candidate):
+    if is_timeframe_subsumed(
+        [statement.document for statement, _ in same_position], candidate
+    ):
         # Existing consecutive terms already cover the candidate span: no
         # refinement or creation, only a reference on a single equivalent
         # target.
         equivalent = [
-            (index, document)
-            for index, document, comparison in same_position
+            statement
+            for statement, comparison in same_position
             if comparison is StatementComparison.EQUIVALENT
         ]
         if len(equivalent) == 1:
-            index, document = equivalent[0]
-            return _support_decision(document, index)
+            return _support(equivalent[0])
         return None
 
     compatible = [
-        (index, document, comparison)
-        for index, document, comparison in same_position
+        (statement, comparison)
+        for statement, comparison in same_position
         if comparison
         not in (StatementComparison.NO_MATCH, StatementComparison.INCOMPARABLE)
     ]
 
     if len(compatible) != 1:
-        return _create_decision(candidate)
+        return _create(candidate)
 
-    index, document, comparison = compatible[0]
+    target, comparison = compatible[0]
     if comparison is not StatementComparison.CANDIDATE_REFINES_EXISTING:
-        return _support_decision(document, index)
-    return _position_refinement_decision(candidate, document, index)
+        return _support(target)
+    return _position_refinement(candidate, target)
 
 
-def _position_refinement_decision(
-    candidate: dict, document: dict, index: int
-) -> Decision:
+def _position_refinement(candidate: dict, target: Statement) -> _StatementChange:
     """Pick the one qualifier change for a refining position candidate.
 
     When several timeframe qualifiers need changes, appends win over
     replacements (a missing qualifier is worth more than a narrower one),
     and P580 is handled before P582.
     """
+    document = target.document
     appends: list[dict] = []
     refinements: list[tuple[str, dict]] = []
     for qualifier_id in _TIMEFRAME_QUALIFIER_IDS:
@@ -199,7 +178,7 @@ def _position_refinement_decision(
             refinements.append((qualifier_id, candidate_qualifier))
 
     if not (appends or refinements):
-        return _support_decision(document, index)
+        return _support(target)
 
     before = statement_fact(document)
     after = statement_fact(document)
@@ -213,57 +192,54 @@ def _position_refinement_decision(
             if existing["property"]["id"] == qualifier_id
         )
         after["qualifiers"][slot] = qualifier
-    return Decision(after=statement_fact(after), before=before, target_index=index)
+    return _StatementChange(after=after, before=before, target=target)
 
 
-def _plan_entity(candidate: dict, same_property_documents: list[dict]) -> Decision:
+def _entity_change(
+    candidate: dict, same_property_statements: list[Statement]
+) -> _StatementChange:
     """P19/P27: support the sole equivalent statement, else create.
 
     An entity value is never replaced: a differing candidate is a new fact.
     """
     equivalent = [
-        (index, document)
-        for index, document, comparison in _comparisons(
-            candidate, same_property_documents
-        )
+        statement
+        for statement, comparison in _comparisons(candidate, same_property_statements)
         if comparison is StatementComparison.EQUIVALENT
     ]
 
     if len(equivalent) != 1:
-        return _create_decision(candidate)
+        return _create(candidate)
 
-    index, document = equivalent[0]
-    return _support_decision(document, index)
-
-
-def _support_decision(document: dict, index: int) -> Decision:
-    fact = statement_fact(document)
-    return Decision(after=fact, before=fact, target_index=index)
+    return _support(equivalent[0])
 
 
-def _create_decision(candidate: dict) -> Decision:
-    return Decision(after=statement_fact(candidate))
+def _support(target: Statement) -> _StatementChange:
+    fact = statement_fact(target.document)
+    return _StatementChange(after=fact, before=fact, target=target)
+
+
+def _create(candidate: dict) -> _StatementChange:
+    return _StatementChange(after=statement_fact(candidate))
 
 
 def _comparisons(
-    candidate: dict, same_property_documents: list[dict]
-) -> list[tuple[int, dict, StatementComparison]]:
-    """Compare the candidate against each same-property document, in order."""
+    candidate: dict, same_property_statements: list[Statement]
+) -> list[tuple[Statement, StatementComparison]]:
+    """Compare the candidate against each same-property statement, in order."""
     return [
-        (index, document, compare_statement(candidate, document))
-        for index, document in enumerate(same_property_documents)
+        (statement, compare_statement(candidate, statement.document))
+        for statement in same_property_statements
     ]
 
 
 def _compatible_targets(
-    candidate: dict, same_property_documents: list[dict]
-) -> list[tuple[int, dict, StatementComparison]]:
-    """Documents whose comparison leaves room for exactly one shared fact."""
+    candidate: dict, same_property_statements: list[Statement]
+) -> list[tuple[Statement, StatementComparison]]:
+    """Statements whose comparison leaves room for exactly one shared fact."""
     return [
-        (index, document, comparison)
-        for index, document, comparison in _comparisons(
-            candidate, same_property_documents
-        )
+        (statement, comparison)
+        for statement, comparison in _comparisons(candidate, same_property_statements)
         if comparison
         in (
             StatementComparison.EQUIVALENT,

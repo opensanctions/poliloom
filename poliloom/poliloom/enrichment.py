@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from . import prompts
+from .actions import create_action
 from .models import (
     Country,
     Location,
@@ -25,9 +26,7 @@ from .models import (
     WikidataEntity,
     WikidataRelation,
 )
-from .planner import persist_decision, plan
 from .wikidata.date import WikidataDate
-from .wikidata.document import statement_property_id
 
 logger = logging.getLogger(__name__)
 
@@ -613,96 +612,67 @@ def store_extracted_data(
     positions: list[ExtractedPosition] | None,
     birthplaces: list[ExtractedBirthplace] | None,
     citizenships: list[ExtractedCitizenship] | None,
-) -> bool:
-    """Turn extracted data into persisted Actions for review.
+) -> None:
+    """Add pending Actions for extracted data to the session."""
+    items: list[tuple[dict, list[str], str]] = []
 
-    Each extraction becomes a REST candidate statement planned against the
-    politician's cached statements; the resulting decision is persisted as
-    a pending Action carrying the source as evidence.
-    """
-    try:
-        # Build (candidate, quotes, label) for each extracted item
-        items: list[tuple[dict, list[str], str]] = []
-
-        for p in properties or []:
-            wikidata_date = WikidataDate.from_date_string(p.value)
-            if wikidata_date is None:
-                raise ValueError(f"Unparseable date value from LLM: {p.value!r}")
-            items.append(
-                (
-                    {
-                        "property": {"id": p.type.value},
-                        "value": {
-                            "type": "value",
-                            "content": wikidata_date.to_rest_time_content(),
-                        },
-                        "qualifiers": [],
+    for p in properties or []:
+        wikidata_date = WikidataDate.from_date_string(p.value)
+        if wikidata_date is None:
+            raise ValueError(f"Unparseable date value from LLM: {p.value!r}")
+        items.append(
+            (
+                {
+                    "property": {"id": p.type.value},
+                    "value": {
+                        "type": "value",
+                        "content": wikidata_date.to_rest_time_content(),
                     },
-                    p.supporting_quotes,
-                    f"{p.type} = '{p.value}'",
-                )
+                    "qualifiers": [],
+                },
+                p.supporting_quotes,
+                f"{p.type} = '{p.value}'",
             )
-
-        for pos in positions or []:
-            items.append(
-                (
-                    _position_candidate(pos.wikidata_id, pos.start_date, pos.end_date),
-                    pos.supporting_quotes,
-                    f"position {pos.wikidata_id}",
-                )
-            )
-
-        for bp in birthplaces or []:
-            items.append(
-                (
-                    _entity_candidate(PropertyType.BIRTHPLACE.value, bp.wikidata_id),
-                    bp.supporting_quotes,
-                    f"birthplace {bp.wikidata_id}",
-                )
-            )
-
-        for cit in citizenships or []:
-            items.append(
-                (
-                    _entity_candidate(PropertyType.CITIZENSHIP.value, cit.wikidata_id),
-                    cit.supporting_quotes,
-                    f"citizenship {cit.wikidata_id}",
-                )
-            )
-
-        statements = (
-            db.query(Statement)
-            .filter(Statement.politician_id == politician.id)
-            .order_by(Statement.wikidata_statement_id)
-            .all()
         )
-        for candidate, quotes, label in items:
-            property_id = statement_property_id(candidate)
-            same_property_statements = [
-                statement
-                for statement in statements
-                if statement_property_id(statement.document) == property_id
-            ]
-            decision = plan(
-                candidate,
-                [statement.document for statement in same_property_statements],
-            )
-            action = persist_decision(
-                db,
-                politician,
-                decision,
-                same_property_statements,
-                source,
-                quotes,
-            )
-            politician_name = politician.wikidata_entity.resolved_label
-            if action is None:
-                logger.info(f"No action needed for {label} for {politician_name}")
-            else:
-                logger.info(f"Persisted proposal for {label} for {politician_name}")
 
-        return True
+    for pos in positions or []:
+        items.append(
+            (
+                _position_candidate(pos.wikidata_id, pos.start_date, pos.end_date),
+                pos.supporting_quotes,
+                f"position {pos.wikidata_id}",
+            )
+        )
 
-    except (ValueError, SQLAlchemyError) as e:
-        logger.error(f"Error storing extracted data: {e}")
-        return False
+    for bp in birthplaces or []:
+        items.append(
+            (
+                _entity_candidate(PropertyType.BIRTHPLACE.value, bp.wikidata_id),
+                bp.supporting_quotes,
+                f"birthplace {bp.wikidata_id}",
+            )
+        )
+
+    for cit in citizenships or []:
+        items.append(
+            (
+                _entity_candidate(PropertyType.CITIZENSHIP.value, cit.wikidata_id),
+                cit.supporting_quotes,
+                f"citizenship {cit.wikidata_id}",
+            )
+        )
+
+    statements = (
+        db.query(Statement)
+        .filter(Statement.politician_id == politician.id)
+        .order_by(Statement.wikidata_statement_id)
+        .all()
+    )
+    politician_name = politician.wikidata_entity.resolved_label
+    for candidate, quotes, label in items:
+        action = create_action(politician, candidate, statements, source, quotes)
+        if action is None:
+            logger.info(f"No action needed for {label} for {politician_name}")
+        else:
+            db.add(action)
+            logger.info(f"Created proposal for {label} for {politician_name}")

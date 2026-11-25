@@ -1,10 +1,13 @@
-"""Tests for enrichment planning against cached statement facts."""
+"""Tests for creating review actions against cached statement facts."""
 
 from copy import deepcopy
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 
-from poliloom.planner import Decision, plan
+from poliloom.actions import create_action
+from poliloom.models import Politician, Source, Statement
 from poliloom.proposals import statement_fact
 from poliloom.wikidata.date import WikidataDate
 
@@ -39,10 +42,10 @@ def position(qid="Q123", start=None, end=None):
     }
 
 
-def document(fact):
+def document(fact, statement_id="Q42$deadbeef"):
     return {
         **deepcopy(fact),
-        "id": "Q42$deadbeef",
+        "id": statement_id,
         "rank": "normal",
         "references": [
             {
@@ -56,6 +59,24 @@ def document(fact):
             }
         ],
     }
+
+
+def create_from_documents(candidate, documents):
+    politician = Politician(id=uuid4(), wikidata_id="Q42")
+    statements = [
+        Statement(
+            politician_id=politician.id,
+            document=document,
+            wikidata_statement_id=document["id"],
+        )
+        for document in documents
+    ]
+    source = Source(url="https://example.com/source", fetch_timestamp=datetime.now(UTC))
+    return create_action(politician, candidate, statements, source, [])
+
+
+def create(candidate, existing):
+    return create_from_documents(candidate, list(map(document, existing)))
 
 
 @pytest.mark.parametrize(
@@ -79,7 +100,11 @@ def test_add_is_the_extracted_fact_without_statement_metadata(candidate, existin
     extraction = document(candidate)
     original = deepcopy(extraction)
 
-    assert plan(extraction, list(map(document, existing))) == Decision(after=candidate)
+    action = create(extraction, existing)
+
+    assert action.before is None
+    assert action.target_wikidata_statement_id is None
+    assert action.after == candidate
     assert extraction == original
 
 
@@ -97,24 +122,30 @@ def test_add_is_the_extracted_fact_without_statement_metadata(candidate, existin
 def test_citation_freezes_existing_fact_even_if_the_extraction_is_less_precise(
     candidate, existing
 ):
-    assert plan(candidate, [document(existing)]) == Decision(
-        before=existing, after=existing, target_index=0
-    )
+    action = create(candidate, [existing])
+
+    assert action.before == existing
+    assert action.after == existing
+    assert action.target_wikidata_statement_id == "Q42$deadbeef"
 
 
-def test_date_refinement_uses_the_index_in_the_property_filtered_list():
+def test_date_refinement_targets_the_matching_cached_statement():
     candidate = date_fact("1950-05-15")
     before = date_fact("1950")
     before["qualifiers"] = [
         {"property": {"id": "P1480"}, "value": {"type": "value", "content": "Q5727902"}}
     ]
-    docs = [document(entity_fact("P19", "Q60")), document(before), document(position())]
+    documents = [
+        document(entity_fact("P19", "Q60"), "Q42$birthplace"),
+        document(before, "Q42$birth"),
+        document(position(), "Q42$position"),
+    ]
 
-    assert plan(candidate, docs) == Decision(
-        before=before,
-        after={**before, "value": candidate["value"]},
-        target_index=0,
-    )
+    action = create_from_documents(candidate, documents)
+
+    assert action.before == before
+    assert action.after == {**before, "value": candidate["value"]}
+    assert action.target_wikidata_statement_id == "Q42$birth"
 
 
 @pytest.mark.parametrize(
@@ -129,11 +160,12 @@ def test_appends_only_one_missing_qualifier_start_first(
     start, end, expected_start, expected_end
 ):
     before = position()
-    assert plan(position(start=start, end=end), [document(before)]) == Decision(
-        before=before,
-        after=position(start=expected_start, end=expected_end),
-        target_index=0,
-    )
+
+    action = create(position(start=start, end=end), [before])
+
+    assert action.before == before
+    assert action.after == position(start=expected_start, end=expected_end)
+    assert action.target_wikidata_statement_id == "Q42$deadbeef"
 
 
 def test_start_only_refinement_preserves_known_end_and_other_qualifier_values():
@@ -146,24 +178,26 @@ def test_start_only_refinement_preserves_known_end_and_other_qualifier_values():
     before["qualifiers"] = [end, designation, start, designation]
     cached = document(before)
     candidate = position(start="2020-06-15")
-    after = {
+    expected_after = {
         **before,
         "qualifiers": [end, designation, candidate["qualifiers"][0], designation],
     }
 
-    assert plan(candidate, [cached]) == Decision(
-        before=before, after=after, target_index=0
-    )
+    action = create(candidate, [before])
+
+    assert action.before == before
+    assert action.after == expected_after
+    assert action.target_wikidata_statement_id == "Q42$deadbeef"
     assert statement_fact(cached) == before
 
 
 def test_subsumed_span_does_nothing():
     assert (
-        plan(
+        create(
             position(start="2021-03-31"),
             [
-                document(position(start="2021-03-31", end="2023-10-26")),
-                document(position(start="2023-10-27")),
+                position(start="2021-03-31", end="2023-10-26"),
+                position(start="2023-10-27"),
             ],
         )
         is None
@@ -172,14 +206,16 @@ def test_subsumed_span_does_nothing():
 
 def test_subsumed_span_supports_unique_equivalent_target():
     candidate = position(start="2021")
-    docs = [document(candidate), document(position(start="2022", end="2023-12-31"))]
+    other = position(start="2022", end="2023-12-31")
 
-    assert plan(candidate, docs) == Decision(
-        before=candidate, after=candidate, target_index=0
-    )
-    assert plan(candidate, [*docs, document(candidate)]) is None
+    action = create(candidate, [candidate, other])
+
+    assert action.before == candidate
+    assert action.after == candidate
+    assert action.target_wikidata_statement_id == "Q42$deadbeef"
+    assert create(candidate, [candidate, other, candidate]) is None
 
 
 def test_unsupported_property_raises():
     with pytest.raises(ValueError, match="P106"):
-        plan(entity_fact("P106", "Q82955"), [])
+        create(entity_fact("P106", "Q82955"), [])
