@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from poliloom.models import RelationType, WikidataEntity, WikidataRelation
 from poliloom.models.wikidata import WikidataEntityMixin
+from poliloom.proposals import statement_fact
 
 from ..conftest import create_with_entity
 
@@ -545,11 +546,11 @@ class TestCleanupOutsideHierarchy:
         """Test that statements referencing removed entities are hard-deleted.
 
         Pending edit actions targeting such statements are deleted with them;
-        decided actions keep their payload with statement_id nulled.
+        decided actions keep their target and result.
         """
         from sqlalchemy import text
 
-        from poliloom.models import Action, ActionKind, Politician, Position, Statement
+        from poliloom.models import Action, Politician, Position, Statement
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -572,6 +573,7 @@ class TestCleanupOutsideHierarchy:
                 "rank": "normal",
                 "property": {"id": "P39", "data_type": "wikibase-item"},
                 "value": {"type": "value", "content": entity_id},
+                "qualifiers": [],
             }
 
         # Create P39 statements referencing both positions
@@ -587,17 +589,19 @@ class TestCleanupOutsideHierarchy:
         db_session.flush()
 
         # A pending and a decided edit action target the doomed statement
+        before = statement_fact(stmt_orphan.document)
         pending_edit = Action(
             politician_id=politician.id,
-            kind=ActionKind.EDIT_STATEMENT,
-            statement_id=stmt_orphan.id,
-            payload={"patch": []},
+            target_wikidata_statement_id=stmt_orphan.wikidata_statement_id,
+            before=before,
+            after=before,
         )
         decided_edit = Action(
             politician_id=politician.id,
-            kind=ActionKind.EDIT_STATEMENT,
-            statement_id=stmt_orphan.id,
-            payload={"patch": []},
+            target_wikidata_statement_id=stmt_orphan.wikidata_statement_id,
+            before=before,
+            after=before,
+            applied_wikidata_statement_id=stmt_orphan.wikidata_statement_id,
             is_accepted=True,
         )
         db_session.add_all([pending_edit, decided_edit])
@@ -610,7 +614,7 @@ class TestCleanupOutsideHierarchy:
         assert stats["statements_deleted"] == 1
 
         # The orphan statement and the pending edit are gone; the decided
-        # edit survives with its target reference nulled
+        # edit survives with its target and result
         remaining = db_session.execute(
             text("SELECT entity_id FROM statements")
         ).fetchall()
@@ -621,11 +625,12 @@ class TestCleanupOutsideHierarchy:
 
         actions = (
             db_session.query(Action)
-            .filter(Action.kind == ActionKind.EDIT_STATEMENT)
+            .filter(Action.target_wikidata_statement_id.is_not(None))
             .all()
         )
         assert [a.id for a in actions] == [decided_edit.id]
-        assert actions[0].statement_id is None
+        assert actions[0].target_wikidata_statement_id == "Q999$p39-orphan"
+        assert actions[0].applied_wikidata_statement_id == "Q999$p39-orphan"
 
     def test_no_hierarchy_config_returns_zero_removed(self, db_session):
         """Test that entity without hierarchy config returns zero removed."""

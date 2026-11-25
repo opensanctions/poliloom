@@ -1,33 +1,12 @@
-"""Decision core for enrichment: what Action (if any) a candidate warrants.
-
-Enrichment extracts candidate statements (REST shape) from web sources.
-This module compares one candidate against a politician's cached statement
-documents and decides the single logical change to persist, if any:
-
-- ``create``: a new statement (POST body via payloads.create_body)
-- ``edit``: a guarded patch against one existing statement, with or without
-  a change to its value or qualifiers
-
-``persist_decision`` records the proposed write, including any source
-reference, and links it to the supporting evidence.
-
-Every rule below operates only on documents of the candidate's property.
-"""
+"""Plan statement proposals from extractions and cached Wikidata facts."""
 
 from dataclasses import dataclass
-from typing import Literal
 
 from sqlalchemy.orm import Session
 
 from .comparison import StatementComparison, compare_statement, is_timeframe_subsumed
-from .models import Action, ActionEvidence, ActionKind, Politician, Source, Statement
-from .payloads import (
-    append_qualifier_patch,
-    create_body,
-    refine_qualifier_patch,
-    refine_value_patch,
-    statement_fact_guards,
-)
+from .models import Action, ActionEvidence, Politician, Source, Statement
+from .proposals import fact_key, statement_fact, validate_proposal
 from .wikidata.date import WikidataDate
 from .wikidata.document import (
     find_qualifiers,
@@ -51,11 +30,11 @@ class Decision:
 
     ``target_index`` is the index into the property-filtered existing
     documents (the subset of ``existing_documents`` sharing the candidate's
-    property), not into the full list. It is None for creates.
+    property), not into the full list. New statements have no target or before fact.
     """
 
-    kind: Literal["create", "edit"]
-    payload: dict
+    after: dict
+    before: dict | None = None
     target_index: int | None = None
 
 
@@ -97,39 +76,33 @@ def persist_decision(
     if decision is None:
         return None
 
-    if decision.kind == "create":
-        kind = ActionKind.CREATE_STATEMENT
-        statement_id = None
-        payload = create_body(
-            {
-                **decision.payload["statement"],
-                "references": [{"parts": source.create_references_json()}],
-            }
-        )
+    target_id = None
+    if decision.target_index is None:
+        references = [{"parts": source.create_references_json()}]
     else:
-        kind = ActionKind.EDIT_STATEMENT
         target = existing_statements[decision.target_index]
-        statement_id = target.id
-        patch = decision.payload["patch"]
-        reference_only = all(operation["op"] == "test" for operation in patch)
-        if source.wikipedia_project_id:
-            if reference_only:
-                return None
-        else:
-            reference = {"parts": source.create_references_json()}
-            if reference_only and not missing_references(
-                [reference], target.document["references"]
-            ):
-                return None
-            patch = [*patch, {"op": "add", "path": "/references/-", "value": reference}]
-        payload = {"patch": patch}
+        if target.politician_id != politician.id:
+            raise ValueError("Target statement belongs to another politician")
+        target_id = target.wikidata_statement_id
+        reference_only = fact_key(decision.before) == fact_key(decision.after)
+        references = (
+            []
+            if source.wikipedia_project_id
+            else [{"parts": source.create_references_json()}]
+        )
+        if reference_only and not missing_references(
+            references, target.document["references"]
+        ):
+            return None
 
     action = Action(
         politician_id=politician.id,
-        kind=kind,
-        payload=payload,
-        statement_id=statement_id,
+        target_wikidata_statement_id=target_id,
+        before=decision.before,
+        after=decision.after,
+        references_to_add=references,
     )
+    validate_proposal(action, politician.wikidata_id)
     db.add(action)
     db.add(
         ActionEvidence(
@@ -151,7 +124,9 @@ def _plan_date(candidate: dict, same_property_documents: list[dict]) -> Decision
 
     index, document, comparison = compatible[0]
     if comparison is StatementComparison.CANDIDATE_REFINES_EXISTING:
-        return Decision("edit", refine_value_patch(document, candidate["value"]), index)
+        before = statement_fact(document)
+        after = {**before, "value": statement_fact(candidate)["value"]}
+        return Decision(after=after, before=before, target_index=index)
 
     return _support_decision(document, index)
 
@@ -223,22 +198,22 @@ def _position_refinement_decision(
         if more_precise is candidate_date:
             refinements.append((qualifier_id, candidate_qualifier))
 
-    if appends:
-        return Decision("edit", append_qualifier_patch(document, appends[0]), index)
-    if refinements:
-        qualifier_id, qualifier = refinements[0]
-        for index_in_document, existing in enumerate(document["qualifiers"]):
-            if existing["property"]["id"] == qualifier_id:
-                break
-        else:
-            raise ValueError(f"Statement has no {qualifier_id} qualifier")
-        return Decision(
-            "edit",
-            refine_qualifier_patch(document, index_in_document, qualifier),
-            index,
-        )
+    if not (appends or refinements):
+        return _support_decision(document, index)
 
-    return _support_decision(document, index)
+    before = statement_fact(document)
+    after = statement_fact(document)
+    if appends:
+        after["qualifiers"].append(appends[0])
+    else:
+        qualifier_id, qualifier = refinements[0]
+        slot = next(
+            i
+            for i, existing in enumerate(after["qualifiers"])
+            if existing["property"]["id"] == qualifier_id
+        )
+        after["qualifiers"][slot] = qualifier
+    return Decision(after=statement_fact(after), before=before, target_index=index)
 
 
 def _plan_entity(candidate: dict, same_property_documents: list[dict]) -> Decision:
@@ -262,16 +237,12 @@ def _plan_entity(candidate: dict, same_property_documents: list[dict]) -> Decisi
 
 
 def _support_decision(document: dict, index: int) -> Decision:
-    # The source supports this value and qualifiers, not whatever may replace them.
-    return Decision("edit", {"patch": statement_fact_guards(document)}, index)
+    fact = statement_fact(document)
+    return Decision(after=fact, before=fact, target_index=index)
 
 
 def _create_decision(candidate: dict) -> Decision:
-    """Build a create Action for the candidate."""
-    statement = dict(candidate)
-    statement["references"] = []
-    statement.setdefault("rank", "normal")
-    return Decision("create", create_body(statement))
+    return Decision(after=statement_fact(candidate))
 
 
 def _comparisons(

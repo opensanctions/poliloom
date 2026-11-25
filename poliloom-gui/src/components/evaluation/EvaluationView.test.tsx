@@ -11,13 +11,14 @@ import {
 import type {
   Action,
   ActionEvidence,
-  JsonPatchOperation,
   Politician,
+  RestReference,
   RestSnak,
   RestStatement,
   RestValue,
   SourceResponse,
   Statement,
+  StatementFact,
   TermMaps,
 } from '@/types'
 
@@ -81,6 +82,10 @@ function evidence(
   return { id, source, supporting_quotes: supportingQuotes }
 }
 
+function fact(propertyId: string, value: RestValue, qualifiers: RestSnak[] = []): StatementFact {
+  return { property: { id: propertyId }, value, qualifiers }
+}
+
 function createAction(
   id: string,
   propertyId: string,
@@ -89,22 +94,19 @@ function createAction(
   options: {
     qualifiers?: RestSnak[]
     entityTerms?: TermMaps | null
-    references?: RestStatement['references']
+    references?: RestReference[]
+    groupKey?: string
   } = {},
 ): Action {
   return {
     id,
-    kind: 'CREATE_STATEMENT',
-    statement_id: null,
-    payload: {
-      statement: {
-        rank: 'normal',
-        property: { id: propertyId },
-        value,
-        qualifiers: options.qualifiers ?? [],
-        references: options.references ?? [],
-      },
-    },
+    target_wikidata_statement_id: null,
+    before: null,
+    after: fact(propertyId, value, options.qualifiers ?? []),
+    references_to_add: options.references ?? [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'add',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
     is_accepted: null,
@@ -113,18 +115,48 @@ function createAction(
   }
 }
 
-function editAction(
+function refineAction(
   id: string,
   statementId: string,
-  patch: JsonPatchOperation[],
+  before: StatementFact,
+  after: StatementFact,
   actionEvidence: ActionEvidence[] = [],
-  options: { entityTerms?: TermMaps | null } = {},
+  options: { entityTerms?: TermMaps | null; groupKey?: string } = {},
 ): Action {
   return {
     id,
-    kind: 'EDIT_STATEMENT',
-    statement_id: statementId,
-    payload: { patch },
+    target_wikidata_statement_id: statementId,
+    before,
+    after,
+    references_to_add: [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'refine',
+    entity_terms: options.entityTerms ?? null,
+    evidence: actionEvidence,
+    is_accepted: null,
+    applied_at: null,
+    error: null,
+  }
+}
+
+function referenceAction(
+  id: string,
+  statementId: string,
+  before: StatementFact,
+  references: RestReference[],
+  actionEvidence: ActionEvidence[] = [],
+  options: { entityTerms?: TermMaps | null; groupKey?: string } = {},
+): Action {
+  return {
+    id,
+    target_wikidata_statement_id: statementId,
+    before,
+    after: before,
+    references_to_add: references,
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'reference',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
     is_accepted: null,
@@ -208,13 +240,11 @@ const politicianWithStatements: Politician = {
   sources: [source1],
   statements: [birthStatement, positionStatement, birthplaceStatement],
   actions: [
-    editAction(
+    refineAction(
       'edit-1',
       'stmt-1',
-      [
-        { op: 'test', path: '/value', value: timeContent('+1980-01-01T00:00:00Z') },
-        { op: 'replace', path: '/value', value: timeContent('+1980-01-02T00:00:00Z') },
-      ],
+      fact('P569', timeContent('+1980-01-01T00:00:00Z')),
+      fact('P569', timeContent('+1980-01-02T00:00:00Z')),
       [evidence('ev-e1', source1, ['born January 2'])],
     ),
   ],
@@ -487,29 +517,20 @@ describe('EvaluationView', () => {
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(1)
     })
 
-    it.each(['create', 'citation-only edit'])(
-      'includes a refreshed source in the accepted %s row',
+    it.each(['add', 'reference'])(
+      'keeps a refreshed %s source independently reviewable',
       async (kind) => {
         const onSubmit = vi.fn().mockResolvedValue(undefined)
         const date = timeContent('+1975-06-15T00:00:00Z')
         const target = makeStatement('birth', 'P569', date)
         const proposal = (id: string, source: SourceResponse) => {
-          const reference = {
-            parts: [{ property: { id: 'P854' }, value: entityContent(source.url) }],
-          }
+          const references = [
+            { parts: [{ property: { id: 'P854' }, value: entityContent(source.url) }] },
+          ]
           const sources = [evidence(`ev-${id}`, source, ['born June 15'])]
-          return kind === 'create'
-            ? createAction(id, 'P569', date, sources, { references: [reference] })
-            : editAction(
-                id,
-                target.id,
-                [
-                  { op: 'test', path: '/value', value: date },
-                  { op: 'test', path: '/qualifiers', value: [] },
-                  { op: 'add', path: '/references/-', value: reference },
-                ],
-                sources,
-              )
+          return kind === 'add'
+            ? createAction(id, 'P569', date, sources, { references })
+            : referenceAction(id, target.document.id, fact('P569', date), references, sources)
         }
         const first = proposal('action-1', source1)
         const second = proposal('action-2', source2)
@@ -520,7 +541,7 @@ describe('EvaluationView', () => {
           <ControlledEvaluationView
             politician={{
               ...politicianWithDifferentSources,
-              statements: kind === 'create' ? [] : [target],
+              statements: kind === 'add' ? [] : [target],
               actions,
             }}
             onSubmit={onSubmit}
@@ -531,18 +552,22 @@ describe('EvaluationView', () => {
         fireEvent.click(screen.getByRole('button', { name: /✓ Accept/ }))
 
         rerender(view([second, first, unrelated]))
+        // The first id stays accepted; the refreshed source is still undecided.
+        expect(screen.getAllByRole('button', { name: /✓ Accept/ })).toHaveLength(1)
         expect(screen.getByRole('button', { name: /✓ Accept/ })).toHaveClass('bg-success')
+        expect(screen.getAllByText('View source to decide')).toHaveLength(2)
+
+        fireEvent.click(screen.getAllByRole('button', { name: /• View|• Viewing/ })[0])
+        expect(screen.getByText('✓ Accepted')).toBeInTheDocument()
+        fireEvent.click(screen.getAllByRole('button', { name: /✓ Accept/ })[0])
         fireEvent.click(screen.getByRole('button', { name: /Submit Decisions & Next/ }))
 
         await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
         expect(onSubmit).toHaveBeenCalledWith({
-          actions: [second, first].map(({ id, kind, statement_id, payload }) => ({
-            id,
-            kind,
-            statement_id,
-            payload,
-            is_accepted: true,
-          })),
+          actions: [
+            { id: second.id, is_accepted: true },
+            { id: first.id, is_accepted: true },
+          ],
           skips: [unrelated.id],
         })
       },
@@ -568,20 +593,8 @@ describe('EvaluationView', () => {
       await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
       expect(onSubmit).toHaveBeenCalledWith({
         actions: [
-          {
-            id: 'action-1',
-            kind: 'CREATE_STATEMENT',
-            statement_id: null,
-            payload: politicianWithDifferentSources.actions[0].payload,
-            is_accepted: true,
-          },
-          {
-            id: 'action-2',
-            kind: 'CREATE_STATEMENT',
-            statement_id: null,
-            payload: politicianWithDifferentSources.actions[1].payload,
-            is_accepted: false,
-          },
+          { id: 'action-1', is_accepted: true },
+          { id: 'action-2', is_accepted: false },
         ],
         skips: ['action-3'],
       })

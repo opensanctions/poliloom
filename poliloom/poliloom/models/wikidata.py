@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session, declared_attr, relationship
 from poliloom import search
 from poliloom.wikidata.terms import resolve_label
 
-from .action import Action, ActionKind
+from .action import Action
 from .base import (
     Base,
     RelationType,
@@ -405,10 +405,8 @@ class WikidataEntityMixin:
     ) -> dict[str, int]:
         """Remove entities outside the configured hierarchy.
 
-        Hard-deletes statements referencing these entities (pending edit
-        actions targeting them are deleted first; decided actions keep their
-        payload with statement_id nulled by the foreign key), then hard-deletes
-        the entity records and removes them from the search index.
+        Retires pending proposals targeting removed statements. Decided
+        proposals retain their Wikidata target and result IDs.
 
         Returns:
             Dict with cleanup statistics:
@@ -436,20 +434,22 @@ class WikidataEntityMixin:
 
         # Hard-delete statements if this entity type has associated statements
         if property_id:
-            doomed_statements = select(Statement.id).where(
+            doomed_statements = (
                 Statement.entity_id.in_(select(outside_subquery)),
                 Statement.property_id == property_id,
             )
-            # Pending edits can never apply once their target statement is gone
             session.execute(
                 delete(Action).where(
                     Action.is_accepted.is_(None),
-                    Action.kind == ActionKind.EDIT_STATEMENT,
-                    Action.statement_id.in_(doomed_statements),
+                    Action.target_wikidata_statement_id.in_(
+                        select(Statement.wikidata_statement_id).where(
+                            *doomed_statements
+                        )
+                    ),
                 )
             )
             statements_deleted = session.execute(
-                delete(Statement).where(Statement.id.in_(doomed_statements))
+                delete(Statement).where(*doomed_statements)
             ).rowcount
             stats["statements_deleted"] = statements_deleted
 
@@ -913,10 +913,9 @@ class CurrentImportEntity(Base):
         This prevents race conditions from incorrectly deleting recently added entities.
 
         Referencing rows (politicians and their statements/actions/links, entity
-        subclass rows, relations, source_languages, statements/actions pointing at
-        the entity) cascade via foreign keys. Pending edit actions whose target
-        statement only dies through the cascade are deleted first, since a pending
-        edit can never apply once its target is gone.
+        subclass rows, relations, source_languages, statements and untargeted
+        proposals pointing at the entity) cascade via foreign keys. Pending
+        proposals whose targets are removed by the cascade are retired first.
 
         Also removes deleted entities from the search index.
 
@@ -933,9 +932,8 @@ class CurrentImportEntity(Base):
                 """
             DELETE FROM actions
             WHERE is_accepted IS NULL
-            AND kind = 'EDIT_STATEMENT'
-            AND statement_id IN (
-                SELECT statements.id FROM statements
+            AND target_wikidata_statement_id IN (
+                SELECT statements.wikidata_statement_id FROM statements
                 WHERE statements.entity_id IN (
                     SELECT wikidata_id FROM wikidata_entities
                     WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
@@ -989,9 +987,8 @@ class CurrentImportStatement(Base):
         Only deletes statements missing from current dump AND older than previous dump.
         This prevents race conditions from incorrectly deleting recently added statements.
 
-        Pending edit actions targeting doomed statements are deleted first, since
-        a pending edit can never apply once its target statement is gone; decided
-        actions keep their payload with statement_id nulled by the foreign key.
+        Pending proposals targeting doomed statements are deleted first;
+        decided proposals retain their Wikidata target and result IDs.
 
         Args:
             session: Database session
@@ -1006,9 +1003,8 @@ class CurrentImportStatement(Base):
                 """
             DELETE FROM actions
             WHERE is_accepted IS NULL
-            AND kind = 'EDIT_STATEMENT'
-            AND statement_id IN (
-                SELECT id FROM statements
+            AND target_wikidata_statement_id IN (
+                SELECT wikidata_statement_id FROM statements
                 WHERE wikidata_statement_id NOT IN (SELECT statement_id FROM current_import_statements)
                 AND updated_at <= :previous_dump_timestamp
             )

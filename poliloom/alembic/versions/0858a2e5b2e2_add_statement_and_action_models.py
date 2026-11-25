@@ -109,25 +109,23 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("politician_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("target_wikidata_statement_id", sa.String(), nullable=True),
+        sa.Column("before", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("after", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
-            "kind",
-            sa.Enum(
-                "CREATE_STATEMENT",
-                "EDIT_STATEMENT",
-                native_enum=False,
-                validate_strings=True,
-            ),
+            "references_to_add",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'::jsonb"),
             nullable=False,
         ),
-        sa.Column("statement_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("applied_wikidata_statement_id", sa.String(), nullable=True),
         sa.Column(
             "entity_id",
             sa.String(),
             sa.Computed(
-                "CASE WHEN kind = 'CREATE_STATEMENT' "
-                "AND payload #>> '{statement,property,id}' IN ('P19','P27','P39') "
-                "THEN payload #>> '{statement,value,content}' END"
+                "CASE WHEN target_wikidata_statement_id IS NULL "
+                "AND \"after\" #>> '{property,id}' IN ('P19','P27','P39') "
+                "THEN \"after\" #>> '{value,content}' END"
             ),
             nullable=True,
         ),
@@ -151,9 +149,13 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["politician_id"], ["politicians.id"], ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(["statement_id"], ["statements.id"]),
         sa.ForeignKeyConstraint(["entity_id"], ["wikidata_entities.wikidata_id"]),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "(target_wikidata_statement_id IS NULL) = (before IS NULL) "
+            "AND (before IS NULL OR jsonb_typeof(before) = 'object')",
+            name="ck_actions_target_before",
+        ),
     )
     op.create_index(op.f("ix_actions_politician_id"), "actions", ["politician_id"])
     op.create_index(
@@ -161,6 +163,14 @@ def upgrade() -> None:
         "actions",
         ["politician_id"],
         postgresql_where=sa.text("is_accepted IS NULL"),
+    )
+    op.create_index(
+        "idx_actions_target_pending",
+        "actions",
+        ["target_wikidata_statement_id"],
+        postgresql_where=sa.text(
+            "is_accepted IS NULL AND target_wikidata_statement_id IS NOT NULL"
+        ),
     )
 
     op.create_table(
@@ -314,6 +324,7 @@ def downgrade() -> None:
     op.drop_index("idx_action_evidence_action_id", table_name="action_evidence")
     op.drop_table("action_evidence")
 
+    op.drop_index("idx_actions_target_pending", table_name="actions")
     op.drop_index("idx_actions_politician_pending", table_name="actions")
     op.drop_index(op.f("ix_actions_politician_id"), table_name="actions")
     op.drop_table("actions")

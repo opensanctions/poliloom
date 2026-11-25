@@ -255,10 +255,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                   {section.groups.map((group) => {
                     const first = group.items[0]
                     const terms =
-                      first.statement?.entity_terms ?? first.createActions[0]?.entity_terms ?? null
+                      first.statement?.entity_terms ?? first.actions[0]?.entity_terms ?? null
                     const isNewGroup =
                       section.sectionType !== 'date' &&
-                      group.items.every((item) => item.statement === null)
+                      group.items.every(
+                        (item) =>
+                          item.statement === null &&
+                          item.actions.every((action) => action.change === 'add'),
+                      )
                     return (
                       <HeaderedBox
                         key={group.key}
@@ -274,7 +278,11 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                         <div className="space-y-3">
                           {group.items.map((item, index) => (
                             <Fragment
-                              key={item.statement ? item.statement.id : item.createActions[0].id}
+                              key={
+                                item.statement
+                                  ? item.statement.document.id
+                                  : item.actions.map((action) => action.group_key).join('|')
+                              }
                             >
                               {index > 0 && <hr className="border-border-muted my-3" />}
                               <StatementItemView

@@ -7,23 +7,25 @@ from poliloom.models import (
     Action,
     ActionClaim,
     ActionEvidence,
-    ActionKind,
     ActionSkip,
     Statement,
     WikidataEntity,
 )
+from poliloom.proposals import statement_fact
 
 
-def statement_body(property_id, content=None, data_type="wikibase-item"):
-    """Build the statement document of a create-action payload."""
+def fact(property_id, content=None, data_type=None, qualifiers=None):
+    """Build the property/value/qualifiers fact carried by an Action."""
     value = {"type": "value"}
     if content is not None:
         value["content"] = content
+    property = {"id": property_id}
+    if data_type is not None:
+        property["data_type"] = data_type
     return {
-        "id": f"Q42${property_id.lower()}-new",
-        "rank": "normal",
-        "property": {"id": property_id, "data_type": data_type},
+        "property": property,
         "value": value,
+        "qualifiers": qualifiers or [],
     }
 
 
@@ -40,12 +42,12 @@ def position_entity(db_session):
 def create_action(db_session, sample_politician):
     """Factory to create actions with defaults."""
 
-    def _create(kind, payload, statement_id=None):
+    def _create(after, *, target_wikidata_statement_id=None, before=None):
         action = Action(
             politician_id=sample_politician.id,
-            kind=kind,
-            payload=payload,
-            statement_id=statement_id,
+            target_wikidata_statement_id=target_wikidata_statement_id,
+            before=before,
+            after=after,
         )
         db_session.add(action)
         db_session.flush()
@@ -56,18 +58,18 @@ def create_action(db_session, sample_politician):
 
 
 class TestActionCreation:
-    """Actions can be created with both kinds; lifecycle fields default NULL."""
+    """Actions carry an untargeted or targeted fact proposal."""
 
     def test_create_statement_action(
         self, db_session, sample_politician, position_entity, create_action
     ):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT,
-            {"statement": statement_body("P39", "Q30185")},
-        )
+        after = fact("P39", "Q30185")
+        action = create_action(after)
 
-        assert action.kind == ActionKind.CREATE_STATEMENT
-        assert action.statement_id is None
+        assert action.target_wikidata_statement_id is None
+        assert action.before is None
+        assert action.after == after
+        assert action.references_to_add == []
         assert action.entity_id == "Q30185"
         assert action in sample_politician.actions
 
@@ -82,60 +84,91 @@ class TestActionCreation:
                     "type": "value",
                     "content": {"time": "+1980-01-01T00:00:00Z", "precision": 11},
                 },
+                "qualifiers": [],
+                "references": [],
             },
         )
         db_session.add(statement)
         db_session.flush()
 
+        after = fact(
+            "P569",
+            {"time": "+1980-01-01T00:00:00Z", "precision": 11},
+            qualifiers=[
+                {
+                    "property": {"id": "P585", "data_type": "time"},
+                    "value": {
+                        "type": "value",
+                        "content": {"time": "+1980-01-01T00:00:00Z", "precision": 11},
+                    },
+                }
+            ],
+        )
         action = create_action(
-            ActionKind.EDIT_STATEMENT,
-            {"patch": [{"op": "replace", "path": "/rank", "value": "preferred"}]},
-            statement_id=statement.id,
+            after,
+            target_wikidata_statement_id=statement.wikidata_statement_id,
+            before=statement_fact(statement.document),
         )
 
-        assert action.kind == ActionKind.EDIT_STATEMENT
-        assert action.statement_id == statement.id
-        assert action.statement == statement
+        assert action.target_wikidata_statement_id == "Q42$birth-1"
+        assert action.before == statement_fact(statement.document)
+        assert action.after == after
+        assert action.applied_wikidata_statement_id is None
+
+    @pytest.mark.parametrize("has_target", [True, False])
+    def test_target_and_before_must_be_paired(
+        self, db_session, create_action, has_target
+    ):
+        after = fact("P569", {"time": "+1980-01-01T00:00:00Z", "precision": 11})
+        with (
+            pytest.raises(IntegrityError, match="ck_actions_target_before"),
+            db_session.begin_nested(),
+        ):
+            create_action(
+                after,
+                target_wikidata_statement_id="Q42$birth-1" if has_target else None,
+                before=None if has_target else after,
+            )
 
     def test_lifecycle_fields_default_null(
         self, db_session, sample_politician, create_action
     ):
         action = create_action(
-            ActionKind.CREATE_STATEMENT,
-            {
-                "statement": statement_body(
-                    "P569", {"time": "+1980-01-01T00:00:00Z", "precision": 11}, "time"
-                )
-            },
+            fact(
+                "P569",
+                {"time": "+1980-01-01T00:00:00Z", "precision": 11},
+                "time",
+            )
         )
 
         assert action.is_accepted is None
         assert action.decided_by_user_id is None
         assert action.decided_at is None
         assert action.applied_at is None
+        assert action.applied_wikidata_statement_id is None
         assert action.error is None
 
 
 class TestActionGeneratedEntityId:
-    """entity_id derives from the payload of creates only."""
+    """entity_id derives from the after value of untargeted actions only."""
 
     def test_non_entity_create_body_entity_id_null(self, db_session, create_action):
         action = create_action(
-            ActionKind.CREATE_STATEMENT,
-            {
-                "statement": statement_body(
-                    "P569", {"time": "+1980-01-01T00:00:00Z", "precision": 11}, "time"
-                )
-            },
+            fact(
+                "P569",
+                {"time": "+1980-01-01T00:00:00Z", "precision": 11},
+                "time",
+            )
         )
         assert action.entity_id is None
 
-    def test_edit_body_entity_id_null_even_for_entity_property(
+    def test_targeted_action_entity_id_null_even_for_entity_property(
         self, db_session, position_entity, create_action
     ):
         action = create_action(
-            ActionKind.EDIT_STATEMENT,
-            {"statement": statement_body("P39", "Q30185")},
+            fact("P39", "Q30185"),
+            target_wikidata_statement_id="Q42$p39-1",
+            before=fact("P39", "Q30185"),
         )
         assert action.entity_id is None
 
@@ -144,9 +177,7 @@ class TestActionEvidence:
     """Evidence pairs are unique per (action, source)."""
 
     def test_multiple_sources_allowed(self, db_session, create_action, create_source):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         source_a = create_source("https://example.org/a")
         source_b = create_source("https://example.org/b")
 
@@ -166,9 +197,7 @@ class TestActionEvidence:
         assert action.evidence[0].supporting_quotes == ["quote a"]
 
     def test_duplicate_pair_rejected(self, db_session, create_action, sample_source):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         db_session.add(ActionEvidence(action_id=action.id, source_id=sample_source.id))
         db_session.flush()
         db_session.add(ActionEvidence(action_id=action.id, source_id=sample_source.id))
@@ -181,9 +210,7 @@ class TestActionClaims:
     """Unreleased claims are unique per action; released claims remain as history."""
 
     def test_claim_created(self, db_session, create_action):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         claim = ActionClaim(action_id=action.id, user_id="user123")
         db_session.add(claim)
         db_session.flush()
@@ -195,9 +222,7 @@ class TestActionClaims:
     def test_second_unreleased_claim_for_same_action_rejected(
         self, db_session, create_action
     ):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         db_session.add(ActionClaim(action_id=action.id, user_id="user123"))
         db_session.flush()
         db_session.add(ActionClaim(action_id=action.id, user_id="user456"))
@@ -208,9 +233,7 @@ class TestActionClaims:
     def test_released_claim_allows_new_claim_for_same_action(
         self, db_session, create_action
     ):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         first = ActionClaim(action_id=action.id, user_id="user123")
         db_session.add(first)
         db_session.flush()
@@ -225,9 +248,7 @@ class TestActionSkips:
     """Skips are unique per (user, action)."""
 
     def test_skip_created(self, db_session, create_action):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         skip = ActionSkip(user_id="user123", action_id=action.id)
         db_session.add(skip)
         db_session.flush()
@@ -235,9 +256,7 @@ class TestActionSkips:
         assert skip.user_id == "user123"
 
     def test_duplicate_skip_rejected(self, db_session, create_action):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
+        action = create_action(fact("P569"))
         db_session.add(ActionSkip(user_id="user123", action_id=action.id))
         db_session.flush()
         db_session.add(ActionSkip(user_id="user123", action_id=action.id))
@@ -246,12 +265,8 @@ class TestActionSkips:
             db_session.flush()
 
     def test_other_users_and_actions_allowed(self, db_session, create_action):
-        action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P569")}
-        )
-        other_action = create_action(
-            ActionKind.CREATE_STATEMENT, {"statement": statement_body("P570")}
-        )
+        action = create_action(fact("P569"))
+        other_action = create_action(fact("P570"))
         db_session.add_all(
             [
                 ActionSkip(user_id="user123", action_id=action.id),

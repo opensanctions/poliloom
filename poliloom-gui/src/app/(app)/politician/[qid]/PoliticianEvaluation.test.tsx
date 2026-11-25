@@ -6,7 +6,6 @@ import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type {
   Action,
   ActionEvidence,
-  JsonPatchOperation,
   Politician,
   RestSnak,
   RestStatement,
@@ -14,6 +13,7 @@ import type {
   SourceResponse,
   SourceStatusEvent,
   Statement,
+  StatementFact,
   TermMaps,
 } from '@/types'
 
@@ -57,6 +57,10 @@ const testEvidence: ActionEvidence = {
   supporting_quotes: ['born on January 1, 1970'],
 }
 
+function fact(propertyId: string, value: RestValue, qualifiers: RestSnak[] = []): StatementFact {
+  return { property: { id: propertyId }, value, qualifiers }
+}
+
 function createAction(
   id: string,
   propertyId: string,
@@ -65,21 +69,18 @@ function createAction(
     qualifiers?: RestSnak[]
     entityTerms?: TermMaps | null
     evidence?: ActionEvidence[]
+    groupKey?: string
   } = {},
 ): Action {
   return {
     id,
-    kind: 'CREATE_STATEMENT',
-    statement_id: null,
-    payload: {
-      statement: {
-        rank: 'normal',
-        property: { id: propertyId },
-        value,
-        qualifiers: options.qualifiers ?? [],
-        references: [],
-      },
-    },
+    target_wikidata_statement_id: null,
+    before: null,
+    after: fact(propertyId, value, options.qualifiers ?? []),
+    references_to_add: [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'add',
     entity_terms: options.entityTerms ?? null,
     evidence: options.evidence ?? [],
     is_accepted: null,
@@ -88,17 +89,22 @@ function createAction(
   }
 }
 
-function editAction(
+function refineAction(
   id: string,
   statementId: string,
-  patch: JsonPatchOperation[],
-  options: { entityTerms?: TermMaps | null; evidence?: ActionEvidence[] } = {},
+  before: StatementFact,
+  after: StatementFact,
+  options: { entityTerms?: TermMaps | null; evidence?: ActionEvidence[]; groupKey?: string } = {},
 ): Action {
   return {
     id,
-    kind: 'EDIT_STATEMENT',
-    statement_id: statementId,
-    payload: { patch },
+    target_wikidata_statement_id: statementId,
+    before,
+    after,
+    references_to_add: [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'refine',
     entity_terms: options.entityTerms ?? null,
     evidence: options.evidence ?? [],
     is_accepted: null,
@@ -145,17 +151,11 @@ const politician: Politician = {
       entityTerms: terms({ en: 'France' }),
       evidence: [{ id: 'ev-3', source: testSource, supporting_quotes: ['French politician'] }],
     }),
-    editAction(
+    refineAction(
       'action-3',
       'stmt-2',
-      [
-        { op: 'test', path: '/qualifiers/0', value: startTimeQualifier('+2020-01-01T00:00:00Z') },
-        {
-          op: 'replace',
-          path: '/qualifiers/0',
-          value: startTimeQualifier('+2021-01-01T00:00:00Z'),
-        },
-      ],
+      fact('P39', entityContent('Q555'), [startTimeQualifier('+2020-01-01T00:00:00Z')]),
+      fact('P39', entityContent('Q555'), [startTimeQualifier('+2021-01-01T00:00:00Z')]),
       { evidence: [{ id: 'ev-4', source: testSource, supporting_quotes: ['mayor since 2021'] }] },
     ),
   ],
@@ -267,20 +267,8 @@ describe('PoliticianEvaluation', () => {
     )!
     expect(JSON.parse(patchCall[1]!.body as string)).toEqual({
       actions: [
-        {
-          id: 'action-1',
-          kind: 'CREATE_STATEMENT',
-          statement_id: null,
-          payload: politician.actions[0].payload,
-          is_accepted: true,
-        },
-        {
-          id: 'action-2',
-          kind: 'CREATE_STATEMENT',
-          statement_id: null,
-          payload: politician.actions[1].payload,
-          is_accepted: false,
-        },
+        { id: 'action-1', is_accepted: true },
+        { id: 'action-2', is_accepted: false },
       ],
       skips: ['action-3'],
     })
@@ -334,11 +322,16 @@ describe('PoliticianEvaluation', () => {
     })
   })
 
-  it('surfaces submission errors from the backend', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
+  it.each([
+    { success: false, message: 'Action not claimed', errors: ['boom'] },
+    { success: true, message: 'Processed with errors', errors: ['could not apply action-1'] },
+  ])('shows application errors and waits for an explicit next: $message', async (result) => {
     mockFetch.mockImplementation((url, options) => {
       if (options?.method === 'PATCH') {
-        return mockApiResponse({ success: false, message: 'Action not claimed', errors: ['boom'] })
+        return mockApiResponse(result)
+      }
+      if (options?.method === 'POST') {
+        return mockApiResponse({ wikidata_id: 'Q12345' })
       }
       return mockApiResponse(politician)
     })
@@ -348,10 +341,19 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
     await waitFor(() => {
-      expect(alertMock).toHaveBeenCalledWith('Error submitting decisions: Action not claimed')
+      expect(screen.getByRole('alert')).toHaveTextContent(result.errors[0])
     })
     expect(mockRouterPush).not.toHaveBeenCalled()
-    alertMock.mockRestore()
+    expect(screen.queryByText('Submit Decisions & Next')).not.toBeInTheDocument()
+
+    // The decided id is not offered for resubmission.
+    expect(screen.queryByText('✓ Accepted')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next Politician' }))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/politicians/claim', { method: 'POST' })
+      expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
+    })
   })
 
   it('does not claim work when entering, changing, or leaving politician routes', () => {

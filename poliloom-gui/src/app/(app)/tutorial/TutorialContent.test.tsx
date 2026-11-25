@@ -789,7 +789,7 @@ describe('Tutorial Page', () => {
         expect(
           screen.getByRole('link', { name: 'Springfield Republic (Q999001)' }),
         ).toBeInTheDocument()
-        expect(screen.getAllByText('+ Reference')).toHaveLength(2)
+        expect(screen.getAllByText('Add reference')).toHaveLength(2)
         expect(screen.queryByText('Reference URL')).not.toBeInTheDocument()
       })
 

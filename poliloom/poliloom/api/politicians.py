@@ -16,13 +16,13 @@ from ..enrichment_queue import create_enrichment_sources
 from ..models import (
     Action,
     ActionEvidence,
-    ActionKind,
     ActionSkip,
     Politician,
     Source,
     SourceLanguage,
     WikidataEntity,
 )
+from ..proposals import action_group_key, fact_key
 from ..review_queue import (
     available_to_user,
     claim_cutoff,
@@ -42,6 +42,7 @@ from ..scheduling import (
     schedule_enrichment,
 )
 from ..sse import DecisionCountEvent, event_bus
+from ..wikidata.document import statement_entity_id
 from ..wikidata.execution import apply_action_group, group_actions
 from .auth import User, get_current_user
 from .schemas import (
@@ -54,7 +55,6 @@ from .schemas import (
     PoliticianResponse,
     SourceResponse,
     StatementResponse,
-    SubmittedAction,
     TermMaps,
 )
 
@@ -74,7 +74,7 @@ def build_politician_response(
         entity_id
         for entity_id in (
             *(statement.entity_id for statement in politician.statements),
-            *(action.entity_id for action in politician.actions),
+            *(statement_entity_id(action.after) for action in politician.actions),
         )
         if entity_id is not None
     }
@@ -90,9 +90,8 @@ def build_politician_response(
     )
 
     def entity_terms(entity_id: str | None) -> TermMaps | None:
-        if entity_id is None:
-            return None
-        return TermMaps.from_entity(entities_by_id[entity_id])
+        entity = entities_by_id.get(entity_id)
+        return TermMaps.from_entity(entity) if entity is not None else None
 
     statements = [
         StatementResponse(
@@ -106,10 +105,20 @@ def build_politician_response(
     actions = [
         ActionResponse(
             id=action.id,
-            kind=action.kind,
-            statement_id=action.statement_id,
-            payload=action.payload,
-            entity_terms=entity_terms(action.entity_id),
+            target_wikidata_statement_id=action.target_wikidata_statement_id,
+            before=action.before,
+            after=action.after,
+            references_to_add=action.references_to_add,
+            applied_wikidata_statement_id=action.applied_wikidata_statement_id,
+            group_key=action_group_key(action),
+            change=(
+                "add"
+                if action.before is None
+                else "reference"
+                if fact_key(action.before) == fact_key(action.after)
+                else "refine"
+            ),
+            entity_terms=entity_terms(statement_entity_id(action.after)),
             evidence=[
                 ActionEvidenceResponse(
                     id=evidence.id,
@@ -300,25 +309,6 @@ async def get_politician(
     return response
 
 
-def _action_envelope_error(submitted: SubmittedAction) -> str | None:
-    """Validate the action envelope for its kind; return an error message or None."""
-    if submitted.kind is ActionKind.CREATE_STATEMENT:
-        statement = submitted.payload.get("statement")
-        if not isinstance(statement, dict):
-            return 'CREATE_STATEMENT payload must be {"statement": {...}}'
-        prop = statement.get("property")
-        if not isinstance(prop, dict) or not prop.get("id"):
-            return "CREATE_STATEMENT statement.property.id is required"
-        if "value" not in statement:
-            return "CREATE_STATEMENT statement.value is required"
-        return None
-    if submitted.statement_id is None:
-        return "EDIT_STATEMENT statement_id is required"
-    if not isinstance(submitted.payload.get("patch"), list):
-        return 'EDIT_STATEMENT payload must be {"patch": [...]}'
-    return None
-
-
 @router.patch("/{qid}/actions", response_model=PatchActionsResponse)
 async def patch_actions(
     qid: str,
@@ -329,12 +319,9 @@ async def patch_actions(
     """
     Record submitted actions and skips for a politician.
 
-    Each submission either updates an existing pending action (requires a
-    live claim by the current user; the submitted object is truth, so kind,
-    statement_id and payload are overwritten) or inserts a user-authored new
-    action. Accepted actions are applied to Wikidata synchronously once the
-    submissions are committed. Skips hide a pending action for the current
-    user without deciding it.
+    Decisions require a live claim and do not change the proposal. Accepted
+    actions are applied to Wikidata after the decisions are committed. Skips
+    hide a pending action for the current user without deciding it.
     """
     errors = []
 
@@ -357,88 +344,51 @@ async def patch_actions(
     accepted_actions = []
     processed_count = 0
 
-    for index, submitted in enumerate(request.actions):
-        label = f"Action {submitted.id}" if submitted.id else f"actions[{index}]"
-        try:
-            envelope_error = _action_envelope_error(submitted)
-            if envelope_error:
-                errors.append(f"{label}: {envelope_error}")
-                continue
-
-            if submitted.id is not None:
-                action = db.execute(
-                    select(Action).where(Action.id == submitted.id).with_for_update()
-                ).scalar_one_or_none()
-                if action is None:
-                    errors.append(f"Action {submitted.id} not found")
-                    continue
-                if action.politician_id != politician.id:
-                    errors.append(
-                        f"Action {submitted.id} does not belong to politician {qid}"
-                    )
-                    continue
-                if action.is_accepted is not None:
-                    errors.append(f"Action {submitted.id} is not pending")
-                    continue
-                has_live_claim = db.scalar(
-                    select(live_claim(action, user_id=user_id, cutoff=cutoff))
-                )
-                if not has_live_claim:
-                    errors.append(
-                        f"Action {submitted.id} is not claimed by user {user_id}"
-                    )
-                    continue
-
-                action.kind = submitted.kind
-                action.statement_id = submitted.statement_id
-                action.payload = submitted.payload
-            else:
-                action = Action(
-                    politician_id=politician.id,
-                    kind=submitted.kind,
-                    statement_id=submitted.statement_id,
-                    payload=submitted.payload,
-                )
-                db.add(action)
-                db.flush()
-
-            action.is_accepted = submitted.is_accepted
-            action.decided_by_user_id = user_id
-            action.decided_at = datetime.now(UTC)
-            decided_actions.append(action)
-            processed_count += 1
-            if submitted.is_accepted:
-                accepted_actions.append(action)
-
-        except SQLAlchemyError as e:
-            errors.append(f"Error processing action {label}: {e!s}")
+    for submitted in request.actions:
+        action = db.execute(
+            select(Action).where(Action.id == submitted.id).with_for_update()
+        ).scalar_one_or_none()
+        if action is None:
+            errors.append(f"Action {submitted.id} not found")
             continue
+        if action.politician_id != politician.id:
+            errors.append(f"Action {submitted.id} does not belong to politician {qid}")
+            continue
+        if action.is_accepted is not None:
+            errors.append(f"Action {submitted.id} is not pending")
+            continue
+        if not db.scalar(select(live_claim(action, user_id=user_id, cutoff=cutoff))):
+            errors.append(f"Action {submitted.id} is not claimed by user {user_id}")
+            continue
+
+        action.is_accepted = submitted.is_accepted
+        action.decided_by_user_id = user_id
+        action.decided_at = datetime.now(UTC)
+        decided_actions.append(action)
+        processed_count += 1
+        if submitted.is_accepted:
+            accepted_actions.append(action)
 
     for skip_id in request.skips:
-        try:
-            action = db.execute(
-                select(Action).where(Action.id == skip_id).with_for_update()
-            ).scalar_one_or_none()
-            if action is None:
-                errors.append(f"Action {skip_id} not found")
-                continue
-            if action.politician_id != politician.id:
-                errors.append(f"Action {skip_id} does not belong to politician {qid}")
-                continue
-            if action.is_accepted is not None:
-                errors.append(f"Action {skip_id} is not pending")
-                continue
-
-            db.execute(
-                pg_insert(ActionSkip)
-                .values(user_id=user_id, action_id=skip_id)
-                .on_conflict_do_nothing(index_elements=["user_id", "action_id"])
-            )
-            processed_count += 1
-
-        except SQLAlchemyError as e:
-            errors.append(f"Error processing skip {skip_id}: {e!s}")
+        action = db.execute(
+            select(Action).where(Action.id == skip_id).with_for_update()
+        ).scalar_one_or_none()
+        if action is None:
+            errors.append(f"Action {skip_id} not found")
             continue
+        if action.politician_id != politician.id:
+            errors.append(f"Action {skip_id} does not belong to politician {qid}")
+            continue
+        if action.is_accepted is not None:
+            errors.append(f"Action {skip_id} is not pending")
+            continue
+
+        db.execute(
+            pg_insert(ActionSkip)
+            .values(user_id=user_id, action_id=skip_id)
+            .on_conflict_do_nothing(index_elements=["user_id", "action_id"])
+        )
+        processed_count += 1
 
     # Broadcast updated decided-action count
     if decided_actions:
@@ -465,9 +415,12 @@ async def patch_actions(
             ValueError,
             KeyError,
         ) as e:
-            apply_errors.extend(
-                f"Error applying action {action.id}: {e!s}" for action in action_group
-            )
+            if isinstance(e, SQLAlchemyError):
+                db.rollback()
+            for action in action_group:
+                action.error = str(e)
+                apply_errors.append(f"Error applying action {action.id}: {e!s}")
+            db.commit()
             continue
         if not success:
             apply_errors.extend(
@@ -478,8 +431,8 @@ async def patch_actions(
     errors.extend(apply_errors)
 
     return PatchActionsResponse(
-        success=True,
-        message=f"Successfully processed {processed_count} items"
+        success=not errors,
+        message=f"Recorded {processed_count} decisions or skips"
         + (f" ({len(apply_errors)} apply errors)" if apply_errors else ""),
         errors=errors,
     )

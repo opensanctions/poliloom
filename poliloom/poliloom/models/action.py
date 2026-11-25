@@ -1,9 +1,8 @@
 """Action domain models: Action, ActionEvidence, ActionClaim, ActionSkip."""
 
-from enum import Enum
-
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     Computed,
     DateTime,
@@ -15,24 +14,14 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy import (
-    Enum as SQLEnum,
-)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from .base import Base, TimestampMixin
 
 
-class ActionKind(str, Enum):
-    """Kind of Wikidata operation an Action proposes."""
-
-    CREATE_STATEMENT = "CREATE_STATEMENT"
-    EDIT_STATEMENT = "EDIT_STATEMENT"
-
-
 class Action(Base, TimestampMixin):
-    """Proposed Wikidata operation for a politician.
+    """Statement proposal for a politician.
 
     Lifecycle: pending (is_accepted NULL) → accepted/discarded (TRUE/FALSE)
     → applied (applied_at set, error NULL on success).
@@ -45,9 +34,19 @@ class Action(Base, TimestampMixin):
             "politician_id",
             postgresql_where=text("is_accepted IS NULL"),
         ),
-        # FK cascade path for entity hard-deletes (dump GC and the
-        # soft-delete drop migration)
+        Index(
+            "idx_actions_target_pending",
+            "target_wikidata_statement_id",
+            postgresql_where=text(
+                "is_accepted IS NULL AND target_wikidata_statement_id IS NOT NULL"
+            ),
+        ),
         Index("ix_actions_entity_id", "entity_id"),
+        CheckConstraint(
+            "(target_wikidata_statement_id IS NULL) = (before IS NULL) "
+            "AND (before IS NULL OR jsonb_typeof(before) = 'object')",
+            name="ck_actions_target_before",
+        ),
     )
 
     id = Column(
@@ -59,24 +58,19 @@ class Action(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    kind = Column(
-        SQLEnum(ActionKind, native_enum=False, validate_strings=True),
-        nullable=False,
+    target_wikidata_statement_id = Column(String, nullable=True)
+    before = Column(JSONB(none_as_null=True), nullable=True)
+    after = Column(JSONB(none_as_null=True), nullable=False)
+    references_to_add = Column(
+        JSONB(none_as_null=True), nullable=False, server_default=text("'[]'::jsonb")
     )
-    statement_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("statements.id", ondelete="SET NULL"),
-        nullable=True,
-    )  # NULL for pending creates; target statement for edits
-    payload = Column(
-        JSONB, nullable=False
-    )  # Create body {"statement": {...}} or edit body {"patch": [...]}
+    applied_wikidata_statement_id = Column(String, nullable=True)
     entity_id = Column(
         String,
         Computed(
-            "CASE WHEN kind = 'CREATE_STATEMENT' "
-            "AND payload #>> '{statement,property,id}' IN ('P19','P27','P39') "
-            "THEN payload #>> '{statement,value,content}' END"
+            "CASE WHEN target_wikidata_statement_id IS NULL "
+            "AND \"after\" #>> '{property,id}' IN ('P19','P27','P39') "
+            "THEN \"after\" #>> '{value,content}' END"
         ),
         ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         nullable=True,
@@ -91,7 +85,6 @@ class Action(Base, TimestampMixin):
 
     # Relationships
     politician = relationship("Politician", back_populates="actions")
-    statement = relationship("Statement")
     evidence = relationship(
         "ActionEvidence", back_populates="action", cascade="all, delete-orphan"
     )

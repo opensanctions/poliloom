@@ -1,14 +1,15 @@
 import {
   Action,
   ActionEvidence,
-  JsonPatchOperation,
   Politician,
+  RestReference,
   RestSnak,
   RestStatement,
   RestTimeValue,
   RestValue,
   SourceResponse,
   Statement,
+  StatementFact,
   TermMaps,
 } from '@/types'
 
@@ -104,26 +105,31 @@ function evidence(id: string, source: SourceResponse, supportingQuotes: string[]
   return { id, source, supporting_quotes: supportingQuotes }
 }
 
-function createAction(
+function fact(propertyId: string, value: RestValue, qualifiers: RestSnak[] = []): StatementFact {
+  return { property: { id: propertyId }, value, qualifiers }
+}
+
+function addAction(
   id: string,
   propertyId: string,
   value: RestValue,
   actionEvidence: ActionEvidence[],
-  options: { qualifiers?: RestSnak[]; entityTerms?: TermMaps | null } = {},
+  options: {
+    qualifiers?: RestSnak[]
+    entityTerms?: TermMaps | null
+    references?: RestReference[]
+    groupKey?: string
+  } = {},
 ): Action {
   return {
     id,
-    kind: 'CREATE_STATEMENT',
-    statement_id: null,
-    payload: {
-      statement: {
-        rank: 'normal',
-        property: { id: propertyId },
-        value,
-        qualifiers: options.qualifiers ?? [],
-        references: [],
-      },
-    },
+    target_wikidata_statement_id: null,
+    before: null,
+    after: fact(propertyId, value, options.qualifiers ?? []),
+    references_to_add: options.references ?? [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'add',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
     is_accepted: null,
@@ -132,18 +138,52 @@ function createAction(
   }
 }
 
-function editAction(
+function refineAction(
   id: string,
-  statementId: string,
-  patch: JsonPatchOperation[],
+  targetStatementId: string,
+  before: StatementFact,
+  after: StatementFact,
   actionEvidence: ActionEvidence[] = [],
-  options: { entityTerms?: TermMaps | null } = {},
+  options: {
+    entityTerms?: TermMaps | null
+    referencesToAdd?: RestReference[]
+    groupKey?: string
+  } = {},
 ): Action {
   return {
     id,
-    kind: 'EDIT_STATEMENT',
-    statement_id: statementId,
-    payload: { patch },
+    target_wikidata_statement_id: targetStatementId,
+    before,
+    after,
+    references_to_add: options.referencesToAdd ?? [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'refine',
+    entity_terms: options.entityTerms ?? null,
+    evidence: actionEvidence,
+    is_accepted: null,
+    applied_at: null,
+    error: null,
+  }
+}
+
+function referenceAction(
+  id: string,
+  targetStatementId: string,
+  statementFact: StatementFact,
+  referencesToAdd: RestReference[],
+  actionEvidence: ActionEvidence[] = [],
+  options: { entityTerms?: TermMaps | null; groupKey?: string } = {},
+): Action {
+  return {
+    id,
+    target_wikidata_statement_id: targetStatementId,
+    before: statementFact,
+    after: statementFact,
+    references_to_add: referencesToAdd,
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: 'reference',
     entity_terms: options.entityTerms ?? null,
     evidence: actionEvidence,
     is_accepted: null,
@@ -220,7 +260,7 @@ export const extractedDataPolitician: Politician = {
     }),
   ],
   actions: [
-    createAction('tutorial-create-birth-date', 'P569', timeValue('+1975-03-15T00:00:00Z', 11), [
+    addAction('tutorial-create-birth-date', 'P569', timeValue('+1975-03-15T00:00:00Z', 11), [
       evidence('ref-tutorial-1', page1, birthDateQuotes),
     ]),
   ],
@@ -236,7 +276,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
       sources: [page1],
       statements: [],
       actions: [
-        createAction(
+        addAction(
           'tutorial-create-mothers-birth-date',
           'P569',
           timeValue('+1952-06-08T00:00:00Z', 11),
@@ -246,7 +286,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
             ]),
           ],
         ),
-        createAction('tutorial-create-birth-date', 'P569', timeValue('+1975-03-15T00:00:00Z', 11), [
+        addAction('tutorial-create-birth-date', 'P569', timeValue('+1975-03-15T00:00:00Z', 11), [
           evidence('ref-tutorial-3', page1, birthDateQuotes),
         ]),
       ],
@@ -276,7 +316,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
       sources: [page1, page2],
       statements: [],
       actions: [
-        createAction(
+        addAction(
           'tutorial-create-springfield-member',
           'P39',
           entityValue('Q1343573'),
@@ -286,7 +326,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
             entityTerms: springfieldParliament,
           },
         ),
-        createAction(
+        addAction(
           'tutorial-create-minister',
           'P39',
           entityValue('Q4018482'),
@@ -333,7 +373,7 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
         }),
       ],
       actions: [
-        createAction(
+        addAction(
           'tutorial-create-generic-member',
           'P39',
           entityValue('Q486839'),
@@ -369,17 +409,11 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
       sources: [page1],
       statements: [statement('Q955672$birth-date', 'P569', timeValue('+1975-00-00T00:00:00Z', 9))],
       actions: [
-        editAction(
+        refineAction(
           'tutorial-edit-birth-date-precision',
           'Q955672$birth-date',
-          [
-            {
-              op: 'test',
-              path: '/value',
-              value: timeValue('+1975-00-00T00:00:00Z', 9),
-            },
-            { op: 'replace', path: '/value', value: timeValue('+1975-03-15T00:00:00Z', 11) },
-          ],
+          fact('P569', timeValue('+1975-00-00T00:00:00Z', 9)),
+          fact('P569', timeValue('+1975-03-15T00:00:00Z', 11)),
           [evidence('ref-tutorial-7', page1, birthDateQuotes)],
         ),
       ],
@@ -416,35 +450,19 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
         }),
       ],
       actions: [
-        editAction(
+        refineAction(
           'tutorial-edit-springfield-start',
           'Q955672$springfield-member',
-          [
-            { op: 'test', path: '/qualifiers', value: [] },
-            {
-              op: 'add',
-              path: '/qualifiers/-',
-              value: startTimeQualifier('+2020-01-01T00:00:00Z', 11),
-            },
-          ],
+          fact('P39', entityValue('Q1343573')),
+          fact('P39', entityValue('Q1343573'), [startTimeQualifier('+2020-01-01T00:00:00Z', 11)]),
           [evidence('ref-tutorial-8', page1, springfieldMemberQuotes)],
           { entityTerms: springfieldParliament },
         ),
-        editAction(
+        refineAction(
           'tutorial-edit-minister-start',
           'Q955672$minister',
-          [
-            {
-              op: 'test',
-              path: '/qualifiers/0',
-              value: startTimeQualifier('+2022-06-00T00:00:00Z', 10),
-            },
-            {
-              op: 'replace',
-              path: '/qualifiers/0',
-              value: startTimeQualifier('+2015-06-00T00:00:00Z', 10),
-            },
-          ],
+          fact('P39', entityValue('Q4018482'), [startTimeQualifier('+2022-06-00T00:00:00Z', 10)]),
+          fact('P39', entityValue('Q4018482'), [startTimeQualifier('+2015-06-00T00:00:00Z', 10)]),
           [
             evidence('ref-tutorial-9', page2, [
               'Doe began her political career as a city councillor from 2015 to 2019.',
@@ -496,32 +514,18 @@ export const tutorialReviewSteps: Partial<Record<TutorialStep, TutorialReviewSte
         }),
       ],
       actions: [
-        editAction(
+        referenceAction(
           'tutorial-edit-birthplace-reference',
           'Q955672$birthplace',
-          [
-            { op: 'test', path: '/value', value: entityValue('Q6490542') },
-            { op: 'test', path: '/qualifiers', value: [] },
-            {
-              op: 'add',
-              path: '/references/-',
-              value: { parts: [{ property: { id: 'P854' }, value: entityValue(page1.url) }] },
-            },
-          ],
+          fact('P19', entityValue('Q6490542')),
+          [{ parts: [{ property: { id: 'P854' }, value: entityValue(page1.url) }] }],
           [evidence('ref-tutorial-10', page1, birthDateQuotes)],
         ),
-        editAction(
+        referenceAction(
           'tutorial-edit-citizenship-reference',
           'Q955672$citizenship',
-          [
-            { op: 'test', path: '/value', value: entityValue('Q999001') },
-            { op: 'test', path: '/qualifiers', value: [] },
-            {
-              op: 'add',
-              path: '/references/-',
-              value: { parts: [{ property: { id: 'P854' }, value: entityValue(page3.url) }] },
-            },
-          ],
+          fact('P27', entityValue('Q999001')),
+          [{ parts: [{ property: { id: 'P854' }, value: entityValue(page3.url) }] }],
           [
             evidence('ref-tutorial-11', page3, [
               'Doe has represented the Springfield district in parliament since 2020.',

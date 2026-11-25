@@ -9,25 +9,21 @@ from poliloom.models import (
     Action,
     ActionClaim,
     ActionEvidence,
-    ActionKind,
     ActionSkip,
     Statement,
 )
 from poliloom.review_queue import claim_next, count_serveable
 
 
-def birth_date_payload():
-    """Build a CREATE_STATEMENT payload for a birth-date statement."""
+def birth_date_fact():
+    """Build the after fact for a birth-date proposal."""
     return {
-        "statement": {
-            "id": "Q42$birth-new",
-            "rank": "normal",
-            "property": {"id": "P569", "data_type": "time"},
-            "value": {
-                "type": "value",
-                "content": {"time": "+1980-01-01T00:00:00Z", "precision": 11},
-            },
-        }
+        "property": {"id": "P569"},
+        "value": {
+            "type": "value",
+            "content": {"time": "+1980-01-01T00:00:00Z", "precision": 11},
+        },
+        "qualifiers": [],
     }
 
 
@@ -38,8 +34,7 @@ def create_action(db_session):
     def _create(politician, *, sources=(), is_accepted=None):
         action = Action(
             politician_id=politician.id,
-            kind=ActionKind.CREATE_STATEMENT,
-            payload=birth_date_payload(),
+            after=birth_date_fact(),
             is_accepted=is_accepted,
         )
         if sources:

@@ -10,12 +10,13 @@ from poliloom.models import (
     Action,
     ActionClaim,
     ActionEvidence,
-    ActionKind,
     ActionSkip,
     Politician,
     Statement,
 )
+from poliloom.proposals import statement_fact
 from poliloom.scheduling import ScheduledEnrichment
+from poliloom.wikidata.date import WikidataDate
 
 from ..conftest import create_with_entity, make_terms
 
@@ -37,17 +38,33 @@ def statement_document(
     }
 
 
+def time_content(date_string):
+    """REST time content for a YYYY[-MM[-DD]] string."""
+    return WikidataDate.from_date_string(date_string).to_rest_time_content()
+
+
 def birth_date_statement(statement_id):
-    return statement_document(
-        statement_id,
-        "P569",
-        {"time": "+1970-01-15T00:00:00Z", "precision": 11},
-        "time",
-    )
+    return statement_document(statement_id, "P569", time_content("1970-01-15"), "time")
 
 
-def birth_date_create_payload(statement_id="Q123456$birth-new"):
-    return {"statement": birth_date_statement(statement_id)}
+def proposal_fact(
+    property_id, content=None, data_type="wikibase-item", qualifiers=None
+):
+    """Build the property/value/qualifiers fact carried by an Action."""
+    value = {"type": "value"}
+    if content is not None:
+        value["content"] = content
+    return {
+        "property": {"id": property_id, "data_type": data_type}
+        if data_type
+        else {"id": property_id},
+        "value": value,
+        "qualifiers": qualifiers or [],
+    }
+
+
+def birth_date_fact():
+    return proposal_fact("P569", time_content("1970-01-15"), "time")
 
 
 @pytest.fixture
@@ -68,12 +85,20 @@ def create_action(db_session):
     """Factory to create pending create-actions with optional evidence."""
 
     def _create(
-        politician, payload, *, sources=(), supporting_quotes=None, is_accepted=None
+        politician,
+        after,
+        *,
+        target_wikidata_statement_id=None,
+        before=None,
+        sources=(),
+        supporting_quotes=None,
+        is_accepted=None,
     ):
         action = Action(
             politician_id=politician.id,
-            kind=ActionKind.CREATE_STATEMENT,
-            payload=payload,
+            target_wikidata_statement_id=target_wikidata_statement_id,
+            before=before,
+            after=after,
             is_accepted=is_accepted,
         )
         for source in sources:
@@ -116,16 +141,24 @@ def politician_with_pending_actions(
 
     create_action(
         sample_politician,
-        birth_date_create_payload(),
+        birth_date_fact(),
         sources=[sample_source],
     )
     create_action(
         sample_politician,
-        {
-            "statement": statement_document(
-                "Q123456$position-new", "P39", sample_position.wikidata_id
-            )
-        },
+        proposal_fact(
+            "P39",
+            sample_position.wikidata_id,
+            qualifiers=[
+                {
+                    "property": {"id": "P580", "data_type": "time"},
+                    "value": {
+                        "type": "value",
+                        "content": {"time": "+2020-01-01T00:00:00Z", "precision": 11},
+                    },
+                }
+            ],
+        ),
         sources=[sample_source],
         supporting_quotes=["Served as Mayor from 2020 to 2024"],
     )
@@ -196,7 +229,7 @@ class TestClaimPoliticianEndpoint:
             sample_politician,
             statement_document("Q123456$citizen-1", "P27", sample_country.wikidata_id),
         )
-        create_action(sample_politician, birth_date_create_payload())
+        create_action(sample_politician, birth_date_fact())
 
         response = client.post(
             "/politicians/claim?languages=Q1860&countries=Q30", headers=mock_auth
@@ -363,26 +396,34 @@ class TestGetPoliticianActions:
         data = client.get(
             "/politicians/Q123456?languages=Q1860", headers=mock_auth
         ).json()
-        actions = {a["payload"]["statement"]["id"]: a for a in data["actions"]}
+        actions = {a["after"]["property"]["id"]: a for a in data["actions"]}
 
-        birth = actions["Q123456$birth-new"]
+        birth = actions["P569"]
         assert set(birth) == {
             "id",
-            "kind",
-            "statement_id",
-            "payload",
+            "target_wikidata_statement_id",
+            "before",
+            "after",
+            "references_to_add",
+            "applied_wikidata_statement_id",
+            "group_key",
+            "change",
             "entity_terms",
             "evidence",
             "is_accepted",
             "applied_at",
             "error",
         }
-        assert birth["kind"] == "CREATE_STATEMENT"
-        assert birth["statement_id"] is None
+        assert birth["target_wikidata_statement_id"] is None
+        assert birth["before"] is None
+        assert birth["after"] == birth_date_fact()
+        assert birth["references_to_add"] == []
+        assert birth["applied_wikidata_statement_id"] is None
+        assert birth["group_key"]
+        assert birth["change"] == "add"
         assert birth["is_accepted"] is None
         assert birth["applied_at"] is None
         assert birth["error"] is None
-        assert birth["payload"]["statement"]["property"]["id"] == "P569"
         # Date-valued create actions have no value entity
         assert birth["entity_terms"] is None
         assert len(birth["evidence"]) == 1
@@ -396,13 +437,64 @@ class TestGetPoliticianActions:
         data = client.get(
             "/politicians/Q123456?languages=Q1860", headers=mock_auth
         ).json()
-        actions = {a["payload"]["statement"]["id"]: a for a in data["actions"]}
+        actions = {a["after"]["property"]["id"]: a for a in data["actions"]}
 
-        position = actions["Q123456$position-new"]
+        position = actions["P39"]
+        assert position["after"]["value"]["content"] == "Q30185"
+        assert position["after"]["qualifiers"][0]["property"]["id"] == "P580"
         assert position["entity_terms"]["labels"] == {"en": "Test Position"}
         assert position["evidence"][0]["supporting_quotes"] == [
             "Served as Mayor from 2020 to 2024"
         ]
+
+    def test_targeted_action_response_projects_before_and_keeps_qualifiers(
+        self,
+        client,
+        mock_auth,
+        sample_politician,
+        create_statement,
+        create_action,
+    ):
+        document = statement_document(
+            "Q123456$birth-target",
+            "P569",
+            time_content("1970"),
+            "time",
+        )
+        document["qualifiers"] = [
+            {
+                "property": {"id": "P585", "data_type": "time"},
+                "value": {
+                    "type": "value",
+                    "content": time_content("1970"),
+                },
+            }
+        ]
+        statement = create_statement(sample_politician, document)
+        after = proposal_fact(
+            "P569",
+            time_content("1970-01-16"),
+            "time",
+            qualifiers=document["qualifiers"],
+        )
+        action = create_action(
+            sample_politician,
+            after,
+            target_wikidata_statement_id=statement.wikidata_statement_id,
+            before=statement_fact(document),
+        )
+
+        data = client.get(
+            "/politicians/Q123456?languages=Q1860", headers=mock_auth
+        ).json()
+        response = next(a for a in data["actions"] if a["id"] == str(action.id))
+
+        assert response["target_wikidata_statement_id"] == "Q123456$birth-target"
+        assert response["before"] == statement_fact(document)
+        assert response["after"] == after
+        assert response["change"] == "refine"
+        assert response["applied_wikidata_statement_id"] is None
+        assert response["entity_terms"] is None
 
     def test_decided_actions_excluded(
         self,
@@ -415,19 +507,19 @@ class TestGetPoliticianActions:
     ):
         accepted = create_action(
             sample_politician,
-            birth_date_create_payload("Q123456$accepted"),
+            birth_date_fact(),
             sources=[sample_source],
             is_accepted=True,
         )
         discarded = create_action(
             sample_politician,
-            birth_date_create_payload("Q123456$discarded"),
+            birth_date_fact(),
             sources=[sample_source],
             is_accepted=False,
         )
         pending = create_action(
             sample_politician,
-            birth_date_create_payload("Q123456$pending"),
+            birth_date_fact(),
             sources=[sample_source],
         )
 
@@ -450,7 +542,7 @@ class TestGetPoliticianActions:
     ):
         skipped = create_action(
             sample_politician,
-            birth_date_create_payload(),
+            birth_date_fact(),
             sources=[sample_source],
         )
         db_session.add(ActionSkip(user_id="12345", action_id=skipped.id))
@@ -495,34 +587,34 @@ class TestGetPoliticianActions:
             url_hash="de123",
             languages=[sample_german_language],
         )
-        create_action(
+        english_action = create_action(
             sample_politician,
-            birth_date_create_payload("Q123456$en-new"),
+            birth_date_fact(),
             sources=[english_page],
         )
-        create_action(
+        german_action = create_action(
             sample_politician,
-            birth_date_create_payload("Q123456$de-new"),
+            birth_date_fact(),
             sources=[german_page],
         )
-        create_action(sample_politician, birth_date_create_payload("Q123456$any-new"))
+        evidenceless = create_action(sample_politician, birth_date_fact())
 
         english = client.get(
             "/politicians/Q123456?languages=Q1860", headers=mock_auth
         ).json()
-        ids = {a["payload"]["statement"]["id"] for a in english["actions"]}
-        assert "Q123456$en-new" in ids
-        assert "Q123456$de-new" not in ids
+        ids = {a["id"] for a in english["actions"]}
+        assert str(english_action.id) in ids
+        assert str(german_action.id) not in ids
         # Evidenceless actions are visible regardless of language
-        assert "Q123456$any-new" in ids
+        assert str(evidenceless.id) in ids
 
         german = client.get(
             "/politicians/Q123456?languages=Q188", headers=mock_auth
         ).json()
-        ids = {a["payload"]["statement"]["id"] for a in german["actions"]}
-        assert "Q123456$de-new" in ids
-        assert "Q123456$en-new" not in ids
-        assert "Q123456$any-new" in ids
+        ids = {a["id"] for a in german["actions"]}
+        assert str(german_action.id) in ids
+        assert str(english_action.id) not in ids
+        assert str(evidenceless.id) in ids
 
     def test_claim_visibility_filters_actions(
         self,
@@ -535,13 +627,9 @@ class TestGetPoliticianActions:
     ):
         from poliloom.review_queue import get_claim_ttl
 
-        foreign_live = create_action(
-            sample_politician, birth_date_create_payload("Q123456$foreign")
-        )
-        own = create_action(sample_politician, birth_date_create_payload("Q123456$own"))
-        foreign_expired = create_action(
-            sample_politician, birth_date_create_payload("Q123456$expired")
-        )
+        foreign_live = create_action(sample_politician, birth_date_fact())
+        own = create_action(sample_politician, birth_date_fact())
+        foreign_expired = create_action(sample_politician, birth_date_fact())
         db_session.add(
             ActionClaim(
                 user_id="12345",
@@ -563,10 +651,10 @@ class TestGetPoliticianActions:
         data = client.get(
             "/politicians/Q123456?languages=Q1860", headers=mock_auth
         ).json()
-        ids = {a["payload"]["statement"]["id"] for a in data["actions"]}
+        ids = {a["id"] for a in data["actions"]}
         # Live foreign claims hide actions; own claims and expired claims don't
-        assert "Q123456$foreign" not in ids
-        assert {"Q123456$own", "Q123456$expired"} <= ids
+        assert str(foreign_live.id) not in ids
+        assert {str(own.id), str(foreign_expired.id)} <= ids
 
         claims = (
             db_session.query(ActionClaim)
@@ -683,12 +771,12 @@ class TestSearchPoliticiansEndpoint:
         create_statement(politician, birth_date_statement("Q999888$birth-1"))
         pending = create_action(
             politician,
-            birth_date_create_payload("Q999888$birth-new"),
+            birth_date_fact(),
             sources=[sample_source],
         )
         decided = create_action(
             politician,
-            birth_date_create_payload("Q999888$birth-decided"),
+            birth_date_fact(),
             is_accepted=True,
         )
         db_session.flush()

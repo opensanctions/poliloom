@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from poliloom.models import (
     Action,
-    ActionKind,
     CurrentImportEntity,
     CurrentImportStatement,
     DownloadAlreadyCompleteError,
@@ -20,6 +19,7 @@ from poliloom.models import (
     WikidataEntity,
     WikidataRelation,
 )
+from poliloom.proposals import statement_fact
 
 from .conftest import create_with_entity, make_terms
 
@@ -38,6 +38,7 @@ def _statement_document(statement_id, property_id="P569"):
                 "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
             },
         },
+        "qualifiers": [],
     }
 
 
@@ -441,6 +442,7 @@ class TestCleanupFunctionality:
                         "rank": "normal",
                         "property": {"id": "P39", "data_type": "wikibase-item"},
                         "value": {"type": "value", "content": "Q200"},
+                        "qualifiers": [],
                     }
                 ).decode(),
                 "old_timestamp": old_timestamp_naive,
@@ -454,17 +456,19 @@ class TestCleanupFunctionality:
             .filter_by(wikidata_statement_id="Q400$p39-doomed")
             .one()
         )
+        before = statement_fact(doomed_statement.document)
         pending_edit = Action(
             politician_id=keep_politician.id,
-            kind=ActionKind.EDIT_STATEMENT,
-            statement_id=doomed_statement.id,
-            payload={"patch": []},
+            target_wikidata_statement_id=doomed_statement.wikidata_statement_id,
+            before=before,
+            after=before,
         )
         decided_edit = Action(
             politician_id=keep_politician.id,
-            kind=ActionKind.EDIT_STATEMENT,
-            statement_id=doomed_statement.id,
-            payload={"patch": []},
+            target_wikidata_statement_id=doomed_statement.wikidata_statement_id,
+            before=before,
+            after=before,
+            applied_wikidata_statement_id=doomed_statement.wikidata_statement_id,
             is_accepted=True,
         )
         db_session.add_all([pending_edit, decided_edit])
@@ -517,12 +521,13 @@ class TestCleanupFunctionality:
         }
         assert remaining_statements == set()
 
-        # The pending edit died with its target; the decided edit survives
-        # with its target reference nulled
+        # The pending edit died with its target; the decided edit keeps
+        # its target and result.
         db_session.expire_all()
         actions = db_session.query(Action).order_by(Action.created_at).all()
         assert [a.id for a in actions] == [decided_edit.id]
-        assert actions[0].statement_id is None
+        assert actions[0].target_wikidata_statement_id == "Q400$p39-doomed"
+        assert actions[0].applied_wikidata_statement_id == "Q400$p39-doomed"
 
     def test_cleanup_with_very_old_cutoff_deletes_nothing(self, db_session: Session):
         """Test that cleanup with very old cutoff timestamp deletes nothing."""
@@ -723,7 +728,7 @@ class TestCleanupFunctionality:
         self, db_session: Session
     ):
         """Pending edit actions die with their target; decided edits keep
-        their payload with statement_id nulled."""
+        their target and result."""
         politician = create_with_entity(
             Politician, db_session, "Q610", make_terms("Test Politician")
         )
@@ -740,17 +745,19 @@ class TestCleanupFunctionality:
             .filter_by(wikidata_statement_id="Q610$delete-me")
             .one()
         )
+        before = statement_fact(doomed.document)
         pending_edit = Action(
             politician_id=politician.id,
-            kind=ActionKind.EDIT_STATEMENT,
-            statement_id=doomed.id,
-            payload={"patch": []},
+            target_wikidata_statement_id=doomed.wikidata_statement_id,
+            before=before,
+            after=before,
         )
         decided_edit = Action(
             politician_id=politician.id,
-            kind=ActionKind.EDIT_STATEMENT,
-            statement_id=doomed.id,
-            payload={"patch": []},
+            target_wikidata_statement_id=doomed.wikidata_statement_id,
+            before=before,
+            after=before,
+            applied_wikidata_statement_id=doomed.wikidata_statement_id,
             is_accepted=True,
         )
         db_session.add_all([pending_edit, decided_edit])
@@ -769,7 +776,8 @@ class TestCleanupFunctionality:
 
         actions = db_session.query(Action).order_by(Action.created_at).all()
         assert [a.id for a in actions] == [decided_edit.id]
-        assert actions[0].statement_id is None
+        assert actions[0].target_wikidata_statement_id == "Q610$delete-me"
+        assert actions[0].applied_wikidata_statement_id == "Q610$delete-me"
 
     def test_reimport_after_cleanup_reinserts_statement(self, db_session: Session):
         """Regression: a statement deleted by cleanup is re-inserted when it

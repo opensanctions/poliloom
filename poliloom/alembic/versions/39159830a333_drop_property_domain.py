@@ -1,9 +1,10 @@
 """copy evaluated property decisions into statements/actions, then drop old domain
 
-One-way production data migration. Live pushed properties become cached REST
-statement documents with linked applied create Actions (id and timestamps
-preserved). Pushed properties whose statements later vanished retain unlinked
-applied creates, and rejected proposals become discarded creates.
+One-way production data migration. Retained accepts become untargeted history
+with a known Wikidata result ID, not evidence of a create request. Only live
+statements are cached. Retained rejections are untargeted history without a
+result ID. Source links are archived in action_evidence; approved REST citations
+cannot be reconstructed from the old data.
 Unevaluated properties, incomplete accepts, statement rejections, and pending
 reference edits are omitted; the next dump import rebuilds the rest of the
 statement cache. A count report is logged and invariants asserted before the
@@ -21,14 +22,12 @@ import json
 import logging
 import uuid
 from collections.abc import Sequence
-from types import SimpleNamespace
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from poliloom.models import PropertyType, Source
-from poliloom.payloads import create_body
+from poliloom.models import PropertyType
 from poliloom.wikidata.rest import action_api_statement_to_rest
 
 # revision identifiers, used by Alembic.
@@ -71,10 +70,14 @@ _STATEMENT_INSERT = sa.text("""
 """)
 
 _ACTION_INSERT = sa.text("""
-    INSERT INTO actions (id, politician_id, kind, statement_id, payload,
-                         is_accepted, decided_by_user_id, decided_at, applied_at,
+    INSERT INTO actions (id, politician_id, target_wikidata_statement_id,
+                         before, "after", references_to_add,
+                         applied_wikidata_statement_id, is_accepted,
+                         decided_by_user_id, decided_at, applied_at,
                          created_at, updated_at)
-    VALUES (:id, :politician_id, :kind, :statement_id, CAST(:payload AS jsonb),
+    VALUES (:id, :politician_id, :target_wikidata_statement_id,
+            CAST(:before AS jsonb), CAST(:after AS jsonb),
+            CAST(:references_to_add AS jsonb), :applied_wikidata_statement_id,
             :is_accepted, :decided_by_user_id, :decided_at, :applied_at,
             :created_at, :updated_at)
 """)
@@ -172,32 +175,19 @@ def _claim(row) -> dict:
     return claim
 
 
-def _create_payload(row, references: list[dict]) -> dict:
-    """Build the create Action payload for an evaluated property.
+def _proposed_statement(row) -> dict:
+    """Project the statement a retained historical Action proposed.
 
-    Value and qualifiers are converted through the same claim-to-REST
-    converter as statement documents; references are rebuilt from the
-    property's evidence sources.
+    Property and qualifiers keep their optional data_type metadata because
+    normalization ignores it for equality. The server id is stored separately
+    as the result ID. Evidence is stored separately.
     """
     document = action_api_statement_to_rest(_claim(row))
-    statement = {
-        "property": {"id": document["property"]["id"]},
+    return {
+        "property": document["property"],
         "value": document["value"],
-        "rank": "normal",
+        "qualifiers": document["qualifiers"],
     }
-    if "qualifiers" in document:
-        # Create bodies carry bare property ids (planner candidate shape);
-        # data_type is document-only.
-        statement["qualifiers"] = [
-            {
-                "property": {"id": qualifier["property"]["id"]},
-                "value": qualifier["value"],
-            }
-            for qualifier in document["qualifiers"]
-        ]
-    if references:
-        statement["references"] = references
-    return create_body(statement)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -224,20 +214,6 @@ def _copy_property_data(conn) -> None:
     totals["evaluated_properties"] = conn.execute(
         sa.text("SELECT count(DISTINCT property_id) FROM evaluations")
     ).scalar_one()
-
-    sources = {}
-    for source in conn.execute(
-        sa.text("""
-            SELECT id, url, permanent_url, wikipedia_project_id, fetch_timestamp
-            FROM sources
-        """)
-    ).mappings():
-        sources[source["id"]] = SimpleNamespace(
-            url=source["url"],
-            permanent_url=source["permanent_url"],
-            wikipedia_project_id=source["wikipedia_project_id"],
-            fetch_timestamp=source["fetch_timestamp"],
-        )
 
     references_by_property = {}
     for reference in conn.execute(
@@ -317,17 +293,17 @@ def _copy_property_data(conn) -> None:
             key=lambda e: (e["created_at"], e["id"]),
         )
 
-    def queue_create(row, refs, *, is_accepted, decided, statement_id) -> None:
-        references = [
-            {"parts": Source.create_references_json(sources[ref["source_id"]])}
-            for ref in refs
-        ]
+    def queue_history(
+        row, refs, *, is_accepted, decided, applied_wikidata_statement_id
+    ) -> None:
         action = {
             "id": uuid.uuid4(),
             "politician_id": row["politician_id"],
-            "kind": "CREATE_STATEMENT",
-            "statement_id": statement_id,
-            "payload": json.dumps(_create_payload(row, references)),
+            "target_wikidata_statement_id": None,
+            "before": None,
+            "after": json.dumps(_proposed_statement(row)),
+            "references_to_add": json.dumps([]),
+            "applied_wikidata_statement_id": applied_wikidata_statement_id,
             "is_accepted": is_accepted,
             "decided_by_user_id": decided["user_id"],
             "decided_at": decided["created_at"],
@@ -371,20 +347,19 @@ def _copy_property_data(conn) -> None:
                 if not has_accepted_eval:
                     # Rejecting an existing statement deprecates it upstream.
                     # Both completed and failed deprecations are outside the
-                    # retained create-action history.
+                    # retained decision history.
                     drop_evaluated(
                         row, refs, evals, "dropped_props_statement_rejections"
                     )
                     continue
                 if not latest_eval["is_accepted"]:
                     # A pushed statement was subsequently rejected; do not
-                    # resurrect either its create or its statement.
+                    # retain neither the approval nor the statement.
                     drop_evaluated(
                         row, refs, evals, "dropped_props_pushed_then_rejected"
                     )
                     continue
 
-                statement_id = None
                 if row["deleted_at"] is None:
                     claim = _claim(row)
                     document = action_api_statement_to_rest(claim)
@@ -397,21 +372,20 @@ def _copy_property_data(conn) -> None:
                             "updated_at": row["updated_at"],
                         }
                     )
-                    statement_id = row["id"]
                     counts["statements"] += 1
                     counts["creates_applied_linked"] += 1
                     capture_sample(row, claim)
                 else:
-                    # The statement vanished after the push. The create stays
-                    # as applied history, legitimately without a statement.
+                    # The statement vanished after the push. The action keeps
+                    # its known applied id without a cached statement.
                     counts["creates_applied_unlinked"] += 1
 
-                queue_create(
+                queue_history(
                     row,
                     refs,
                     is_accepted=True,
                     decided=latest_accepted(evals),
-                    statement_id=statement_id,
+                    applied_wikidata_statement_id=row["statement_id"],
                 )
                 counts["eval_mapped"] += 1
                 counts["eval_superseded"] += len(evals) - 1
@@ -421,13 +395,13 @@ def _copy_property_data(conn) -> None:
                 drop_evaluated(row, refs, evals, "dropped_props_incomplete_accepts")
             else:
                 # Rejected proposals never existed on Wikidata. Preserve the
-                # final decision as a discarded create without a statement.
-                queue_create(
+                # final decision as discarded history without a result ID.
+                queue_history(
                     row,
                     refs,
                     is_accepted=False,
                     decided=latest_eval,
-                    statement_id=None,
+                    applied_wikidata_statement_id=None,
                 )
                 counts["creates_discarded"] += 1
                 counts["eval_mapped"] += 1
@@ -457,8 +431,8 @@ def _report_counts(totals: dict, counts: dict) -> None:
     """Log per-class counts so every old row is accounted for."""
     logger.info(
         "Data copy: %d evaluated of %d properties -> %d statements; "
-        "create actions: %d applied (statement linked), %d applied "
-        "(unlinked), %d discarded; %d evidence rows",
+        "historical decisions: %d accepted (statement cached), %d accepted "
+        "(statement vanished), %d discarded; %d evidence rows",
         totals["evaluated_properties"],
         totals["properties"],
         counts["statements"],
@@ -535,25 +509,50 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
         conn.execute(
             sa.text("""
                 SELECT count(*) FROM actions
-                WHERE kind <> 'CREATE_STATEMENT'
+                WHERE target_wikidata_statement_id IS NOT NULL
+                   OR before IS NOT NULL
                    OR is_accepted IS NULL
-                   OR (is_accepted AND applied_at IS NULL)
-                   OR (NOT is_accepted AND applied_at IS NOT NULL)
+                   OR references_to_add <> '[]'::jsonb
+                   OR ("after" - ARRAY['property', 'value', 'qualifiers']) <> '{}'::jsonb
+                   OR NOT ("after" ?& ARRAY['property', 'value', 'qualifiers'])
+                   OR (is_accepted AND (
+                        applied_wikidata_statement_id IS NULL
+                        OR applied_at IS NULL
+                   ))
+                   OR (NOT is_accepted AND (
+                        applied_wikidata_statement_id IS NOT NULL
+                        OR applied_at IS NOT NULL
+                   ))
             """)
         ).scalar_one()
         == 0,
-        "unexpected action kind or decision/application state",
+        "retained actions are not untargeted decided history",
     )
+    cached, vanished, discarded, invalid_cache = conn.execute(
+        sa.text("""
+            SELECT count(*) FILTER (WHERE a.is_accepted AND s.id IS NOT NULL),
+                   count(*) FILTER (WHERE a.is_accepted AND s.id IS NULL),
+                   count(*) FILTER (WHERE NOT a.is_accepted),
+                   count(*) FILTER (
+                       WHERE s.id IS NOT NULL AND (
+                           a.politician_id <> s.politician_id
+                           OR a."after" <> s.document - ARRAY['id', 'rank', 'references']
+                       )
+                   )
+            FROM actions a
+            LEFT JOIN statements s
+                ON a.applied_wikidata_statement_id = s.wikidata_statement_id
+        """)
+    ).one()
     _require(
-        conn.execute(
-            sa.text("""
-                SELECT count(*) FROM actions a
-                JOIN statements s ON a.statement_id = s.id
-                WHERE a.politician_id <> s.politician_id
-            """)
-        ).scalar_one()
-        == 0,
-        "action politician does not match its statement's politician",
+        (cached, vanished, discarded, invalid_cache)
+        == (
+            counts["creates_applied_linked"],
+            counts["creates_applied_unlinked"],
+            counts["creates_discarded"],
+            0,
+        ),
+        "cached, vanished, or discarded history does not match the retained decisions",
     )
 
     evidence_count = conn.execute(

@@ -32,23 +32,27 @@ export interface RestSnak {
   value: RestValue
 }
 
-/** Canonical Wikibase REST statement document. */
-export interface RestStatement {
-  id: string
-  rank: 'preferred' | 'normal' | 'deprecated'
+/** A reference attached to a statement. */
+export interface RestReference {
+  hash?: string
+  parts: RestSnak[]
+}
+
+/** The data-bearing part of a statement, without server metadata. */
+export interface StatementFact {
   property: RestProperty
   value: RestValue
   qualifiers: RestSnak[]
-  references: { hash?: string; parts: RestSnak[] }[]
 }
 
-export interface JsonPatchOperation {
-  op: 'test' | 'replace' | 'add'
-  path: string
-  value?: unknown
+/** Canonical Wikibase REST statement document. */
+export interface RestStatement extends StatementFact {
+  id: string
+  rank: 'preferred' | 'normal' | 'deprecated'
+  references: RestReference[]
 }
 
-export type ActionKind = 'CREATE_STATEMENT' | 'EDIT_STATEMENT'
+export type ActionChange = 'add' | 'refine' | 'reference'
 
 export interface ActionEvidence {
   id: string
@@ -56,19 +60,15 @@ export interface ActionEvidence {
   supporting_quotes: string[] | null
 }
 
-export interface CreateStatementPayload {
-  statement: Omit<RestStatement, 'id'>
-}
-
-export interface EditStatementPayload {
-  patch: JsonPatchOperation[]
-}
-
 export interface Action {
   id: string
-  kind: ActionKind
-  statement_id: string | null
-  payload: CreateStatementPayload | EditStatementPayload
+  target_wikidata_statement_id: string | null
+  before: StatementFact | null
+  after: StatementFact
+  references_to_add: RestReference[]
+  applied_wikidata_statement_id: string | null
+  group_key: string
+  change: ActionChange
   entity_terms: TermMaps | null
   evidence: ActionEvidence[]
   is_accepted: boolean | null

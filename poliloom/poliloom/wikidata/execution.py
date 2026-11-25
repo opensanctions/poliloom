@@ -1,13 +1,14 @@
-"""Execute accepted Actions against the Wikibase REST API.
+"""Execute accepted statement proposals against the Wikibase REST API.
 
-Equivalent actions share one request. If the proposed data is already in
-place, the request adds only missing references. Data and reference guards
-protect against concurrent edits. The API response becomes the cached
-Statement document.
+The adapter reads the live Wikidata state before every write instead of
+trusting the statement cache. Equivalent accepted proposals share one request
+and contribute their references to the same write. A live statement may
+already satisfy a proposal; in that case only missing, non-Wikimedia
+references are appended. Every write carries guards for the complete live
+fact, its rank, and its references when those are extended.
 """
 
 import asyncio
-import json
 import logging
 import os
 from datetime import UTC, datetime
@@ -16,8 +17,16 @@ import httpx2
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import Action, ActionKind, Statement
-from ..payloads import statement_fact_guards
+from ..models import Action, Statement
+from ..proposals import (
+    Mutation,
+    action_group_key,
+    fact_key,
+    proposal_mutation,
+    qualifier_key,
+    statement_fact,
+    validate_proposal,
+)
 from .references import is_wikimedia_import, missing_references
 
 logger = logging.getLogger(__name__)
@@ -28,17 +37,20 @@ WIKIDATA_API_ROOT = os.getenv(
 USER_AGENT = "PoliLoom API/0.1.0"
 
 
-def _failure_message(response: httpx2.Response) -> str:
-    """Build the concise error message recorded on a failed API response.
+class _Conflict(Exception):
+    """The live Wikidata state no longer supports the approved proposal."""
 
-    For 409 responses the Wikibase error code is included: it distinguishes
-    ``patch-test-failed`` (the statement changed underneath us) from
-    ``patch-target-not-found`` (an expected array entry or path is gone).
-    """
+
+class _ExecutionFailure(Exception):
+    """The Wikidata API could not complete the approved proposal."""
+
+
+def _failure_message(response: httpx2.Response) -> str:
+    """Build the concise error message recorded on a failed API response."""
     message = f"Wikidata API returned HTTP {response.status_code}"
     if response.status_code == 409:
         try:
-            code = response.json()["error"]["code"]
+            code = response.json()["code"]
         except (ValueError, KeyError, TypeError):
             code = None
         if code:
@@ -46,95 +58,322 @@ def _failure_message(response: httpx2.Response) -> str:
     return message
 
 
-def _is_reference_append(operation: dict) -> bool:
-    return operation["op"] == "add" and operation["path"] == "/references/-"
-
-
-def _data_patch(action: Action) -> list[dict]:
-    return [op for op in action.payload["patch"] if not _is_reference_append(op)]
-
-
-def _action_group_key(action: Action) -> str:
-    """Identify the same proposed write independently of reference additions."""
-    if action.kind is ActionKind.CREATE_STATEMENT:
-        data = {
-            k: v for k, v in action.payload["statement"].items() if k != "references"
-        }
-    else:
-        data = _data_patch(action)
-    return json.dumps(
-        (str(action.politician_id), action.kind, str(action.statement_id), data),
-        sort_keys=True,
-    )
-
-
 def group_actions(actions: list[Action]) -> list[list[Action]]:
     groups: dict[str, list[Action]] = {}
     for action in actions:
-        groups.setdefault(_action_group_key(action), []).append(action)
+        groups.setdefault(action_group_key(action), []).append(action)
     return list(groups.values())
 
 
-def _proposed_references(action: Action) -> list[dict]:
-    if action.kind is ActionKind.CREATE_STATEMENT:
-        return action.payload["statement"].get("references", [])
-    return [op["value"] for op in action.payload["patch"] if _is_reference_append(op)]
+def _proposed_references(actions: list[Action]) -> list[dict]:
+    return [reference for action in actions for reference in action.references_to_add]
 
 
-def _qualifier_key(qualifier: dict) -> str:
-    return json.dumps((qualifier["property"]["id"], qualifier["value"]), sort_keys=True)
+def _headers(jwt_token: str, content_type: str | None = None) -> dict[str, str]:
+    headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "User-Agent": USER_AGENT,
+    }
+    if content_type is not None:
+        headers["Content-Type"] = content_type
+    return headers
 
 
-def _statement_data(document: dict) -> tuple:
-    """Compare a create body to a cached response, ignoring server metadata."""
-    qualifiers = sorted(map(_qualifier_key, document.get("qualifiers", [])))
-    return document.get("rank", "normal"), document["value"], qualifiers
-
-
-def _edit_already_present(document: dict, patch: list[dict]) -> bool:
-    """Check the result of a planner edit without replaying its mutation."""
-    match patch:
-        case [
-            {"op": "test", "path": "/value", "value": _},
-            {"op": "replace", "path": "/value", "value": value},
-        ]:
-            return document["value"] == value
-        case [
-            {"op": "test", "path": "/value", "value": office},
-            {"op": "test", "path": "/qualifiers", "value": qualifiers},
-            {"op": "add", "path": "/qualifiers/-", "value": qualifier},
-        ]:
-            return document["value"] == office and sorted(
-                map(_qualifier_key, document["qualifiers"])
-            ) == sorted(map(_qualifier_key, [*qualifiers, qualifier]))
-        case [
-            {"op": "test", "path": "/value", "value": office},
-            {"op": "test", "path": path, "value": _},
-            {"op": "replace", "path": replacement_path, "value": qualifier},
-        ] if path == replacement_path:
-            return document["value"] == office and any(
-                path == f"/qualifiers/{index}"
-                and _qualifier_key(current) == _qualifier_key(qualifier)
-                for index, current in enumerate(document["qualifiers"])
-            )
-    return False
-
-
-def _find_created_statement(db: Session, action: Action) -> Statement | None:
-    proposed = action.payload["statement"]
-    candidates = db.scalars(
-        select(Statement)
-        .where(
-            Statement.politician_id == action.politician_id,
-            Statement.property_id == proposed["property"]["id"],
+async def _get_property_statements(
+    client: httpx2.AsyncClient,
+    politician_qid: str,
+    property_id: str,
+    jwt_token: str,
+) -> list[dict]:
+    try:
+        response = await client.request(
+            "GET",
+            f"{WIKIDATA_API_ROOT}/entities/items/{politician_qid}/statements",
+            params={"property": property_id},
+            headers=_headers(jwt_token),
         )
-        .execution_options(populate_existing=True)
+    except httpx2.RequestError as exc:
+        raise _ExecutionFailure(f"Wikidata API request failed: {exc}") from exc
+    if response.status_code != 200:
+        raise _ExecutionFailure(_failure_message(response))
+    statements = response.json()
+    if not isinstance(statements, dict):
+        raise _ExecutionFailure("Wikidata returned an invalid statement list")
+    return statements.get(property_id, [])
+
+
+async def _get_statement(
+    client: httpx2.AsyncClient,
+    statement_id: str,
+    jwt_token: str,
+) -> dict | None:
+    try:
+        response = await client.request(
+            "GET",
+            f"{WIKIDATA_API_ROOT}/statements/{statement_id}",
+            headers=_headers(jwt_token),
+            follow_redirects=True,
+        )
+    except httpx2.RequestError as exc:
+        raise _ExecutionFailure(f"Wikidata API request failed: {exc}") from exc
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise _ExecutionFailure(_failure_message(response))
+    return response.json()
+
+
+def _fact_guards(document: dict) -> list[dict]:
+    return [
+        {"op": "test", "path": "/property", "value": document["property"]},
+        {"op": "test", "path": "/value", "value": document["value"]},
+        {"op": "test", "path": "/qualifiers", "value": document["qualifiers"]},
+        {"op": "test", "path": "/rank", "value": document["rank"]},
+    ]
+
+
+def _mutation_operation(mutation: Mutation, document: dict) -> dict:
+    match mutation.kind:
+        case "value":
+            return {"op": "replace", "path": "/value", "value": mutation.new}
+        case "qualifier_append":
+            return {"op": "add", "path": "/qualifiers/-", "value": mutation.new}
+        case "qualifier_replace":
+            old_key = qualifier_key(mutation.old)
+            index = next(
+                (
+                    index
+                    for index, qualifier in enumerate(document["qualifiers"])
+                    if qualifier_key(qualifier) == old_key
+                ),
+                None,
+            )
+            if index is None:
+                raise _Conflict(
+                    f"Target statement {document['id']} no longer has the proposed qualifier"
+                )
+            return {
+                "op": "replace",
+                "path": f"/qualifiers/{index}",
+                "value": mutation.new,
+            }
+    raise ValueError(f"Unsupported proposal mutation: {mutation.kind}")
+
+
+def _cache_statement(db: Session, action: Action, document: dict) -> None:
+    Statement.upsert_batch(
+        db,
+        [{"politician_id": action.politician_id, "document": document}],
     )
-    data = _statement_data(proposed)
-    matches = [row for row in candidates if _statement_data(row.document) == data]
-    if len(matches) > 1:
-        raise ValueError("Multiple cached statements match the proposed create")
-    return matches[0] if matches else None
+
+
+def _mark_satisfied(db: Session, actions: list[Action], statement_id: str) -> None:
+    applied_at = datetime.now(UTC)
+    for action in actions:
+        action.applied_wikidata_statement_id = statement_id
+        action.applied_at = applied_at
+        action.error = None
+    db.commit()
+
+
+def _record_failure(db: Session, actions: list[Action], message: str) -> None:
+    for action in actions:
+        action.error = message
+    db.commit()
+    logger.warning(
+        "Applying action group %s failed: %s", [a.id for a in actions], message
+    )
+
+
+async def _write(
+    client: httpx2.AsyncClient,
+    method: str,
+    url: str,
+    payload: dict,
+    expected_status: int,
+    jwt_token: str,
+) -> dict:
+    content_type = (
+        "application/json-patch+json" if method == "PATCH" else "application/json"
+    )
+    try:
+        response = await client.request(
+            method,
+            url,
+            json=payload,
+            headers=_headers(jwt_token, content_type),
+        )
+    except httpx2.RequestError as exc:
+        raise _ExecutionFailure(f"Wikidata API request failed: {exc}") from exc
+    if response.status_code != expected_status:
+        raise _ExecutionFailure(_failure_message(response))
+    return response.json()
+
+
+async def _satisfy_existing(
+    db: Session,
+    actions: list[Action],
+    client: httpx2.AsyncClient,
+    live: dict,
+    jwt_token: str,
+    proposed_references: list[dict],
+    *,
+    mutation: Mutation | None = None,
+) -> bool:
+    """Apply references and an optional mutation to a live statement."""
+    eligible_references = [
+        reference
+        for reference in proposed_references
+        if not is_wikimedia_import(reference)
+    ]
+    additions = missing_references(eligible_references, live["references"])
+
+    if mutation is None and not additions:
+        _cache_statement(db, actions[0], live)
+        _mark_satisfied(db, actions, live["id"])
+        return True
+
+    patch = _fact_guards(live)
+    if mutation is not None:
+        patch.append(_mutation_operation(mutation, live))
+    if additions:
+        patch.extend(
+            [
+                {"op": "test", "path": "/references", "value": live["references"]},
+                *(
+                    {"op": "add", "path": "/references/-", "value": reference}
+                    for reference in additions
+                ),
+            ]
+        )
+
+    document = await _write(
+        client,
+        "PATCH",
+        f"{WIKIDATA_API_ROOT}/statements/{live['id']}",
+        {"patch": patch},
+        200,
+        jwt_token,
+    )
+
+    _cache_statement(db, actions[0], document)
+    _mark_satisfied(db, actions, document["id"])
+    logger.info("Applied action group %s", [str(action.id) for action in actions])
+    return True
+
+
+async def _apply_untargeted(
+    db: Session,
+    actions: list[Action],
+    jwt_token: str,
+) -> bool:
+    action = actions[0]
+    after_key = fact_key(action.after)
+    proposed_references = _proposed_references(actions)
+
+    async with httpx2.AsyncClient(timeout=30.0) as client:
+        statements = await _get_property_statements(
+            client,
+            action.politician.wikidata_id,
+            action.after["property"]["id"],
+            jwt_token,
+        )
+        matches = [
+            document
+            for document in statements
+            if document["rank"] == "normal"
+            and fact_key(statement_fact(document)) == after_key
+        ]
+
+        if len(matches) > 1:
+            raise _Conflict(
+                "Multiple current statements exactly match the proposed fact"
+            )
+        if matches:
+            return await _satisfy_existing(
+                db,
+                actions,
+                client,
+                matches[0],
+                jwt_token,
+                proposed_references,
+            )
+
+        statement = {
+            "property": action.after["property"],
+            "value": action.after["value"],
+            "qualifiers": action.after["qualifiers"],
+            "rank": "normal",
+            "references": missing_references(proposed_references, []),
+        }
+        document = await _write(
+            client,
+            "POST",
+            f"{WIKIDATA_API_ROOT}/entities/items/"
+            f"{action.politician.wikidata_id}/statements",
+            {"statement": statement},
+            201,
+            jwt_token,
+        )
+
+    _cache_statement(db, action, document)
+    _mark_satisfied(db, actions, document["id"])
+    logger.info("Applied action group %s", [str(action.id) for action in actions])
+    return True
+
+
+async def _apply_targeted(
+    db: Session,
+    actions: list[Action],
+    jwt_token: str,
+) -> bool:
+    action = actions[0]
+    target_id = action.target_wikidata_statement_id
+    proposed_references = _proposed_references(actions)
+
+    async with httpx2.AsyncClient(timeout=30.0) as client:
+        live = await _get_statement(client, target_id, jwt_token)
+        if live is None:
+            raise _Conflict(f"Target statement {target_id} no longer exists")
+        if live["id"].casefold() != target_id.casefold():
+            raise _Conflict(
+                f"Wikidata returned a different statement for target {target_id}"
+            )
+        if live["rank"] == "deprecated":
+            raise _Conflict(f"Target statement {target_id} is deprecated")
+
+        live_key = fact_key(statement_fact(live))
+        before_key = fact_key(action.before)
+        after_key = fact_key(action.after)
+
+        if live_key == after_key:
+            return await _satisfy_existing(
+                db,
+                actions,
+                client,
+                live,
+                jwt_token,
+                proposed_references,
+            )
+        if live_key != before_key:
+            raise _Conflict(
+                f"Target statement {target_id} no longer matches the proposed fact"
+            )
+
+        mutation = proposal_mutation(action.before, action.after)
+        if mutation is None:
+            raise _Conflict(
+                f"Target statement {target_id} does not have a supported change"
+            )
+        return await _satisfy_existing(
+            db,
+            actions,
+            client,
+            live,
+            jwt_token,
+            proposed_references,
+            mutation=mutation,
+        )
 
 
 async def _lock_writes(db: Session, politician_id) -> None:
@@ -150,132 +389,37 @@ async def _lock_writes(db: Session, politician_id) -> None:
         await asyncio.sleep(0.05)
 
 
-def _mark_applied(db: Session, actions: list[Action]) -> None:
-    applied_at = datetime.now(UTC)
-    for action in actions:
-        action.applied_at = applied_at
-        action.error = None
-    db.commit()
-
-
 async def apply_action_group(
     db: Session, actions: list[Action], jwt_token: str
 ) -> bool:
-    """Apply one logical action group to Wikidata and cache the result.
+    """Apply one approved group of equivalent proposals to Wikidata.
 
-    Cache the response and mark the group applied on success. If an edit has
-    no data change and no new references, mark it applied without a request.
-    On HTTP or network failure record the error on the group without retrying.
+    The live fact is read before every write. A successfully satisfied group,
+    including a no-write result, records its stable statement ID and
+    application timestamp. Conflicts and API failures record an error and
+    leave the review decision untouched.
 
     Raises:
-        ValueError: For an empty group or an EDIT_STATEMENT group without a
-            target statement.
+        ValueError: For an empty group or a proposal that does not satisfy the
+            proposal invariants.
     """
     if not actions:
         raise ValueError("Cannot apply an empty action group")
 
-    action = actions[0]
-    if action.kind is ActionKind.EDIT_STATEMENT and action.statement_id is None:
-        raise ValueError(f"EDIT_STATEMENT action {action.id} has no target statement")
+    for action in actions:
+        if action.is_accepted is not True or action.applied_at is not None:
+            raise ValueError(f"Action {action.id} is not an unapplied approval")
+        validate_proposal(action, action.politician.wikidata_id)
 
     try:
-        await _lock_writes(db, action.politician_id)
-        return await _apply_locked(db, actions, jwt_token)
+        await _lock_writes(db, actions[0].politician_id)
+        try:
+            if actions[0].target_wikidata_statement_id is None:
+                return await _apply_untargeted(db, actions, jwt_token)
+            return await _apply_targeted(db, actions, jwt_token)
+        except (_Conflict, _ExecutionFailure) as exc:
+            _record_failure(db, actions, str(exc))
+            return False
     except BaseException:
         db.rollback()
         raise
-
-
-async def _apply_locked(db: Session, actions: list[Action], jwt_token: str) -> bool:
-    action = actions[0]
-    creates = action.kind is ActionKind.CREATE_STATEMENT
-    proposed = [ref for member in actions for ref in _proposed_references(member)]
-    if creates:
-        target = _find_created_statement(db, action)
-    else:
-        target = db.get(Statement, action.statement_id, populate_existing=True)
-        if target is None:
-            raise ValueError(f"Target statement {action.statement_id} no longer exists")
-
-    if target is None:
-        statement = action.payload["statement"]
-        payload = {
-            "statement": {**statement, "references": missing_references(proposed, [])}
-        }
-        url = f"{WIKIDATA_API_ROOT}/entities/items/{action.politician.wikidata_id}/statements"
-        headers = {
-            "Authorization": f"Bearer {jwt_token}",
-            "Content-Type": "application/json",
-            "User-Agent": USER_AGENT,
-        }
-        method, expected_status = "POST", 201
-    else:
-        references = target.document["references"]
-        if creates:
-            proposed = [ref for ref in proposed if not is_wikimedia_import(ref)]
-            patch = statement_fact_guards(target.document)
-        else:
-            patch = _data_patch(action)
-            if _edit_already_present(target.document, patch):
-                patch = statement_fact_guards(target.document)
-        additions = missing_references(proposed, references)
-        if additions:
-            patch = [
-                *patch,
-                {"op": "test", "path": "/references", "value": references},
-                *(
-                    {"op": "add", "path": "/references/-", "value": reference}
-                    for reference in additions
-                ),
-            ]
-        elif all(operation["op"] == "test" for operation in patch):
-            if creates:
-                for member in actions:
-                    member.statement_id = target.id
-            _mark_applied(db, actions)
-            return True
-        payload = {"patch": patch}
-        url = f"{WIKIDATA_API_ROOT}/statements/{target.wikidata_statement_id}"
-        headers = {
-            "Authorization": f"Bearer {jwt_token}",
-            "Content-Type": "application/json-patch+json",
-            "User-Agent": USER_AGENT,
-        }
-        method, expected_status = "PATCH", 200
-
-    async with httpx2.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.request(method, url, json=payload, headers=headers)
-        except httpx2.RequestError as exc:
-            for grouped_action in actions:
-                grouped_action.error = f"Wikidata API request failed: {exc}"
-            db.commit()
-            logger.warning("Applying action %s failed: %s", action.id, action.error)
-            return False
-
-        if response.status_code != expected_status:
-            for grouped_action in actions:
-                grouped_action.error = _failure_message(response)
-            db.commit()
-            logger.warning("Applying action %s failed: %s", action.id, action.error)
-            return False
-
-        document = response.json()
-
-    if target is None:
-        rows = Statement.upsert_batch(
-            db,
-            [{"politician_id": action.politician_id, "document": document}],
-            returning_columns=[Statement.id],
-        )
-        statement_id = rows[0].id
-    else:
-        target.document = document
-        statement_id = target.id
-
-    if creates:
-        for member in actions:
-            member.statement_id = statement_id
-    _mark_applied(db, actions)
-    logger.info("Applied action group %s", [str(grouped.id) for grouped in actions])
-    return True

@@ -1,7 +1,7 @@
 """PoliLoom models package - organized by domain."""
 
 # Action domain
-from .action import Action, ActionClaim, ActionEvidence, ActionKind, ActionSkip
+from .action import Action, ActionClaim, ActionEvidence, ActionSkip
 
 # Base classes and utilities
 from .base import (
@@ -54,7 +54,6 @@ __all__ = [
     "Action",
     "ActionClaim",
     "ActionEvidence",
-    "ActionKind",
     "ActionSkip",
     # Base
     "Base",

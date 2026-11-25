@@ -1,6 +1,7 @@
 """Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -12,7 +13,7 @@ from pydantic import (
     field_validator,
 )
 
-from ..models import ActionKind, WikidataEntity
+from ..models import WikidataEntity
 
 
 class UUIDBaseModel(BaseModel):
@@ -99,12 +100,16 @@ class ActionEvidenceResponse(UUIDBaseModel):
 
 
 class ActionResponse(UUIDBaseModel):
-    """Proposed Wikidata operation pending or undergoing review."""
+    """Statement proposal pending or undergoing review."""
 
     id: UUID
-    kind: str
-    statement_id: UUID | None = None  # Target statement for edits
-    payload: dict
+    target_wikidata_statement_id: str | None
+    before: dict | None
+    after: dict
+    references_to_add: list[dict]
+    applied_wikidata_statement_id: str | None
+    group_key: str
+    change: Literal["add", "refine", "reference"]
     entity_terms: TermMaps | None = None  # Terms of the action's value entity
     evidence: list[ActionEvidenceResponse] = []
     is_accepted: bool | None = None
@@ -130,17 +135,18 @@ class ClaimPoliticianResponse(BaseModel):
 
 
 class SubmittedAction(BaseModel):
-    """A submitted action: an existing pending action or a user-authored new one."""
+    """Decision on an existing claimed action, without modifying the proposal."""
 
-    id: UUID | None = None  # Existing action; None = user-authored new action
-    kind: ActionKind
-    statement_id: UUID | None = None  # Target statement; required for EDIT_STATEMENT
-    payload: dict  # CREATE: {"statement": {...}}; EDIT: {"patch": [...]}
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
     is_accepted: bool
 
 
 class PatchActionsRequest(BaseModel):
     """Request body for PATCH /politicians/{qid}/actions."""
+
+    model_config = ConfigDict(extra="forbid")
 
     actions: list[SubmittedAction]
     skips: list[UUID] = []  # Action IDs to skip for this user

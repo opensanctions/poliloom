@@ -6,9 +6,10 @@ migration time are hard-deleted first; deletion becomes permanent everywhere.
 
 Foreign keys are redefined so hard-deleting a wikidata_entity takes its
 politician (and everything cascading from it), its entity-subclass rows, and
-statements/actions that point at it as a value entity. Deleting a statement
-keeps decided actions as history (statement_id set to NULL); pending edit
-actions are deleted with their target by the cleanup SQL.
+statements plus untargeted actions that point at it as a value entity. Actions
+target an existing statement by stable wikidata id, not by a foreign key, so
+decided targets remain as history. Pending targeted actions are retired by that
+stable id when their target statement is hard-deleted by the cleanup SQL.
 
 Revision ID: 7c4d1f9a2e58
 Revises: 39159830a333
@@ -31,12 +32,6 @@ depends_on: str | Sequence[str] | None = None
 # (constraint, table, column) -> referent column and ON DELETE behavior.
 # Old behavior was NO ACTION for all of these.
 FK_ONDELETE = {
-    "actions_statement_id_fkey": (
-        "actions",
-        "statement_id",
-        "statements.id",
-        "SET NULL",
-    ),
     "actions_entity_id_fkey": (
         "actions",
         "entity_id",
@@ -120,15 +115,17 @@ def upgrade() -> None:
     op.create_index("ix_actions_entity_id", "actions", ["entity_id"])
 
     # Defensive cleanup: on a fresh-cutover DB these are empty, on a dev DB
-    # they remove whatever was still tombstoned. Pending edit actions die with
-    # their target statement; decided actions keep their payload (statement_id
-    # is nulled by the FK); referencing rows cascade from the deleted entities.
+    # they remove whatever was still tombstoned. Pending targeted actions can
+    # never apply once their target is gone, so retire them by stable id;
+    # decided targets remain as history. Referencing rows cascade from the
+    # deleted entities, and actions have no foreign key to their target.
     op.execute(
         """
         DELETE FROM actions
         WHERE is_accepted IS NULL
-        AND kind = 'EDIT_STATEMENT'
-        AND statement_id IN (SELECT id FROM statements WHERE deleted_at IS NOT NULL)
+        AND target_wikidata_statement_id IN (
+            SELECT wikidata_statement_id FROM statements WHERE deleted_at IS NOT NULL
+        )
     """
     )
     op.execute("DELETE FROM statements WHERE deleted_at IS NOT NULL")

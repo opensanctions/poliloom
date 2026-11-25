@@ -1,19 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import {
-  actionGroupKey,
   buildSubmission,
-  describePatch,
   effectiveDecision,
+  groupActions,
   groupStatementsIntoSections,
+  itemFact,
 } from './actions'
 import type {
   Action,
-  JsonPatchOperation,
+  RestReference,
   RestSnak,
   RestStatement,
   RestValue,
   SourceResponse,
   Statement,
+  StatementFact,
 } from '@/types'
 
 // --- Fixtures ---
@@ -39,200 +40,198 @@ const startTimeQualifier = (time: string, precision = 11): RestSnak => ({
   value: timeContent(time, precision),
 })
 
-const endTimeQualifier = (time: string, precision = 11): RestSnak => ({
-  property: { id: 'P582' },
-  value: timeContent(time, precision),
-})
+function fact(propertyId: string, value: RestValue, qualifiers: RestSnak[] = []): StatementFact {
+  return { property: { id: propertyId }, value, qualifiers }
+}
 
 function statement(
   id: string,
   propertyId: string,
   value: RestValue,
-  qualifiers: RestSnak[] = [],
+  options: {
+    documentId?: string
+    qualifiers?: RestSnak[]
+    references?: RestReference[]
+  } = {},
 ): Statement {
   const document: RestStatement = {
-    id,
+    id: options.documentId ?? id,
     rank: 'normal',
     property: { id: propertyId },
     value,
-    qualifiers,
-    references: [],
+    qualifiers: options.qualifiers ?? [],
+    references: options.references ?? [],
   }
   return { id, document, entity_terms: null }
 }
 
-function pendingAction(id: string, isAccepted: boolean | null = null): Action {
+function action(
+  id: string,
+  options: {
+    change?: Action['change']
+    target?: string | null
+    before?: StatementFact | null
+    after?: StatementFact
+    groupKey?: string
+    referencesToAdd?: RestReference[]
+    isAccepted?: boolean | null
+  } = {},
+): Action {
   return {
     id,
-    kind: 'CREATE_STATEMENT',
-    statement_id: null,
-    payload: {
-      statement: {
-        rank: 'normal',
-        property: { id: 'P569' },
-        value: timeContent('+2000-01-01T00:00:00Z', 11),
-        qualifiers: [],
-        references: [],
-      },
-    },
+    target_wikidata_statement_id: options.target ?? null,
+    before: options.before ?? null,
+    after: options.after ?? fact('P569', timeContent('+2000-01-01T00:00:00Z', 11)),
+    references_to_add: options.referencesToAdd ?? [],
+    applied_wikidata_statement_id: null,
+    group_key: options.groupKey ?? id,
+    change: options.change ?? 'add',
     entity_terms: null,
-    evidence: [{ id: 'ev-1', source: mockSource, supporting_quotes: null }],
-    is_accepted: isAccepted,
+    evidence: [{ id: `ev-${id}`, source: mockSource, supporting_quotes: null }],
+    is_accepted: options.isAccepted ?? null,
     applied_at: null,
     error: null,
   }
 }
 
-function createAction(
+function addAction(
   id: string,
   propertyId: string,
   value: RestValue,
   qualifiers: RestSnak[] = [],
+  groupKey = id,
 ): Action {
-  return {
-    ...pendingAction(id),
-    payload: {
-      statement: {
-        rank: 'normal',
-        property: { id: propertyId },
-        value,
-        qualifiers,
-        references: [],
-      },
-    },
-  }
+  return action(id, {
+    change: 'add',
+    after: fact(propertyId, value, qualifiers),
+    groupKey,
+  })
 }
 
-function editAction(id: string, statementId: string, patch: JsonPatchOperation[]): Action {
-  return {
-    ...pendingAction(id),
-    kind: 'EDIT_STATEMENT',
-    statement_id: statementId,
-    payload: { patch },
-  }
+function editAction(
+  id: string,
+  target: string,
+  before: StatementFact,
+  after: StatementFact,
+  groupKey = id,
+): Action {
+  return action(id, { change: 'refine', target, before, after, groupKey })
 }
 
 // --- Decision state ---
 
 describe('effectiveDecision', () => {
   it('falls back to the served decision when there is no local override', () => {
-    expect(effectiveDecision(pendingAction('a1', true), {})).toBe(true)
-    expect(effectiveDecision(pendingAction('a1', false), {})).toBe(false)
-    expect(effectiveDecision(pendingAction('a1', null), {})).toBeNull()
+    expect(effectiveDecision(action('a1', { isAccepted: true }), {})).toBe(true)
+    expect(effectiveDecision(action('a1', { isAccepted: false }), {})).toBe(false)
+    expect(effectiveDecision(action('a1'), {})).toBeNull()
   })
 
   it('uses the local override when present, including null', () => {
-    const action = pendingAction('a1', true)
-    const key = actionGroupKey(action)
-    expect(effectiveDecision(action, { [key]: true })).toBe(true)
-    expect(effectiveDecision(action, { [key]: null })).toBeNull()
+    const subject = action('a1', { isAccepted: true })
+    expect(effectiveDecision(subject, { a1: true })).toBe(true)
+    expect(effectiveDecision(subject, { a1: null })).toBeNull()
   })
 
-  it('ignores overrides for other actions', () => {
-    const other = createAction('a2', 'P19', entityContent('Q300'))
-    expect(effectiveDecision(pendingAction('a1'), { [actionGroupKey(other)]: true })).toBeNull()
+  it('keeps equivalent proposals independently decidable', () => {
+    const first = addAction('a1', 'P19', entityContent('Q300'), [], 'same-proposal')
+    const second = addAction('a2', 'P19', entityContent('Q300'), [], 'same-proposal')
+
+    expect(effectiveDecision(first, { a1: true })).toBe(true)
+    expect(effectiveDecision(second, { a1: true })).toBeNull()
   })
 })
 
 describe('buildSubmission', () => {
-  it('emits decided actions as complete action objects', () => {
-    const created = pendingAction('a1')
-    const edited = editAction('a2', 's1', [
-      { op: 'test', path: '/value', value: entityContent('Q300') },
-    ])
-
-    const payload = buildSubmission([created, edited], {
-      [actionGroupKey(created)]: true,
-      [actionGroupKey(edited)]: false,
+  it('emits decided actions as id/decision pairs', () => {
+    const created = action('a1')
+    const edited = action('a2', {
+      change: 'refine',
+      target: 's1',
+      before: fact('P569', entityContent('Q1')),
     })
+
+    const payload = buildSubmission([created, edited], { a1: true, a2: false })
 
     expect(payload).toEqual({
       actions: [
-        {
-          id: 'a1',
-          kind: 'CREATE_STATEMENT',
-          statement_id: null,
-          payload: created.payload,
-          is_accepted: true,
-        },
-        {
-          id: 'a2',
-          kind: 'EDIT_STATEMENT',
-          statement_id: 's1',
-          payload: edited.payload,
-          is_accepted: false,
-        },
+        { id: 'a1', is_accepted: true },
+        { id: 'a2', is_accepted: false },
       ],
       skips: [],
     })
   })
 
   it('emits served decisions when there is no local override', () => {
-    const accepted = pendingAction('a1', true)
-    const discarded = pendingAction('a2', false)
+    const accepted = action('a1', { isAccepted: true })
+    const discarded = action('a2', { isAccepted: false })
 
-    const payload = buildSubmission([accepted, discarded], {})
-
-    expect(payload.actions).toEqual([
-      {
-        id: 'a1',
-        kind: 'CREATE_STATEMENT',
-        statement_id: null,
-        payload: accepted.payload,
-        is_accepted: true,
-      },
-      {
-        id: 'a2',
-        kind: 'CREATE_STATEMENT',
-        statement_id: null,
-        payload: discarded.payload,
-        is_accepted: false,
-      },
-    ])
-    expect(payload.skips).toEqual([])
+    expect(buildSubmission([accepted, discarded], {})).toEqual({
+      actions: [
+        { id: 'a1', is_accepted: true },
+        { id: 'a2', is_accepted: false },
+      ],
+      skips: [],
+    })
   })
 
   it('never emits null decisions: actions reset to undecided are skipped', () => {
-    const actions = [pendingAction('a1', true)]
-
-    const payload = buildSubmission(actions, { [actionGroupKey(actions[0])]: null })
-
-    expect(payload.actions).toEqual([])
-    expect(payload.skips).toEqual(['a1'])
+    expect(buildSubmission([action('a1', { isAccepted: true })], { a1: null })).toEqual({
+      actions: [],
+      skips: ['a1'],
+    })
   })
 
   it('skips only still-undecided actions', () => {
-    const actions = [pendingAction('a1'), createAction('a2', 'P19', entityContent('Q300'))]
+    const actions = [action('a1'), action('a2')]
 
-    const payload = buildSubmission(actions, { [actionGroupKey(actions[0])]: true })
+    const payload = buildSubmission(actions, { a1: true })
 
-    expect(payload.actions.map((action) => action.id)).toEqual(['a1'])
+    expect(payload.actions.map((entry) => entry.id)).toEqual(['a1'])
     expect(payload.skips).toEqual(['a2'])
   })
 
   it('ignores a decision for a row no longer present', () => {
-    expect(buildSubmission([], { [actionGroupKey(pendingAction('a1'))]: true })).toEqual({
-      actions: [],
-      skips: [],
-    })
+    expect(buildSubmission([], { a1: true })).toEqual({ actions: [], skips: [] })
+  })
+})
+
+// --- Action grouping ---
+
+describe('groupActions', () => {
+  it('groups actions by the supplied group key and keeps ids separate', () => {
+    const first = addAction('a1', 'P19', entityContent('Q300'), [], 'g1')
+    const second = addAction('a2', 'P19', entityContent('Q300'), [], 'g1')
+    const third = addAction('a3', 'P19', entityContent('Q300'), [], 'g2')
+
+    expect(groupActions([first, second, third])).toEqual([[first, second], [third]])
+  })
+
+  it('does not infer groups from equal data', () => {
+    const first = addAction('a1', 'P19', entityContent('Q300'), [], 'g1')
+    const second = addAction('a2', 'P19', entityContent('Q300'), [], 'g2')
+
+    expect(groupActions([first, second])).toEqual([[first], [second]])
   })
 })
 
 // --- Statement grouping ---
 
-const birthDate = statement('s1', 'P569', timeContent('+1990-05-15T00:00:00Z', 11))
-const deathDate = statement('s2', 'P570', timeContent('+2020-01-01T00:00:00Z', 11))
-const governor2018 = statement('s3', 'P39', entityContent('Q200'), [
-  startTimeQualifier('+2018-01-01T00:00:00Z'),
-])
-const governor2022 = statement('s3b', 'P39', entityContent('Q200'), [
-  startTimeQualifier('+2022-01-01T00:00:00Z'),
-])
-const mayor2020 = statement('s4', 'P39', entityContent('Q100'), [
-  startTimeQualifier('+2020-01-01T00:00:00Z'),
-])
-const birthplace = statement('s5', 'P19', entityContent('Q300'))
-const citizenship = statement('s6', 'P27', entityContent('Q400'))
+const birthDate = statement('row-1', 'P569', timeContent('+1990-05-15T00:00:00Z', 11), {
+  documentId: 'Q1$birth',
+})
+const deathDate = statement('row-2', 'P570', timeContent('+2020-01-01T00:00:00Z', 11))
+const governor2018 = statement('row-3', 'P39', entityContent('Q200'), {
+  qualifiers: [startTimeQualifier('+2018-01-01T00:00:00Z')],
+})
+const governor2022 = statement('row-3b', 'P39', entityContent('Q200'), {
+  qualifiers: [startTimeQualifier('+2022-01-01T00:00:00Z')],
+})
+const mayor2020 = statement('row-4', 'P39', entityContent('Q100'), {
+  qualifiers: [startTimeQualifier('+2020-01-01T00:00:00Z')],
+})
+const birthplace = statement('row-5', 'P19', entityContent('Q300'))
+const citizenship = statement('row-6', 'P27', entityContent('Q400'))
 
 describe('groupStatementsIntoSections', () => {
   it('returns sections with correct titles', () => {
@@ -261,14 +260,14 @@ describe('groupStatementsIntoSections', () => {
     const vague = statement('s7', 'P569', timeContent('+1990-00-00T00:00:00Z', 9))
     const sections = groupStatementsIntoSections([vague, birthDate], [])
 
-    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['s1', 's7'])
+    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['row-1', 's7'])
   })
 
   it('sorts statements without a date value last', () => {
     const unknown = statement('s8', 'P569', { type: 'somevalue' })
     const sections = groupStatementsIntoSections([unknown, birthDate], [])
 
-    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['s1', 's8'])
+    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['row-1', 's8'])
   })
 
   it('groups positions by entity QID', () => {
@@ -281,7 +280,7 @@ describe('groupStatementsIntoSections', () => {
   it('sorts statements within a group by start date', () => {
     const sections = groupStatementsIntoSections([governor2022, governor2018], [])
 
-    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['s3', 's3b'])
+    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['row-3', 'row-3b'])
   })
 
   it('sorts groups by their earliest start date', () => {
@@ -294,70 +293,71 @@ describe('groupStatementsIntoSections', () => {
     const timeless = statement('s9', 'P39', entityContent('Q200'))
     const sections = groupStatementsIntoSections([timeless, governor2018], [])
 
-    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['s3', 's9'])
+    expect(sections[0].groups[0].items.map((i) => i.statement!.id)).toEqual(['row-3', 's9'])
   })
 
-  it('attaches edit actions to their target statement', () => {
-    const valueRefinement = editAction('a1', 's3', [
-      { op: 'test', path: '/value', value: entityContent('Q200') },
-      { op: 'replace', path: '/value', value: entityContent('Q201') },
-    ])
-    const sections = groupStatementsIntoSections([governor2018, mayor2020], [valueRefinement])
+  it('attaches edit actions to the cached statement matched by document id', () => {
+    const valueRefinement = editAction(
+      'a1',
+      'Q1$birth',
+      fact('P569', timeContent('+1990-05-15T00:00:00Z', 11)),
+      fact('P569', timeContent('+1990-05-16T00:00:00Z', 11)),
+    )
+    const sections = groupStatementsIntoSections([birthDate, mayor2020], [valueRefinement])
 
-    const governor = sections[0].groups.find((g) => g.key === 'Q200')!
-    expect(governor.items).toHaveLength(1)
-    expect(governor.items[0]).toEqual({
-      statement: governor2018,
-      createActions: [],
-      editActions: [valueRefinement],
-    })
+    const dates = sections[0].groups[0].items[0]
+    expect(dates.statement).toBe(birthDate)
+    expect(dates.actions).toEqual([valueRefinement])
   })
 
-  it('places create actions as standalone items in their section', () => {
-    const created = createAction('a1', 'P39', entityContent('Q500'), [
+  it('places add actions as standalone items in their section', () => {
+    const created = addAction('a1', 'P39', entityContent('Q500'), [
       startTimeQualifier('+2024-01-01T00:00:00Z'),
     ])
     const sections = groupStatementsIntoSections([governor2018], [created])
 
     expect(sections[0].groups.map((g) => g.key)).toEqual(['Q200', 'Q500'])
     const standalone = sections[0].groups.find((g) => g.key === 'Q500')!
-    expect(standalone.items).toEqual([
-      { statement: null, createActions: [created], editActions: [] },
-    ])
+    expect(standalone.items).toEqual([{ statement: null, actions: [created] }])
   })
 
-  it('groups equivalent creates without merging their actions', () => {
-    const first = createAction('a1', 'P39', entityContent('Q500'))
-    const second = createAction('a2', 'P39', { content: 'Q500', type: 'value' })
-    const differentTerm = createAction('a3', 'P39', entityContent('Q500'), [
-      startTimeQualifier('+2024-01-01T00:00:00Z'),
-    ])
+  it('groups actions by their supplied group key without merging ids', () => {
+    const first = addAction('a1', 'P39', entityContent('Q500'), [], 'g1')
+    const second = addAction('a2', 'P39', entityContent('Q500'), [], 'g1')
+    const differentGroup = addAction('a3', 'P39', entityContent('Q500'), [], 'g2')
 
-    const sections = groupStatementsIntoSections([], [first, second, differentTerm])
+    const sections = groupStatementsIntoSections([], [first, second, differentGroup])
 
     expect(sections[0].groups[0].items).toEqual([
-      { statement: null, createActions: [differentTerm], editActions: [] },
-      { statement: null, createActions: [first, second], editActions: [] },
+      { statement: null, actions: [first, second] },
+      { statement: null, actions: [differentGroup] },
     ])
   })
 
   it('sorts create actions together with statements by timeframe', () => {
-    const created = createAction('a1', 'P39', entityContent('Q200'), [
+    const created = addAction('a1', 'P39', entityContent('Q200'), [
       startTimeQualifier('+2000-01-01T00:00:00Z'),
     ])
     const sections = groupStatementsIntoSections([governor2018], [created])
 
-    expect(
-      sections[0].groups[0].items.map((i) => i.statement?.id ?? i.createActions[0].id),
-    ).toEqual(['a1', 's3'])
+    expect(sections[0].groups[0].items.map((i) => i.statement?.id ?? i.actions[0].id)).toEqual([
+      'a1',
+      'row-3',
+    ])
   })
 
-  it('throws when an edit action targets an unknown statement', () => {
-    const orphan = editAction('a1', 'missing', [
-      { op: 'test', path: '/value', value: entityContent('Q300') },
-    ])
+  it('keeps a stable target when its cached statement is missing', () => {
+    const orphan = editAction(
+      'a1',
+      'Q1$gone',
+      fact('P569', timeContent('+1990-05-15T00:00:00Z', 11)),
+      fact('P569', timeContent('+1990-05-16T00:00:00Z', 11)),
+    )
+    const sections = groupStatementsIntoSections([], [orphan])
 
-    expect(() => groupStatementsIntoSections([], [orphan])).toThrow(/unknown statement/)
+    expect(orphan.target_wikidata_statement_id).toBe('Q1$gone')
+    expect(sections[0].groups[0].items).toEqual([{ statement: null, actions: [orphan] }])
+    expect(itemFact(sections[0].groups[0].items[0])).toEqual(orphan.after)
   })
 
   it('throws for statements with unexpected properties', () => {
@@ -387,73 +387,20 @@ describe('groupStatementsIntoSections', () => {
   it('returns an empty array for no statements and no actions', () => {
     expect(groupStatementsIntoSections([], [])).toEqual([])
   })
-})
 
-// --- Edit patch classification ---
+  it('sorts a reference-only proposal by its cached statement context', () => {
+    const reference = action('a1', {
+      change: 'reference',
+      target: 'Q1$birth',
+      before: fact('P569', timeContent('+1990-05-15T00:00:00Z', 11)),
+      after: fact('P569', timeContent('+1990-05-15T00:00:00Z', 11)),
+      referencesToAdd: [
+        { parts: [{ property: { id: 'P854' }, value: entityContent('https://x') }] },
+      ],
+    })
+    const sections = groupStatementsIntoSections([birthDate], [reference])
 
-describe('describePatch', () => {
-  it('classifies a value refinement with old and new value', () => {
-    const oldValue = timeContent('+1990-00-00T00:00:00Z', 9)
-    const newValue = timeContent('+1990-05-15T00:00:00Z', 11)
-
-    expect(
-      describePatch([
-        { op: 'test', path: '/value', value: oldValue },
-        { op: 'replace', path: '/value', value: newValue },
-      ]),
-    ).toEqual({ kind: 'value-refinement', oldValue, newValue })
-  })
-
-  it('classifies a qualifier refinement with old and new qualifier', () => {
-    const oldQualifier = startTimeQualifier('+2000-00-00T00:00:00Z', 9)
-    const newQualifier = startTimeQualifier('+2000-06-01T00:00:00Z', 11)
-
-    expect(
-      describePatch([
-        { op: 'test', path: '/qualifiers/0', value: oldQualifier },
-        { op: 'replace', path: '/qualifiers/0', value: newQualifier },
-      ]),
-    ).toEqual({ kind: 'qualifier-refinement', qualifierIndex: 0, oldQualifier, newQualifier })
-  })
-
-  it('classifies a qualifier append', () => {
-    const qualifier = endTimeQualifier('+2024-01-01T00:00:00Z')
-
-    expect(
-      describePatch([
-        { op: 'test', path: '/qualifiers', value: [] },
-        { op: 'add', path: '/qualifiers/-', value: qualifier },
-      ]),
-    ).toEqual({ kind: 'qualifier-append', qualifier })
-  })
-
-  it('shows no data change for an edit that just adds a reference', () => {
-    expect(
-      describePatch([
-        { op: 'test', path: '/value', value: entityContent('Q123') },
-        { op: 'test', path: '/qualifiers', value: [] },
-        { op: 'add', path: '/references/-', value: { parts: [] } },
-      ]),
-    ).toBeNull()
-  })
-
-  it('throws for unsupported mutation paths', () => {
-    expect(() => describePatch([{ op: 'replace', path: '/rank', value: 'deprecated' }])).toThrow(
-      /Unsupported patch/,
-    )
-    expect(() =>
-      describePatch([
-        { op: 'test', path: '/qualifiers', value: [] },
-        { op: 'add', path: '/qualifiers/0', value: {} },
-      ]),
-    ).toThrow(/Unsupported patch/)
-  })
-
-  it('throws when a refinement has no matching test operation', () => {
-    expect(() =>
-      describePatch([
-        { op: 'replace', path: '/value', value: timeContent('+2000-01-01T00:00:00Z', 11) },
-      ]),
-    ).toThrow(/missing a test operation/)
+    expect(sections[0].groups[0].items[0].statement).toBe(birthDate)
+    expect(itemFact(sections[0].groups[0].items[0]).value).toEqual(birthDate.document.value)
   })
 })

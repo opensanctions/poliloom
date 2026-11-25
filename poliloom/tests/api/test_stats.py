@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 
 from poliloom.models import (
     Action,
-    ActionKind,
     Country,
     Politician,
     Source,
@@ -14,18 +13,15 @@ from poliloom.models import (
 from ..conftest import create_with_entity, make_terms
 
 
-def birth_date_create_payload(statement_id="Q123456$birth-new"):
-    """Build a CREATE_STATEMENT payload for a birth-date statement."""
+def birth_date_fact():
+    """Build the after fact for a birth-date proposal."""
     return {
-        "statement": {
-            "id": statement_id,
-            "rank": "normal",
-            "property": {"id": "P569", "data_type": "time"},
-            "value": {
-                "type": "value",
-                "content": {"time": "+1970-01-15T00:00:00Z", "precision": 11},
-            },
-        }
+        "property": {"id": "P569"},
+        "value": {
+            "type": "value",
+            "content": {"time": "+1970-01-15T00:00:00Z", "precision": 11},
+        },
+        "qualifiers": [],
     }
 
 
@@ -33,8 +29,7 @@ def create_action(db_session, politician, *, is_accepted=None, decided_at=None):
     """Create an action with an optional decision."""
     action = Action(
         politician_id=politician.id,
-        kind=ActionKind.CREATE_STATEMENT,
-        payload=birth_date_create_payload(),
+        after=birth_date_fact(),
         is_accepted=is_accepted,
         decided_at=decided_at,
     )

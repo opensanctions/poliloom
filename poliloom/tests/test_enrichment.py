@@ -26,12 +26,12 @@ from poliloom.enrichment import (
 )
 from poliloom.models import (
     Action,
-    ActionKind,
     Location,
     Position,
     Source,
     Statement,
 )
+from poliloom.proposals import statement_fact
 from poliloom.wikidata.date import WikidataDate
 
 from .conftest import create_with_entity, make_terms
@@ -315,18 +315,18 @@ class TestStoreExtractedData:
         actions = db_session.query(Action).all()
         assert len(actions) == 1
         action = actions[0]
-        assert action.kind == ActionKind.CREATE_STATEMENT
+        assert action.target_wikidata_statement_id is None
+        assert action.before is None
         assert action.politician_id == sample_politician.id
-        assert action.statement_id is None
-
-        statement = action.payload["statement"]
-        assert statement["property"] == {"id": "P569"}
-        assert statement["value"] == {
-            "type": "value",
-            "content": time_content("1970-01-15"),
+        assert action.after == {
+            "property": {"id": "P569"},
+            "value": {
+                "type": "value",
+                "content": time_content("1970-01-15"),
+            },
+            "qualifiers": [],
         }
-        assert statement["rank"] == "normal"
-        assert statement["references"] == [
+        assert action.references_to_add == [
             {"parts": sample_source.create_references_json()}
         ]
 
@@ -355,10 +355,12 @@ class TestStoreExtractedData:
 
         actions = db_session.query(Action).all()
         assert len(actions) == 1
-        statement = actions[0].payload["statement"]
-        assert statement["property"] == {"id": "P39"}
-        assert statement["value"] == {"type": "value", "content": "Q30185"}
-        assert statement["qualifiers"] == [
+        action = actions[0]
+        assert action.target_wikidata_statement_id is None
+        assert action.before is None
+        assert action.after["property"] == {"id": "P39"}
+        assert action.after["value"] == {"type": "value", "content": "Q30185"}
+        assert action.after["qualifiers"] == [
             {
                 "property": {"id": "P580"},
                 "value": {"type": "value", "content": time_content("2020")},
@@ -367,6 +369,9 @@ class TestStoreExtractedData:
                 "property": {"id": "P582"},
                 "value": {"type": "value", "content": time_content("2024")},
             },
+        ]
+        assert action.references_to_add == [
+            {"parts": sample_source.create_references_json()}
         ]
 
     @pytest.mark.parametrize("already_cited", [False, True])
@@ -418,20 +423,13 @@ class TestStoreExtractedData:
 
         assert len(actions) == 1
         action = actions[0]
-        assert action.kind == ActionKind.EDIT_STATEMENT
-        assert action.statement_id == statement.id
-
-        old_value = {"type": "value", "content": time_content("1950")}
-        if candidate_date == "1950":
-            data_operation = {"op": "test", "path": "/qualifiers", "value": []}
-        else:
-            new_value = {"type": "value", "content": time_content(candidate_date)}
-            data_operation = {"op": "replace", "path": "/value", "value": new_value}
-        assert action.payload["patch"] == [
-            {"op": "test", "path": "/value", "value": old_value},
-            data_operation,
-            {"op": "add", "path": "/references/-", "value": reference},
-        ]
+        assert action.target_wikidata_statement_id == statement.wikidata_statement_id
+        assert action.before == statement_fact(statement.document)
+        assert action.after == {
+            **statement_fact(statement.document),
+            "value": {"type": "value", "content": time_content(candidate_date)},
+        }
+        assert action.references_to_add == [reference]
 
         assert len(action.evidence) == 1
         assert action.evidence[0].source_id == sample_source.id
@@ -471,13 +469,21 @@ class TestStoreExtractedData:
             assert actions == []
         elif candidate_date == "1950-05-15":
             (action,) = actions
-            assert action.kind == ActionKind.EDIT_STATEMENT
-            assert all(op["path"] == "/value" for op in action.payload["patch"])
+            assert action.target_wikidata_statement_id == "Q123456$birth-1"
+            assert action.after["value"] == {
+                "type": "value",
+                "content": time_content(candidate_date),
+            }
+            assert action.references_to_add == []
             assert action.evidence[0].source_id == source.id
         else:
             (action,) = actions
-            assert action.kind == ActionKind.CREATE_STATEMENT
-            assert action.payload["statement"]["references"] == [
+            assert action.target_wikidata_statement_id is None
+            assert action.after["value"] == {
+                "type": "value",
+                "content": time_content(candidate_date),
+            }
+            assert action.references_to_add == [
                 {"parts": source.create_references_json()}
             ]
 
@@ -545,7 +551,10 @@ class TestStoreExtractedData:
             db_session, sample_politician, sample_source, None, positions, None, None
         )
         first_action = db_session.query(Action).one()
-        original_payload = deepcopy(first_action.payload)
+        original = (
+            deepcopy(first_action.after),
+            deepcopy(first_action.references_to_add),
+        )
 
         assert store_extracted_data(
             db_session, sample_politician, second_source, None, positions, None, None
@@ -553,9 +562,9 @@ class TestStoreExtractedData:
 
         actions = db_session.query(Action).all()
         assert len(actions) == 2
-        assert all(action.kind == ActionKind.CREATE_STATEMENT for action in actions)
+        assert all(action.target_wikidata_statement_id is None for action in actions)
         for action in actions:
-            assert action.payload["statement"]["references"] == [
+            assert action.references_to_add == [
                 {"parts": action.evidence[0].source.create_references_json()}
             ]
         assert all(len(action.evidence) == 1 for action in actions)
@@ -564,7 +573,7 @@ class TestStoreExtractedData:
             second_source.id,
         }
         db_session.refresh(first_action)
-        assert first_action.payload == original_payload
+        assert (first_action.after, first_action.references_to_add) == original
 
     def test_pending_creates_with_different_qualifiers_stay_separate(
         self,
@@ -600,7 +609,7 @@ class TestStoreExtractedData:
         self, db_session, sample_politician, sample_source, create_source
     ):
         """Equivalent edits keep separate evidence."""
-        add_statement(
+        statement = add_statement(
             db_session,
             sample_politician,
             rest_statement(
@@ -620,7 +629,10 @@ class TestStoreExtractedData:
             db_session, sample_politician, sample_source, properties, None, None, None
         )
         first_action = db_session.query(Action).one()
-        original_payload = deepcopy(first_action.payload)
+        original = (
+            deepcopy(first_action.after),
+            deepcopy(first_action.references_to_add),
+        )
 
         assert store_extracted_data(
             db_session,
@@ -635,15 +647,16 @@ class TestStoreExtractedData:
         actions = db_session.query(Action).all()
         assert len(actions) == 2
         for action in actions:
-            assert action.payload["patch"] == [
-                *original_payload["patch"][:-1],
-                {
-                    "op": "add",
-                    "path": "/references/-",
-                    "value": {
-                        "parts": action.evidence[0].source.create_references_json()
-                    },
+            assert action.target_wikidata_statement_id == "Q123456$birth-1"
+            assert action.after == {
+                **statement_fact(statement.document),
+                "value": {
+                    "type": "value",
+                    "content": time_content("1950-05-15"),
                 },
+            }
+            assert action.references_to_add == [
+                {"parts": action.evidence[0].source.create_references_json()}
             ]
         assert all(len(action.evidence) == 1 for action in actions)
         assert {action.evidence[0].source_id for action in actions} == {
@@ -651,7 +664,7 @@ class TestStoreExtractedData:
             second_source.id,
         }
         db_session.refresh(first_action)
-        assert first_action.payload == original_payload
+        assert (first_action.after, first_action.references_to_add) == original
 
     def test_identical_extraction_after_decision_creates_new_action(
         self, db_session, sample_politician, sample_source, create_source

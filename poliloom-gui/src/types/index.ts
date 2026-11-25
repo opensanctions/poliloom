@@ -1,4 +1,4 @@
-import type { Action, ActionKind, Statement, TermLabels, TermMaps } from './wikibase'
+import type { Action, Statement, TermLabels, TermMaps } from './wikibase'
 
 export type SourceStatus = 'processing' | 'done'
 
@@ -48,13 +48,9 @@ export interface SearchEntity {
 
 export type SearchFn = (query: string) => Promise<SearchEntity[]>
 
-/** A complete action as submitted for review; `is_accepted` is never null on the wire. */
+/** A decided action as submitted for review. */
 export interface SubmittedAction {
-  /** The served action id; null for user-authored new actions (future editing UI). */
-  id: string | null
-  kind: ActionKind
-  statement_id: string | null
-  payload: Action['payload']
+  id: string
   is_accepted: boolean
 }
 

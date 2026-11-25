@@ -3,12 +3,12 @@
 import { useState, useMemo, useRef, useEffect, useCallback, ReactNode, Fragment } from 'react'
 import {
   type Action,
+  type PatchActionsResponse,
   type Politician,
   type ReviewSubmitPayload,
   type SourceResponse,
 } from '@/types'
 import {
-  actionGroupKey,
   buildSubmission,
   effectiveDecision,
   groupStatementsIntoSections,
@@ -85,13 +85,14 @@ export interface FooterContext {
   decidedCount: number
   isSubmitting: boolean
   submit: () => void
+  applicationErrors: string[]
 }
 
 interface EvaluationViewProps {
   politician: Politician
   selection: SourceSelection | null
   onSelectionChange: (selection: SourceSelection | null) => void
-  onSubmit?: (payload: ReviewSubmitPayload) => Promise<void>
+  onSubmit?: (payload: ReviewSubmitPayload) => Promise<PatchActionsResponse | void>
   footer: (context: FooterContext) => ReactNode
   sourcesApiPath?: string
   onAddSource?: (url: string) => Promise<void>
@@ -109,6 +110,8 @@ export function EvaluationView({
   const labelLanguages = useLabelLanguages()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [decisions, setDecisions] = useState<LocalDecisions>({})
+  const [applicationErrors, setApplicationErrors] = useState<string[]>([])
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
 
   const sections = useMemo(
     () => groupStatementsIntoSections(politician.statements, politician.actions),
@@ -140,19 +143,24 @@ export function EvaluationView({
   const handleDecision = useCallback((action: Action, isAccepted: boolean) => {
     setDecisions((prev) => ({
       ...prev,
-      [actionGroupKey(action)]: effectiveDecision(action, prev) === isAccepted ? null : isAccepted,
+      [action.id]: effectiveDecision(action, prev) === isAccepted ? null : isAccepted,
     }))
   }, [])
 
   const submit = useCallback(async () => {
     if (!onSubmit) return
     setIsSubmitting(true)
+    setSubmissionError(null)
     try {
-      await onSubmit(buildSubmission(politician.actions, decisions))
+      const result = await onSubmit(buildSubmission(politician.actions, decisions))
       setDecisions({})
+      if (result && (!result.success || result.errors.length > 0)) {
+        setApplicationErrors(result.errors.length > 0 ? result.errors : [result.message])
+      } else {
+        setApplicationErrors([])
+      }
     } catch (error) {
-      console.error('Submission failed:', error)
-      alert(
+      setSubmissionError(
         error instanceof Error ? error.message : 'Error submitting decisions. Please try again.',
       )
     } finally {
@@ -169,8 +177,7 @@ export function EvaluationView({
 
   const handleItemHover = (item: StatementItem) => {
     if (!selection) return
-    const actions = item.statement ? item.editActions : item.createActions
-    const matching = actions
+    const matching = item.actions
       .flatMap((action) => action.evidence)
       .find((evidence) => evidence.source.id === selection.source.id)
     if (!matching?.supporting_quotes?.length) return
@@ -208,10 +215,14 @@ export function EvaluationView({
                 {section.groups.map((group) => {
                   const first = group.items[0]
                   const terms =
-                    first.statement?.entity_terms ?? first.createActions[0]?.entity_terms ?? null
+                    first.statement?.entity_terms ?? first.actions[0]?.entity_terms ?? null
                   const isNewGroup =
                     section.sectionType !== 'date' &&
-                    group.items.every((item) => item.statement === null)
+                    group.items.every(
+                      (item) =>
+                        item.statement === null &&
+                        item.actions.every((action) => action.change === 'add'),
+                    )
                   return (
                     <HeaderedBox
                       key={group.key}
@@ -230,8 +241,8 @@ export function EvaluationView({
                           <Fragment
                             key={
                               item.statement
-                                ? item.statement.id
-                                : actionGroupKey(item.createActions[0])
+                                ? item.statement.document.id
+                                : item.actions.map((action) => action.group_key).join('|')
                             }
                           >
                             {index > 0 && <hr className="border-border-muted my-3" />}
@@ -256,8 +267,26 @@ export function EvaluationView({
         </div>
       </div>
 
-      <div className="p-6 border-t border-border">
-        {footer({ decidedCount, isSubmitting, submit })}
+      <div className="p-6 border-t border-border space-y-3">
+        {submissionError && (
+          <p role="alert" className="text-danger-foreground">
+            {submissionError}
+          </p>
+        )}
+        {applicationErrors.length > 0 && (
+          <div
+            role="alert"
+            className="rounded-md border border-danger-foreground bg-danger-muted p-4"
+          >
+            <h3 className="font-semibold text-danger-foreground">Review submission had errors</h3>
+            <ul className="mt-2 list-disc list-inside space-y-1 text-sm text-danger-foreground">
+              {applicationErrors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {footer({ decidedCount, isSubmitting, submit, applicationErrors })}
       </div>
     </div>
   )

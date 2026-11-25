@@ -699,9 +699,7 @@ def store_extracted_data(
             if action is None:
                 logger.info(f"No action needed for {label} for {politician_name}")
             else:
-                logger.info(
-                    f"Persisted {action.kind.value} action for {label} for {politician_name}"
-                )
+                logger.info(f"Persisted proposal for {label} for {politician_name}")
 
         return True
 

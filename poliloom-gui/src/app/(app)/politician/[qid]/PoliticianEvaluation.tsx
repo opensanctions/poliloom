@@ -80,19 +80,39 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
       }
 
       const result: PatchActionsResponse = await response.json()
-      if (!result.success) {
-        console.error('Decision errors:', result.errors)
-        throw new Error(`Error submitting decisions: ${result.message}`)
+      if (!result.success || result.errors.length > 0) {
+        await refetchPolitician()
+        return result
       }
 
-      await claimAndNavigate()
+      try {
+        await claimAndNavigate()
+      } catch (error) {
+        await refetchPolitician()
+        throw error
+      }
+      return result
     },
-    [politician.wikidata_id, claimAndNavigate],
+    [politician.wikidata_id, claimAndNavigate, refetchPolitician],
   )
 
-  const footer = ({ decidedCount, isSubmitting, submit: submitDecisions }: FooterContext) => {
+  const footer = ({
+    decidedCount,
+    isSubmitting,
+    submit: submitDecisions,
+    applicationErrors,
+  }: FooterContext) => {
     const hasDecisions = decidedCount > 0
     const disabled = isSubmitting || isClaiming
+    if (applicationErrors.length > 0) {
+      return (
+        <div className="flex justify-end">
+          <Button onClick={claimAndNavigate} disabled={disabled} className="px-6 py-3">
+            {isClaiming ? 'Loading...' : 'Next Politician'}
+          </Button>
+        </div>
+      )
+    }
     return (
       <div className="flex justify-end">
         {!hasDecisions ? (
