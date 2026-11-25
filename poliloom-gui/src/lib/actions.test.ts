@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  buildSubmission,
-  effectiveDecision,
-  groupActions,
-  groupStatementsIntoSections,
-  itemFact,
-} from './actions'
+import { buildSubmission, groupProposals, groupStatementsIntoSections, itemFact } from './actions'
 import type {
   Action,
   RestReference,
@@ -120,65 +114,36 @@ function editAction(
 
 // --- Decision state ---
 
-describe('effectiveDecision', () => {
-  it('falls back to the served decision when there is no local override', () => {
-    expect(effectiveDecision(action('a1', { isAccepted: true }), {})).toBe(true)
-    expect(effectiveDecision(action('a1', { isAccepted: false }), {})).toBe(false)
-    expect(effectiveDecision(action('a1'), {})).toBeNull()
-  })
-
-  it('uses the local override when present, including null', () => {
-    const subject = action('a1', { isAccepted: true })
-    expect(effectiveDecision(subject, { a1: true })).toBe(true)
-    expect(effectiveDecision(subject, { a1: null })).toBeNull()
-  })
-
-  it('keeps equivalent proposals independently decidable', () => {
-    const first = addAction('a1', 'P19', entityContent('Q300'), [], 'same-proposal')
-    const second = addAction('a2', 'P19', entityContent('Q300'), [], 'same-proposal')
-
-    expect(effectiveDecision(first, { a1: true })).toBe(true)
-    expect(effectiveDecision(second, { a1: true })).toBeNull()
-  })
-})
-
 describe('buildSubmission', () => {
   it('emits decided actions as id/decision pairs', () => {
-    const created = action('a1')
-    const edited = action('a2', {
+    const first = action('a1', { groupKey: 'g1' })
+    const second = action('a2', { groupKey: 'g1' })
+    const edited = action('a3', {
+      groupKey: 'g2',
       change: 'refine',
       target: 's1',
       before: fact('P569', entityContent('Q1')),
     })
 
-    const payload = buildSubmission([created, edited], { a1: true, a2: false })
+    const payload = buildSubmission([first, second, edited], { g1: true, g2: false })
 
     expect(payload).toEqual({
       actions: [
         { id: 'a1', is_accepted: true },
-        { id: 'a2', is_accepted: false },
+        { id: 'a2', is_accepted: true },
+        { id: 'a3', is_accepted: false },
       ],
       skips: [],
     })
   })
 
-  it('emits served decisions when there is no local override', () => {
+  it('skips served decisions that have no explicit review decision', () => {
     const accepted = action('a1', { isAccepted: true })
     const discarded = action('a2', { isAccepted: false })
 
     expect(buildSubmission([accepted, discarded], {})).toEqual({
-      actions: [
-        { id: 'a1', is_accepted: true },
-        { id: 'a2', is_accepted: false },
-      ],
-      skips: [],
-    })
-  })
-
-  it('never emits null decisions: actions reset to undecided are skipped', () => {
-    expect(buildSubmission([action('a1', { isAccepted: true })], { a1: null })).toEqual({
       actions: [],
-      skips: ['a1'],
+      skips: ['a1', 'a2'],
     })
   })
 
@@ -196,22 +161,22 @@ describe('buildSubmission', () => {
   })
 })
 
-// --- Action grouping ---
+// --- Proposal grouping ---
 
-describe('groupActions', () => {
-  it('groups actions by the supplied group key and keeps ids separate', () => {
+describe('groupProposals', () => {
+  it('groups actions by the supplied group key', () => {
     const first = addAction('a1', 'P19', entityContent('Q300'), [], 'g1')
     const second = addAction('a2', 'P19', entityContent('Q300'), [], 'g1')
     const third = addAction('a3', 'P19', entityContent('Q300'), [], 'g2')
 
-    expect(groupActions([first, second, third])).toEqual([[first, second], [third]])
+    expect(groupProposals([first, second, third])).toEqual([[first, second], [third]])
   })
 
   it('does not infer groups from equal data', () => {
     const first = addAction('a1', 'P19', entityContent('Q300'), [], 'g1')
     const second = addAction('a2', 'P19', entityContent('Q300'), [], 'g2')
 
-    expect(groupActions([first, second])).toEqual([[first], [second]])
+    expect(groupProposals([first, second])).toEqual([[first], [second]])
   })
 })
 
@@ -321,7 +286,7 @@ describe('groupStatementsIntoSections', () => {
     expect(standalone.items).toEqual([{ statement: null, actions: [created] }])
   })
 
-  it('groups actions by their supplied group key without merging ids', () => {
+  it('places equivalent additions in the same standalone item', () => {
     const first = addAction('a1', 'P39', entityContent('Q500'), [], 'g1')
     const second = addAction('a2', 'P39', entityContent('Q500'), [], 'g1')
     const differentGroup = addAction('a3', 'P39', entityContent('Q500'), [], 'g2')

@@ -25,7 +25,7 @@ import { useClaimPolitician } from '@/hooks/useClaimPolitician'
 import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
 import { best_label } from '@/lib/labels'
 import type { ReviewSubmitPayload } from '@/types'
-import { groupStatementsIntoSections } from '@/lib/actions'
+import { groupStatementsIntoSections, statementItemKey } from '@/lib/actions'
 import {
   TutorialStep,
   TutorialReviewStep,
@@ -215,8 +215,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 archive these automatically.
               </p>
               <p>
-                Each proposal you review cites the source it came from, so you always know where a
-                piece of data originated.
+                Each proposal shows the sources that support it, so you can see where the data came
+                from.
               </p>
             </div>
             <TutorialActions onSkip={startReview} buttonText="Next" onNext={advance} />
@@ -259,9 +259,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                     const isNewGroup =
                       section.sectionType !== 'date' &&
                       group.items.every(
-                        (item) =>
-                          item.statement === null &&
-                          item.actions.every((action) => action.change === 'add'),
+                        (item) => item.statement === null && item.actions[0].change === 'add',
                       )
                     return (
                       <HeaderedBox
@@ -277,13 +275,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                       >
                         <div className="space-y-3">
                           {group.items.map((item, index) => (
-                            <Fragment
-                              key={
-                                item.statement
-                                  ? item.statement.document.id
-                                  : item.actions.map((action) => action.group_key).join('|')
-                              }
-                            >
+                            <Fragment key={statementItemKey(item)}>
                               {index > 0 && <hr className="border-border-muted my-3" />}
                               <StatementItemView
                                 item={item}
@@ -291,7 +283,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                                 decisions={{}}
                                 onDecision={() => {}}
                                 onViewSource={() => {}}
-                                onHover={() => {}}
                                 activeSourceId={null}
                               />
                             </Fragment>
@@ -313,8 +304,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 and the changes the AI proposed from the documents.
               </p>
               <p>
-                Each proposal includes the source text used as evidence, and a link to view the full
-                document.
+                Each proposal shows supporting quotes and links to the full sources. One decision
+                covers the proposed change and the references shown with it.
               </p>
             </div>
             <TutorialActions onSkip={startReview} buttonText="Next" onNext={advance} />

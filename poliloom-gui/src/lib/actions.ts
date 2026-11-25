@@ -1,5 +1,6 @@
 import type {
   Action,
+  ActionEvidence,
   ReviewSubmitPayload,
   Statement,
   StatementFact,
@@ -10,26 +11,20 @@ import { compareTimes, parseTimeframe } from '@/lib/wikidata/qualifierParser'
 
 // --- Review decision state ---
 
-/** Local decisions by action id, overriding the served `is_accepted` until submitted. */
-export type LocalDecisions = Record<string, boolean | null>
+/** Explicit review decisions by proposal key. */
+export type ProposalDecisions = Record<string, boolean>
 
-/** The decision a review renders for an action: the local override, or the served value. */
-export function effectiveDecision(action: Action, decisions: LocalDecisions): boolean | null {
-  return action.id in decisions ? decisions[action.id] : action.is_accepted
-}
-
-/**
- * Build the review submission payload: every decided action as an id/decision
- * pair, and every still-undecided action as a skip. Decisions are never null on
- * the wire — an action reset to undecided is skipped.
- */
-export function buildSubmission(actions: Action[], decisions: LocalDecisions): ReviewSubmitPayload {
+/** Expand each proposal decision to the action IDs currently in the review. */
+export function buildSubmission(
+  actions: Action[],
+  decisions: ProposalDecisions,
+): ReviewSubmitPayload {
   const submitted: SubmittedAction[] = []
   const skips: string[] = []
 
   for (const action of actions) {
-    const decision = effectiveDecision(action, decisions)
-    if (decision === null) {
+    const decision = decisions[action.group_key]
+    if (decision === undefined) {
       skips.push(action.id)
       continue
     }
@@ -43,9 +38,15 @@ export function buildSubmission(actions: Action[], decisions: LocalDecisions): R
 
 export type SectionType = 'date' | 'P39' | 'P19' | 'P27'
 
-/** A renderable review row: a cached statement with its edits, or a standalone proposal. */
-export type StatementItem =
-  { statement: Statement; actions: Action[] } | { statement: null; actions: Action[] }
+/** A cached statement with its actions, or a standalone proposal. */
+export interface StatementItem {
+  statement: Statement | null
+  actions: Action[]
+}
+
+export function statementItemKey(item: StatementItem): string {
+  return item.statement ? item.statement.document.id : item.actions[0].group_key
+}
 
 export interface StatementGroup {
   /** Entity QID for entity sections, property id for date sections. */
@@ -73,7 +74,7 @@ export function itemFact(item: StatementItem): StatementFact {
 }
 
 /** Group equivalent proposals by the server-supplied group key. */
-export function groupActions(actions: Action[]): Action[][] {
+export function groupProposals(actions: Action[]): Action[][] {
   const groups = new Map<string, Action[]>()
   for (const action of actions) {
     const group = groups.get(action.group_key) ?? []
@@ -83,36 +84,55 @@ export function groupActions(actions: Action[]): Action[][] {
   return Array.from(groups.values())
 }
 
-function buildItems(statements: Statement[], actions: Action[]): StatementItem[] {
-  const items: { statement: Statement; actions: Action[] }[] = statements.map((statement) => ({
-    statement,
-    actions: [],
-  }))
-  const indexByDocumentId = new Map<string, number>()
-  items.forEach((item, index) => indexByDocumentId.set(item.statement.document.id, index))
+/** Combine a proposal's evidence by source, preserving every distinct quote. */
+export function proposalEvidence(actions: Action[]): ActionEvidence[] {
+  const evidenceBySource = new Map<string, ActionEvidence>()
+  for (const action of actions) {
+    for (const evidence of action.evidence) {
+      const existing = evidenceBySource.get(evidence.source.id)
+      evidenceBySource.set(
+        evidence.source.id,
+        existing
+          ? {
+              ...existing,
+              supporting_quotes: Array.from(
+                new Set([
+                  ...(existing.supporting_quotes ?? []),
+                  ...(evidence.supporting_quotes ?? []),
+                ]),
+              ),
+            }
+          : evidence,
+      )
+    }
+  }
+  return Array.from(evidenceBySource.values())
+}
 
+function buildItems(statements: Statement[], actions: Action[]): StatementItem[] {
+  const byDocumentId = new Map(
+    statements.map((statement) => [statement.document.id, { statement, actions: [] as Action[] }]),
+  )
   const standalone: Action[] = []
 
   for (const action of actions) {
-    if (action.change === 'add') {
-      standalone.push(action)
-      continue
-    }
-    if (action.target_wikidata_statement_id === null) {
+    if (action.change !== 'add' && action.target_wikidata_statement_id === null) {
       throw new Error(`Action ${action.id} changes an existing statement but has no target`)
     }
-    const index = indexByDocumentId.get(action.target_wikidata_statement_id)
-    if (index === undefined) {
-      // The target remains stable even when its cached statement is gone.
+    const item =
+      action.target_wikidata_statement_id === null
+        ? undefined
+        : byDocumentId.get(action.target_wikidata_statement_id)
+    if (item) {
+      item.actions.push(action)
+    } else {
       standalone.push(action)
-      continue
     }
-    items[index].actions.push(action)
   }
 
   return [
-    ...items,
-    ...groupActions(standalone).map((group) => ({ statement: null, actions: group })),
+    ...byDocumentId.values(),
+    ...groupProposals(standalone).map((group) => ({ statement: null, actions: group })),
   ]
 }
 

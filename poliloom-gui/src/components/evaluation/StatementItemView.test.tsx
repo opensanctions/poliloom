@@ -313,7 +313,7 @@ describe('StatementItemView - add actions', () => {
     expect(screen.queryByText('Statsminister')).not.toBeInTheDocument()
   })
 
-  it('groups equivalent proposals but keeps each id independently reviewable', () => {
+  it('shows a proposed term once with both sources and one decision', () => {
     const secondSource = {
       ...mockSource,
       id: 'archived-2',
@@ -350,52 +350,52 @@ describe('StatementItemView - add actions', () => {
     expect(screen.queryByText('Add reference')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: secondSource.url })).toBeInTheDocument()
-    // Only the active source's action is decidable; the other id is independent.
     expect(screen.getAllByRole('button', { name: /✓ Accept/ })).toHaveLength(1)
-    expect(screen.getByText('View source to decide')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /× Discard/ })).toHaveLength(1)
+    expect(screen.queryByText('View source to decide')).not.toBeInTheDocument()
   })
 
-  it('calls onDecision with the clicked action id', () => {
-    const onDecision = vi.fn()
+  it('combines quotes from the same archived source without repeating the source', () => {
+    const onViewSource = vi.fn()
     const first = addAction('a1', 'P19', entityContent('Q300'), {
       entityTerms: terms({ sv: 'Svenska staden', en: 'English City' }),
       evidence: [mockEvidence],
       groupKey: 'g1',
     })
     const second = addAction('a2', 'P19', entityContent('Q300'), {
-      evidence: [mockEvidence],
+      evidence: [
+        { ...mockEvidence, id: 'ev-2', supporting_quotes: ['Test proof line', 'Second proof'] },
+      ],
       groupKey: 'g1',
     })
 
     render(
       <StatementItemView
         {...baseProps}
-        onDecision={onDecision}
-        activeSourceId={mockSource.id}
+        onViewSource={onViewSource}
         item={{ statement: null, actions: [first, second] }}
       />,
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: /✓ Accept/ })[0])
-    expect(onDecision).toHaveBeenCalledWith(first, true)
+    expect(screen.getAllByRole('link', { name: mockSource.url })).toHaveLength(1)
+    expect(screen.getAllByText('"Test proof line"')).toHaveLength(1)
+    expect(screen.getByText('"Second proof"')).toBeInTheDocument()
 
-    fireEvent.click(screen.getAllByRole('button', { name: /× Discard/ })[0])
-    expect(onDecision).toHaveBeenCalledWith(first, false)
+    fireEvent.click(screen.getByRole('button', { name: /• View/ }))
+    expect(onViewSource).toHaveBeenCalledWith(mockSource, ['Test proof line', 'Second proof'])
   })
 
   it('shows decided status text when the evidence source is not active', () => {
     render(
       <StatementItemView
         {...baseProps}
+        decisions={{ a1: true }}
         item={{
           statement: null,
           actions: [
-            {
-              ...addAction('a1', 'P19', entityContent('Q300'), {
-                evidence: [mockEvidence],
-              }),
-              is_accepted: true,
-            },
+            addAction('a1', 'P19', entityContent('Q300'), {
+              evidence: [mockEvidence],
+            }),
           ],
         }}
       />,
@@ -554,7 +554,7 @@ describe('StatementItemView - refine and reference actions', () => {
     expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
   })
 
-  it('keeps grouped reference proposals independently decidable per source', () => {
+  it('shows adding multiple references as one change to the existing statement', () => {
     const secondSource = { ...mockSource, id: 'archived-2', url: 'https://example.com/second' }
     const before = fact('P569', target.document.value)
     render(
@@ -578,11 +578,12 @@ describe('StatementItemView - refine and reference actions', () => {
     )
 
     expect(screen.getAllByText('January 1, 1980')).toHaveLength(1)
-    expect(screen.getByText('Add reference')).toBeInTheDocument()
+    expect(screen.queryByText('For: January 1, 1980')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Add references' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: mockSource.url })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: secondSource.url })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /✓ Accept/ })).toHaveLength(1)
-    expect(screen.getByText('View source to decide')).toBeInTheDocument()
+    expect(screen.queryByText('View source to decide')).not.toBeInTheDocument()
   })
 
   it('renders multiple edit actions as separate proposals', () => {
@@ -638,24 +639,22 @@ describe('StatementItemView - refine and reference actions', () => {
     expect(screen.queryByText('New statement')).not.toBeInTheDocument()
   })
 
-  it('marks the served decision state on edit action buttons', () => {
+  it('marks the local decision state on edit action buttons', () => {
     render(
       <StatementItemView
         {...baseProps}
+        decisions={{ e1: false }}
         activeSourceId={mockSource.id}
         item={{
           statement: target,
           actions: [
-            {
-              ...refineAction(
-                'e1',
-                's1',
-                fact('P569', target.document.value),
-                fact('P569', timeContent('+1980-01-02T00:00:00Z')),
-                { evidence: [mockEvidence] },
-              ),
-              is_accepted: false,
-            },
+            refineAction(
+              'e1',
+              's1',
+              fact('P569', target.document.value),
+              fact('P569', timeContent('+1980-01-02T00:00:00Z')),
+              { evidence: [mockEvidence] },
+            ),
           ],
         }}
       />,

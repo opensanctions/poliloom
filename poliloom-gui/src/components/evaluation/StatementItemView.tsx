@@ -1,11 +1,17 @@
 import { ReactNode } from 'react'
-import type { Action, RestSnak, RestValue, SourceResponse, StatementFact, TermMaps } from '@/types'
+import type {
+  Action,
+  ActionEvidence,
+  RestValue,
+  SourceResponse,
+  StatementFact,
+  TermMaps,
+} from '@/types'
 import {
-  effectiveDecision,
-  groupActions,
-  itemFact,
-  type LocalDecisions,
-  type StatementItem as StatementItemType,
+  groupProposals,
+  proposalEvidence,
+  type ProposalDecisions,
+  type StatementItem,
 } from '@/lib/actions'
 import { best_label } from '@/lib/labels'
 import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
@@ -37,8 +43,18 @@ function InlineDiff({ before, after }: { before: string; after: string }) {
   )
 }
 
-function timeframeDisplay(qualifiers: RestSnak[]): string {
-  return formatTimeframe(parseTimeframe(qualifiers))
+function factValueDisplay(
+  fact: StatementFact,
+  terms: TermMaps | null,
+  labelLanguages: string[],
+): string {
+  return fact.property.id === 'P39'
+    ? formatTimeframe(parseTimeframe(fact.qualifiers))
+    : valueDisplay(fact.value, terms, labelLanguages)
+}
+
+function showsFactValue(propertyId: string): boolean {
+  return propertyId === 'P39' || propertyId === 'P569' || propertyId === 'P570'
 }
 
 function FactDiff({
@@ -53,18 +69,10 @@ function FactDiff({
   afterTerms: TermMaps | null
 }) {
   const labelLanguages = useLabelLanguages()
-  if (after.property.id === 'P39') {
-    return (
-      <InlineDiff
-        before={timeframeDisplay(before.qualifiers)}
-        after={timeframeDisplay(after.qualifiers)}
-      />
-    )
-  }
   return (
     <InlineDiff
-      before={valueDisplay(before.value, beforeTerms, labelLanguages)}
-      after={valueDisplay(after.value, afterTerms, labelLanguages)}
+      before={factValueDisplay(before, beforeTerms, labelLanguages)}
+      after={factValueDisplay(after, afterTerms, labelLanguages)}
     />
   )
 }
@@ -99,6 +107,7 @@ function DecisionButtons({
         size="small"
         variant="success"
         active={decision === true}
+        aria-pressed={decision === true}
         onClick={() => onDecision(true)}
         title="Mark this proposal as correct and submit it to Wikidata"
       >
@@ -108,6 +117,7 @@ function DecisionButtons({
         size="small"
         variant="danger"
         active={decision === false}
+        aria-pressed={decision === false}
         onClick={() => onDecision(false)}
         title="Mark this proposal as incorrect"
       >
@@ -117,170 +127,146 @@ function DecisionButtons({
   )
 }
 
-// --- Action rows ---
-
-interface ActionRowProps {
-  action: Action
-  decisions: LocalDecisions
-  onDecision: (action: Action, isAccepted: boolean) => void
+interface ReviewControls {
+  decisions: ProposalDecisions
+  onDecision: (proposal: Action[], isAccepted: boolean) => void
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
-  onHover: () => void
+  onHover?: (evidence: ActionEvidence[]) => void
   activeSourceId?: string | null
 }
 
-function ActionRow({
-  action,
+interface ProposalViewProps extends ReviewControls {
+  proposal: Action[]
+  isNewGroup: boolean
+  currentValue: string | null
+  currentTerms: TermMaps | null
+}
+
+function ProposalView({
+  proposal,
+  isNewGroup,
+  currentValue,
+  currentTerms,
   decisions,
   onDecision,
   onViewSource,
   onHover,
   activeSourceId,
-}: ActionRowProps) {
-  const decision = effectiveDecision(action, decisions)
-  const evidence = action.evidence
+}: ProposalViewProps) {
+  const labelLanguages = useLabelLanguages()
+  const first = proposal[0]
+  const { change, before, after, entity_terms: entityTerms } = first
+  const evidence = proposalEvidence(proposal)
+  const referenceCount = proposal.reduce(
+    (count, action) => count + action.references_to_add.length,
+    0,
+  )
+  const value = showsFactValue(after.property.id)
+    ? factValueDisplay(after, entityTerms, labelLanguages)
+    : null
+  const decision = decisions[first.group_key] ?? null
   const isSourceVisible =
-    evidence.length === 0 || evidence.some((e) => e.source.id === activeSourceId)
+    evidence.length === 0 || evidence.some((entry) => entry.source.id === activeSourceId)
+
+  let content: ReactNode
+  switch (change) {
+    case 'add': {
+      const proposedData = value ?? (isNewGroup ? null : 'New statement')
+      content = proposedData && (
+        <div
+          className={`font-medium ${isNewGroup ? 'text-foreground-secondary' : 'text-success-foreground'}`}
+        >
+          {!isNewGroup && <span aria-hidden="true">+ </span>}
+          <span>{proposedData}</span>
+        </div>
+      )
+      break
+    }
+    case 'refine':
+      if (!before) throw new Error(`Refinement ${first.group_key} has no before fact`)
+      content = (
+        <FactDiff
+          before={before}
+          after={after}
+          beforeTerms={currentTerms}
+          afterTerms={entityTerms}
+        />
+      )
+      break
+    case 'reference':
+      content = (
+        <div>
+          <h4 className="text-sm font-medium text-success-foreground">
+            <span aria-hidden="true">+ </span>
+            <span>{referenceCount === 1 ? 'Add reference' : 'Add references'}</span>
+          </h4>
+          {value !== null && value !== currentValue && (
+            <p className="text-sm text-foreground-secondary">For: {value}</p>
+          )}
+        </div>
+      )
+      break
+  }
 
   return (
     <div className="space-y-2">
-      {evidence.length > 0 && (
-        <StatementSource
-          evidence={evidence}
-          activeSourceId={activeSourceId}
-          onViewSource={onViewSource}
-          onHover={onHover}
-        />
-      )}
+      {content}
+      <StatementSource
+        evidence={evidence}
+        activeSourceId={activeSourceId}
+        onViewSource={onViewSource}
+        onHover={() => onHover?.(evidence)}
+      />
       <div className="flex items-center justify-end">
         <DecisionButtons
           decision={decision}
           isSourceVisible={isSourceVisible}
-          onDecision={(isAccepted) => onDecision(action, isAccepted)}
+          onDecision={(isAccepted) => onDecision(proposal, isAccepted)}
         />
       </div>
     </div>
   )
 }
 
-// --- Statement item ---
-
-export interface StatementItemViewProps {
-  item: StatementItemType
+export interface StatementItemViewProps extends ReviewControls {
+  item: StatementItem
   /** Whether the group title itself already marks this value as proposed. */
   isNewGroup: boolean
-  decisions: LocalDecisions
-  onDecision: (action: Action, isAccepted: boolean) => void
-  onViewSource?: (source: SourceResponse, quotes?: string[]) => void
-  onHover?: (item: StatementItemType) => void
-  activeSourceId?: string | null
 }
 
-export function StatementItemView({
-  item,
-  isNewGroup,
-  decisions,
-  onDecision,
-  onViewSource,
-  onHover,
-  activeSourceId,
-}: StatementItemViewProps) {
+export function StatementItemView({ item, isNewGroup, ...controls }: StatementItemViewProps) {
   const labelLanguages = useLabelLanguages()
-
-  const fact = itemFact(item)
-  const propertyId = fact.property.id
-  const isDate = propertyId === 'P569' || propertyId === 'P570'
-  const entityTerms = item.statement?.entity_terms ?? item.actions[0]?.entity_terms ?? null
-  const isAdd = item.actions[0]?.change === 'add'
-  const hasRefine = item.actions.some((action) => action.change === 'refine')
-
-  let content: ReactNode = null
-  if (!item.statement) {
-    if (isAdd) {
-      let proposedData: string | null = isNewGroup ? null : 'New statement'
-      if (isDate) {
-        proposedData = valueDisplay(fact.value, entityTerms, labelLanguages)
-      } else if (propertyId === 'P39') {
-        proposedData = timeframeDisplay(fact.qualifiers)
-      }
-      const showProposedMarker = !isNewGroup || isDate
-      content = proposedData && (
-        <div
-          className={`font-medium ${showProposedMarker ? 'text-success-foreground' : 'text-foreground-secondary'}`}
-        >
-          {showProposedMarker && <span aria-hidden="true">+ </span>}
-          <span>{proposedData}</span>
-        </div>
-      )
-    }
-  } else {
-    const contextPrefix = hasRefine ? 'Current Wikidata: ' : ''
-    if (isDate) {
-      content = (
-        <span className="text-foreground-secondary flex-1">
-          {contextPrefix + valueDisplay(fact.value, entityTerms, labelLanguages)}
-        </span>
-      )
-    } else if (propertyId === 'P39') {
-      const timeframe = parseTimeframe(fact.qualifiers)
-      content = (
-        <span
-          className={`flex-1 ${timeframe.start === null && timeframe.end === null ? 'text-foreground-subtle italic' : 'text-foreground-secondary'}`}
-        >
-          {contextPrefix +
-            (timeframe.start === null && timeframe.end === null
-              ? 'No timeframe specified'
-              : formatTimeframe(timeframe))}
-        </span>
-      )
-    }
-  }
-
-  const actionRowProps = {
-    decisions,
-    onDecision,
-    onViewSource,
-    onHover: () => onHover?.(item),
-    activeSourceId,
-  }
+  const { statement, actions } = item
+  const fact = statement?.document
+  const currentTerms = statement?.entity_terms ?? null
+  const currentValue =
+    fact && showsFactValue(fact.property.id)
+      ? factValueDisplay(fact, currentTerms, labelLanguages)
+      : null
+  const timeframe = fact?.property.id === 'P39' ? parseTimeframe(fact.qualifiers) : null
+  const missingTimeframe = timeframe && timeframe.start === null && timeframe.end === null
+  const hasRefine = actions.some((action) => action.change === 'refine')
 
   return (
-    <div className="space-y-3" onMouseEnter={() => onHover?.(item)}>
-      {content && <div className="flex items-start gap-4 font-medium">{content}</div>}
-
-      {groupActions(item.actions).map((actions) => {
-        const first = actions[0]
-        return (
-          <div key={first.group_key} className="space-y-3">
-            {first.change === 'refine' && first.before && (
-              <FactDiff
-                before={first.before}
-                after={first.after}
-                beforeTerms={item.statement?.entity_terms ?? null}
-                afterTerms={first.entity_terms}
-              />
-            )}
-            {first.change === 'reference' && (
-              <div>
-                <h4 className="text-sm font-medium text-success-foreground">
-                  <span aria-hidden="true">+ </span>
-                  <span>Add reference</span>
-                </h4>
-                {(isDate || propertyId === 'P39') && (
-                  <p className="text-sm text-foreground-secondary">
-                    {'For: ' +
-                      (isDate
-                        ? valueDisplay(first.after.value, first.entity_terms, labelLanguages)
-                        : timeframeDisplay(first.after.qualifiers))}
-                  </p>
-                )}
-              </div>
-            )}
-            {actions.map((action) => (
-              <ActionRow key={action.id} action={action} {...actionRowProps} />
-            ))}
-          </div>
-        )
-      })}
+    <div className="space-y-3">
+      {currentValue !== null && (
+        <div
+          className={`font-medium ${missingTimeframe ? 'text-foreground-subtle italic' : 'text-foreground-secondary'}`}
+        >
+          {(hasRefine ? 'Current Wikidata: ' : '') +
+            (missingTimeframe ? 'No timeframe specified' : currentValue)}
+        </div>
+      )}
+      {groupProposals(actions).map((proposal) => (
+        <ProposalView
+          key={proposal[0].group_key}
+          proposal={proposal}
+          isNewGroup={isNewGroup}
+          currentValue={currentValue}
+          currentTerms={currentTerms}
+          {...controls}
+        />
+      ))}
     </div>
   )
 }

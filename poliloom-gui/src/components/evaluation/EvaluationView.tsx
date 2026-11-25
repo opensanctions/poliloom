@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, ReactNode, Fragment } from 'react'
 import {
   type Action,
+  type ActionEvidence,
   type PatchActionsResponse,
   type Politician,
   type ReviewSubmitPayload,
@@ -10,10 +11,10 @@ import {
 } from '@/types'
 import {
   buildSubmission,
-  effectiveDecision,
   groupStatementsIntoSections,
-  type LocalDecisions,
-  type StatementItem,
+  proposalEvidence,
+  statementItemKey,
+  type ProposalDecisions,
 } from '@/lib/actions'
 import { best_label } from '@/lib/labels'
 import { useLabelLanguages } from '@/contexts/LabelLanguageContext'
@@ -109,7 +110,7 @@ export function EvaluationView({
 }: EvaluationViewProps) {
   const labelLanguages = useLabelLanguages()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [decisions, setDecisions] = useState<LocalDecisions>({})
+  const [decisions, setDecisions] = useState<ProposalDecisions>({})
   const [applicationErrors, setApplicationErrors] = useState<string[]>([])
   const [submissionError, setSubmissionError] = useState<string | null>(null)
 
@@ -119,7 +120,7 @@ export function EvaluationView({
   )
 
   const decidedCount = politician.actions.filter(
-    (action) => effectiveDecision(action, decisions) !== null,
+    (action) => decisions[action.group_key] !== undefined,
   ).length
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -140,11 +141,17 @@ export function EvaluationView({
     }
   }, [quotes, isIframeLoaded, highlightText])
 
-  const handleDecision = useCallback((action: Action, isAccepted: boolean) => {
-    setDecisions((prev) => ({
-      ...prev,
-      [action.id]: effectiveDecision(action, prev) === isAccepted ? null : isAccepted,
-    }))
+  const handleDecision = useCallback((proposal: Action[], isAccepted: boolean) => {
+    const key = proposal[0].group_key
+    setDecisions((prev) => {
+      const next = { ...prev }
+      if (next[key] === isAccepted) {
+        delete next[key]
+      } else {
+        next[key] = isAccepted
+      }
+      return next
+    })
   }, [])
 
   const submit = useCallback(async () => {
@@ -175,11 +182,9 @@ export function EvaluationView({
     [onSelectionChange],
   )
 
-  const handleItemHover = (item: StatementItem) => {
+  const handleEvidenceHover = (evidence: ActionEvidence[]) => {
     if (!selection) return
-    const matching = item.actions
-      .flatMap((action) => action.evidence)
-      .find((evidence) => evidence.source.id === selection.source.id)
+    const matching = evidence.find((entry) => entry.source.id === selection.source.id)
     if (!matching?.supporting_quotes?.length) return
     onSelectionChange({ ...selection, quotes: matching.supporting_quotes })
   }
@@ -219,9 +224,7 @@ export function EvaluationView({
                   const isNewGroup =
                     section.sectionType !== 'date' &&
                     group.items.every(
-                      (item) =>
-                        item.statement === null &&
-                        item.actions.every((action) => action.change === 'add'),
+                      (item) => item.statement === null && item.actions[0].change === 'add',
                     )
                   return (
                     <HeaderedBox
@@ -234,17 +237,11 @@ export function EvaluationView({
                           proposed={isNewGroup}
                         />
                       }
-                      onHover={() => handleItemHover(first)}
+                      onHover={() => handleEvidenceHover(proposalEvidence(first.actions))}
                     >
                       <div className="space-y-3">
                         {group.items.map((item, index) => (
-                          <Fragment
-                            key={
-                              item.statement
-                                ? item.statement.document.id
-                                : item.actions.map((action) => action.group_key).join('|')
-                            }
-                          >
+                          <Fragment key={statementItemKey(item)}>
                             {index > 0 && <hr className="border-border-muted my-3" />}
                             <StatementItemView
                               item={item}
@@ -252,7 +249,7 @@ export function EvaluationView({
                               decisions={decisions}
                               onDecision={handleDecision}
                               onViewSource={handleViewSource}
-                              onHover={handleItemHover}
+                              onHover={handleEvidenceHover}
                               activeSourceId={activeSourceId}
                             />
                           </Fragment>

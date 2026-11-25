@@ -459,6 +459,49 @@ describe('EvaluationView', () => {
   })
 
   describe('decisions', () => {
+    function matchingProposals(kind: Action['change']) {
+      const date = timeContent('+1975-06-15T00:00:00Z')
+      const current = kind === 'refine' ? timeContent('+1975-00-00T00:00:00Z', 9) : date
+      const target = makeStatement('birth', 'P569', current)
+      const proposal = (id: string, source: SourceResponse) => {
+        const references = [
+          { parts: [{ property: { id: 'P854' }, value: entityContent(source.url) }] },
+        ]
+        const sources = [evidence(`ev-${id}`, source, ['born June 15'])]
+        const groupKey = 'same-change'
+        switch (kind) {
+          case 'add':
+            return createAction(id, 'P569', date, sources, { references, groupKey })
+          case 'refine':
+            return refineAction(
+              id,
+              target.document.id,
+              fact('P569', current),
+              fact('P569', date),
+              sources,
+              { groupKey },
+            )
+          case 'reference':
+            return referenceAction(
+              id,
+              target.document.id,
+              fact('P569', date),
+              references,
+              sources,
+              { groupKey },
+            )
+        }
+      }
+      return {
+        statements: kind === 'add' ? [] : [target],
+        first: proposal('action-1', source1),
+        second: proposal('action-2', source2),
+        unrelated: createAction('action-3', 'P569', timeContent('+1980-06-15T00:00:00Z'), [
+          evidence('ev-3', source3, ['born in 1980']),
+        ]),
+      }
+    }
+
     it('marks an action accepted when Accept is clicked and clears it when clicked again', () => {
       render(
         <ControlledEvaluationView
@@ -517,59 +560,82 @@ describe('EvaluationView', () => {
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(1)
     })
 
-    it.each(['add', 'reference'])(
-      'keeps a refreshed %s source independently reviewable',
-      async (kind) => {
+    it.each([
+      { kind: 'add', accepted: true },
+      { kind: 'refine', accepted: true },
+      { kind: 'reference', accepted: false },
+    ] as const)(
+      'decides all shown members of a $kind proposal with one control',
+      async ({ kind, accepted }) => {
         const onSubmit = vi.fn().mockResolvedValue(undefined)
-        const date = timeContent('+1975-06-15T00:00:00Z')
-        const target = makeStatement('birth', 'P569', date)
-        const proposal = (id: string, source: SourceResponse) => {
-          const references = [
-            { parts: [{ property: { id: 'P854' }, value: entityContent(source.url) }] },
-          ]
-          const sources = [evidence(`ev-${id}`, source, ['born June 15'])]
-          return kind === 'add'
-            ? createAction(id, 'P569', date, sources, { references })
-            : referenceAction(id, target.document.id, fact('P569', date), references, sources)
-        }
-        const first = proposal('action-1', source1)
-        const second = proposal('action-2', source2)
-        const unrelated = createAction('action-3', 'P19', entityContent('Q300'), [
-          evidence('ev-3', source3, ['born in Capital City']),
-        ])
-        const view = (actions: Action[]) => (
+        const { statements, first, second, unrelated } = matchingProposals(kind)
+        render(
           <ControlledEvaluationView
             politician={{
               ...politicianWithDifferentSources,
-              statements: kind === 'add' ? [] : [target],
-              actions,
+              statements,
+              actions: [first, second, unrelated],
             }}
+            onSubmit={onSubmit}
+            footer={({ submit }) => <button onClick={submit}>Submit Decisions &amp; Next</button>}
+          />,
+        )
+
+        expect(screen.getAllByText('View source to decide')).toHaveLength(1)
+        const button = screen.getByRole('button', { name: accepted ? '✓ Accept' : '× Discard' })
+        fireEvent.click(button)
+        expect(button).toHaveAttribute('aria-pressed', 'true')
+        fireEvent.click(button)
+        expect(button).toHaveAttribute('aria-pressed', 'false')
+        fireEvent.click(button)
+        fireEvent.click(screen.getByRole('button', { name: /Submit Decisions & Next/ }))
+
+        await waitFor(() =>
+          expect(onSubmit).toHaveBeenCalledWith({
+            actions: [
+              { id: first.id, is_accepted: accepted },
+              { id: second.id, is_accepted: accepted },
+            ],
+            skips: [unrelated.id],
+          }),
+        )
+      },
+    )
+
+    it.each([
+      { kind: 'add', accepted: true },
+      { kind: 'refine', accepted: false },
+      { kind: 'reference', accepted: true },
+    ] as const)(
+      'keeps the $kind row decision when an equivalent source arrives before Submit',
+      async ({ kind, accepted }) => {
+        const onSubmit = vi.fn().mockResolvedValue(undefined)
+        const { statements, first, second, unrelated } = matchingProposals(kind)
+        const view = (actions: Action[]) => (
+          <ControlledEvaluationView
+            politician={{ ...politicianWithDifferentSources, statements, actions }}
             onSubmit={onSubmit}
             footer={({ submit }) => <button onClick={submit}>Submit Decisions &amp; Next</button>}
           />
         )
         const { rerender } = render(view([first, unrelated]))
-        fireEvent.click(screen.getByRole('button', { name: /✓ Accept/ }))
+        const decisionButton = { name: accepted ? '✓ Accept' : '× Discard' }
+        fireEvent.click(screen.getByRole('button', decisionButton))
 
         rerender(view([second, first, unrelated]))
-        // The first id stays accepted; the refreshed source is still undecided.
-        expect(screen.getAllByRole('button', { name: /✓ Accept/ })).toHaveLength(1)
-        expect(screen.getByRole('button', { name: /✓ Accept/ })).toHaveClass('bg-success')
-        expect(screen.getAllByText('View source to decide')).toHaveLength(2)
-
-        fireEvent.click(screen.getAllByRole('button', { name: /• View|• Viewing/ })[0])
-        expect(screen.getByText('✓ Accepted')).toBeInTheDocument()
-        fireEvent.click(screen.getAllByRole('button', { name: /✓ Accept/ })[0])
+        expect(screen.getAllByText('"born June 15"')).toHaveLength(2)
+        expect(screen.getByRole('button', decisionButton)).toHaveAttribute('aria-pressed', 'true')
         fireEvent.click(screen.getByRole('button', { name: /Submit Decisions & Next/ }))
 
-        await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
-        expect(onSubmit).toHaveBeenCalledWith({
-          actions: [
-            { id: second.id, is_accepted: true },
-            { id: first.id, is_accepted: true },
-          ],
-          skips: [unrelated.id],
-        })
+        await waitFor(() =>
+          expect(onSubmit).toHaveBeenCalledWith({
+            actions: [
+              { id: second.id, is_accepted: accepted },
+              { id: first.id, is_accepted: accepted },
+            ],
+            skips: [unrelated.id],
+          }),
+        )
       },
     )
 
